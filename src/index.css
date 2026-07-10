@@ -1,0 +1,369 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Redefining colors to enforce Black, White, Red only constraint */
+  --color-cyan-50: #fff5f5;
+  --color-cyan-100: #fee2e2;
+  --color-cyan-200: #fecaca;
+  --color-cyan-300: #fca5a5;
+  --color-cyan-400: #f87171;
+  --color-cyan-500: #ef4444;
+  --color-cyan-600: #dc2626;
+  --color-cyan-700: #b91c1c;
+  --color-cyan-800: #991b1b;
+  --color-cyan-900: #7f1d1d;
+  --color-cyan-950: #450a0a;
+
+  --color-emerald-50: #ffffff;
+  --color-emerald-100: #f5f5f5;
+  --color-emerald-200: #e5e5e5;
+  --color-emerald-300: #d4d4d4;
+  --color-emerald-400: #737373;
+  --color-emerald-500: #000000;
+  --color-emerald-600: #000000;
+  --color-emerald-700: #171717;
+  --color-emerald-800: #262626;
+  --color-emerald-900: #404040;
+  --color-emerald-950: #0a0a0a;
+
+  --color-amber-50: #fee2e2;
+  --color-amber-100: #fecaca;
+  --color-amber-200: #fca5a5;
+  --color-amber-300: #f87171;
+  --color-amber-400: #ef4444;
+  --color-amber-500: #dc2626;
+  --color-amber-600: #b91c1c;
+  --color-amber-700: #991b1b;
+  --color-amber-800: #7f1d1d;
+  --color-amber-900: #450a0a;
+  --color-amber-950: #000000;
+
+  --color-orange-50: #fee2e2;
+  --color-orange-100: #fecaca;
+  --color-orange-200: #fca5a5;
+  --color-orange-300: #f87171;
+  --color-orange-400: #ef4444;
+  --color-orange-500: #dc2626;
+  --color-orange-600: #b91c1c;
+  --color-orange-700: #991b1b;
+  --color-orange-800: #7f1d1d;
+  --color-orange-900: #450a0a;
+  --color-orange-950: #000000;
+
+  --color-blue-50: #ffffff;
+  --color-blue-100: #f5f5f5;
+  --color-blue-200: #e5e5e5;
+  --color-blue-300: #d4d4d4;
+  --color-blue-400: #737373;
+  --color-blue-500: #404040;
+  --color-blue-600: #171717;
+  --color-blue-700: #000000;
+  --color-blue-800: #000000;
+  --color-blue-900: #000000;
+  --color-blue-950: #000000;
+
+  --color-indigo-50: #ffffff;
+  --color-indigo-100: #f5f5f5;
+  --color-indigo-200: #e5e5e5;
+  --color-indigo-300: #d4d4d4;
+  --color-indigo-400: #737373;
+  --color-indigo-500: #404040;
+  --color-indigo-600: #171717;
+  --color-indigo-700: #000000;
+
+  --color-slate-50: #ffffff;
+  --color-slate-100: #f5f5f5;
+  --color-slate-200: #e5e5e5;
+  --color-slate-300: #d4d4d4;
+  --color-slate-400: #a3a3a3;
+  --color-slate-500: #737373;
+  --color-slate-600: #525252;
+  --color-slate-700: #404040;
+  --color-slate-800: #262626;
+  --color-slate-850: #1a1a1a;
+  --color-slate-900: #0a0a0a;
+  --color-slate-950: #000000;
+}
+
+/* Custom scrollbar utility */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 2px;
+}
+
+/* --- HIGH CONTRAST ACCESSIBILITY MODE --- */
+.high-contrast {
+  --bg-main: #ffffff;
+  --text-main: #000000;
+  --border-main: #000000;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+.high-contrast * {
+  text-rendering: optimizeLegibility;
+}
+
+/* Thick absolute black borders for panels */
+.high-contrast div.border,
+.high-contrast section.border,
+.high-contrast form.border,
+.high-contrast button.border,
+.high-contrast aside,
+.high-contrast header,
+.high-contrast footer,
+.high-contrast input.border,
+.high-contrast select,
+.high-contrast textarea {
+  border-color: #000000 !important;
+  border-width: 2px !important;
+}
+
+/* Keep card layouts crisp on solid white */
+.high-contrast .bg-white,
+.high-contrast .bg-slate-50,
+.high-contrast .bg-slate-100\/40,
+.high-contrast .bg-slate-100\/80,
+.high-contrast .bg-slate-100,
+.high-contrast .bg-slate-200,
+.high-contrast .bg-[#0e1424]\/40,
+.high-contrast .bg-[#0e1424]\/20,
+.high-contrast .bg-[#0e1424]\/25,
+.high-contrast .bg-slate-900\/10,
+.high-contrast .bg-[#0c1221],
+.high-contrast .bg-[#0b0e1a],
+.high-contrast .bg-[#070a13],
+.high-contrast .bg-[#04060d],
+.high-contrast .bg-slate-900\/5,
+.high-contrast .bg-slate-950\/40 {
+  background-color: #ffffff !important;
+}
+
+/* Typography contrast enhancement */
+.high-contrast p,
+.high-contrast li,
+.high-contrast span,
+.high-contrast .text-slate-400,
+.high-contrast .text-slate-500,
+.high-contrast .text-slate-600,
+.high-contrast .text-slate-700,
+.high-contrast .text-slate-800,
+.high-contrast .text-slate-300 {
+  color: #000000 !important;
+  font-weight: 500 !important;
+}
+
+.high-contrast .text-white,
+.high-contrast .text-slate-900,
+.high-contrast .text-slate-950,
+.high-contrast input,
+.high-contrast textarea {
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast strong,
+.high-contrast b {
+  color: #000000 !important;
+  font-weight: 900 !important;
+}
+
+/* High Contrast Accent Badges */
+.high-contrast .text-cyan-400,
+.high-contrast .text-cyan-500,
+.high-contrast .text-cyan-600 {
+  color: #004d61 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast .bg-cyan-500\/10,
+.high-contrast .bg-cyan-500\/5 {
+  background-color: #e6f7ff !important;
+  border: 1.5px solid #004d61 !important;
+}
+
+.high-contrast .text-amber-400,
+.high-contrast .text-amber-500,
+.high-contrast .text-amber-600 {
+  color: #6a3b00 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast .bg-amber-500\/10 {
+  background-color: #fffbe6 !important;
+  border: 1.5px solid #6a3b00 !important;
+}
+
+.high-contrast .text-emerald-400,
+.high-contrast .text-emerald-500,
+.high-contrast .text-emerald-600 {
+  color: #004d20 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast .bg-emerald-500\/10,
+.high-contrast .bg-emerald-500\/5 {
+  background-color: #f6ffed !important;
+  border: 1.5px solid #004d20 !important;
+}
+
+.high-contrast .text-red-400,
+.high-contrast .text-red-500,
+.high-contrast .text-red-600,
+.high-contrast .text-red-700 {
+  color: #820014 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast .bg-red-500\/10,
+.high-contrast .bg-red-500\/5 {
+  background-color: #fff1f0 !important;
+  border: 1.5px solid #820014 !important;
+}
+
+/* Side navigation active button */
+.high-contrast .bg-cyan-500\/10.text-cyan-400 {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Buttons should have maximum visual distinctness */
+.high-contrast .bg-cyan-600,
+.high-contrast .bg-cyan-500 {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  border: 2px solid #000000 !important;
+  font-weight: 800 !important;
+}
+
+.high-contrast .bg-cyan-600:hover,
+.high-contrast .bg-cyan-500:hover {
+  background-color: #1e293b !important;
+}
+
+.high-contrast button.bg-slate-100,
+.high-contrast button.bg-slate-900 {
+  border: 2px solid #000000 !important;
+  background-color: #ffffff !important;
+  color: #000000 !important;
+}
+
+/* --- STARK BLACK, WHITE, RED STYLES & OVERRIDES --- */
+.dark-mode-active,
+body {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Force hex-colored container overrides into Stark palette */
+div[class*="bg-[#0b0e1a]"],
+div[class*="bg-[#0e1424]"],
+div[class*="bg-[#0c1221]"],
+div[class*="bg-[#070a13]"],
+div[class*="bg-[#04060d]"],
+header[class*="bg-[#070a13]"],
+footer[class*="bg-[#0b0e1a]"] {
+  background-color: #0c0c0c !important;
+  border-color: #262626 !important;
+}
+
+aside[class*="bg-[#090d16]"] {
+  background-color: #080808 !important;
+  border-color: #262626 !important;
+}
+
+/* --- CSS PRINT MEDIA QUERY FOR REPORT DASHBOARD --- */
+@media print {
+  /* Hide interactive, non-document elements */
+  button,
+  nav,
+  aside,
+  header,
+  footer,
+  .no-print,
+  [role="tablist"],
+  .tab-buttons,
+  .print-hidden,
+  #sidebar_root,
+  .fixed,
+  iframe {
+    display: none !important;
+  }
+
+  /* Force document layouts to expand to full page width */
+  body, 
+  #root, 
+  #dashboard_root,
+  main,
+  .max-w-4xl,
+  .max-w-7xl {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  /* Make sure background colors print nicely if enabled, but force contrast */
+  * {
+    background-color: transparent !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Specifically force borders and visible structures for elements */
+  .border,
+  .border-b,
+  .border-t,
+  .border-r,
+  .border-l {
+    border: 1px solid #000000 !important;
+  }
+
+  /* Ensure text is clearly legible */
+  h1, h2, h3, h4, h5, h6, strong, b {
+    color: #000000 !important;
+    font-weight: bold !important;
+  }
+
+  p, li, span, code, td, th {
+    color: #1a1a1a !important;
+  }
+
+  /* Print specific breaks */
+  .page-break {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  /* Avoid splitting section headers and finding cards across pages */
+  h1, h2, h3, .border, .rounded-xl {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+}
+
+
+

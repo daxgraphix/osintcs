@@ -1,0 +1,6 @@
+{
+  "name": "OSINTCS",
+  "description": "A privacy-first, browser-based OSINT workspace that performs deterministic, parallel investigations using public information and rule-based risk analysis.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

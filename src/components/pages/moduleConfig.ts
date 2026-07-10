@@ -1,0 +1,135 @@
+import React from 'react';
+import {
+  Shield,
+  Globe,
+  Server,
+  User,
+  Phone,
+  Key,
+  Mail,
+  Hash,
+  FileCode,
+  Terminal,
+  Upload,
+  AlertCircle,
+  Eye,
+  FileUp,
+  Cpu,
+  Lock,
+  Database,
+  Sun,
+  Moon,
+  QrCode,
+  Trash2,
+  History,
+  Layers,
+  ChevronRight,
+  ChevronLeft,
+  Play,
+  Check,
+  CameraOff,
+  CheckCircle2,
+  X,
+  FileText,
+  RefreshCw,
+  AlertTriangle,
+  Menu,
+  Sliders,
+  Settings,
+  ArrowRight,
+  Info,
+  FileSpreadsheet,
+} from 'lucide-react';
+import { TargetType } from '../../types';
+
+export interface ModuleConfig {
+  id: TargetType | 'risk';
+  label: string;
+  placeholder: string;
+  description: string;
+  helpHint: string;
+  icon: React.ComponentType<any>;
+}
+
+export const QUICK_MODULES: ModuleConfig[] = [
+  {
+    id: 'risk',
+    label: 'Risk Scanner',
+    placeholder: 'Enter any domain, website, IP, email, username or hash...',
+    description: 'Perform parallel OSINT checks and evaluate structural security scoring.',
+    helpHint: 'Full system check prioritizing SPF, DMARC, SSL handshakes, and port exposures.',
+    icon: Shield,
+  },
+  {
+    id: 'image',
+    label: 'Image Verify',
+    placeholder: 'Choose or drag & drop an image to verify integrity...',
+    description: 'Inspect generator traces, metadata gaps, file-container consistency, and visual forensic signals.',
+    helpHint: 'Reveal AI traces, stripped EXIF, container mismatches, and compression metrics.',
+    icon: Eye,
+  },
+  {
+    id: 'domain',
+    label: 'Domain DNS',
+    placeholder: 'Enter domain name (e.g., example.com)...',
+    description: 'Query active DNS zone files, SPF policies, and DMARC configurations.',
+    helpHint: 'Resolves live MX, A, AAAA, NS, and TXT lines via secure Cloudflare servers.',
+    icon: Globe,
+  },
+  {
+    id: 'website',
+    label: 'Website SSL',
+    placeholder: 'Enter website URL or hostname (e.g., https://example.com)...',
+    description: 'Inspect TLS handshakes, response security headers, and session cookie secure flags.',
+    helpHint: 'Analyzes HSTS, CSP, X-Frame-Options, and active certificate expiry calendars.',
+    icon: Server,
+  },
+  {
+    id: 'ip',
+    label: 'IP Lookup',
+    placeholder: 'Enter IPv4 or IPv6 address...',
+    description: 'Map physical geolocation coordinates, ASN networks, and Tor/VPN/proxy nodes.',
+    helpHint: 'Performs deep geolocational matches and audits port exposures (SSH, FTP).',
+    icon: Database,
+  },
+  {
+    id: 'email',
+    label: 'Email Audit',
+    placeholder: 'Enter email address (e.g., user@domain.com)...',
+    description: 'Resolve RFC 5322 syntax validity, active domain MX paths, and disposable provider affiliations.',
+    helpHint: 'Detects temporary/spam addresses and validates deliverability via DNS headers.',
+    icon: Mail,
+  },
+  {
+    id: 'username',
+    label: 'Username footprint',
+    placeholder: 'Enter unique username...',
+    description: 'Reconnaissance of digital identities across standard web, social, and developer platforms.',
+    helpHint: 'Queries GitHub profiles, dev communities, and public social registries in parallel.',
+    icon: User,
+  },
+  {
+    id: 'phone',
+    label: 'Phone Registry',
+    placeholder: 'Enter telephone number (e.g., +15550199)...',
+    description: 'Verify phone number prefixes, carrier operators, and line classifications.',
+    helpHint: 'Decrypts international country formats, line layouts, and carrier codes.',
+    icon: Phone,
+  },
+  {
+    id: 'hash',
+    label: 'Hash Intel',
+    placeholder: 'Enter MD5, SHA-1, or SHA-256 signature hash...',
+    description: 'Match file checksum digests against standard ransomware or trojan signatures.',
+    helpHint: 'Cross-checks with threat databases for malicious signatures (e.g. WannaCry, Mimikatz).',
+    icon: Key,
+  },
+  {
+    id: 'metadata',
+    label: 'Metadata Extractor',
+    placeholder: 'Drag & drop any office document, PDF, or media file...',
+    description: 'Deconstruct internal document headers, creation dates, and author software tools.',
+    helpHint: 'Saves your file securely in sandbox memory. Zero server uploads occur.',
+    icon: FileCode,
+  },
+];
