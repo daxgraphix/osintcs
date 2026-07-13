@@ -11,19 +11,19 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Slate/neutral remap */
+  /* Slate/neutral remap — shifted darker for high-contrast light mode */
   --color-slate-50:  #f8fafc;
   --color-slate-100: #f1f5f9;
-  --color-slate-200: #e2e8f0;
-  --color-slate-300: #cbd5e1;
-  --color-slate-400: #94a3b8;
-  --color-slate-500: #64748b;
-  --color-slate-600: #475569;
-  --color-slate-700: #334155;
-  --color-slate-800: #1e293b;
-  --color-slate-850: #172033;
-  --color-slate-900: #0f172a;
-  --color-slate-950: #020617;
+  --color-slate-200: #cbd5e1;   /* clearer borders/surfaces */
+  --color-slate-300: #94a3b8;
+  --color-slate-400: #64748b;   /* was #94a3b8 — readable secondary text */
+  --color-slate-500: #475569;   /* was #64748b — readable body text */
+  --color-slate-600: #334155;   /* was #475569 — strong body/headings */
+  --color-slate-700: #1e293b;   /* was #334155 — near-black */
+  --color-slate-800: #172033;
+  --color-slate-850: #111a2b;
+  --color-slate-900: #0b1220;
+  --color-slate-950: #060a13;
 
   /* Accent: Red */
   --color-red-50:  #fff1f2;
@@ -134,7 +134,7 @@ html {
   scroll-behavior: smooth;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-size: 16px;
+  font-size: 18px;
 }
 
 body {
@@ -620,3 +620,24 @@ button:active:not(:disabled) {
   .text-responsive-sm { font-size: 11px !important; }
   .text-responsive-xs { font-size: 10px !important; }
 }
+
+/* ============================================================
+   READABILITY OVERRIDES (visibility / contrast / sizing)
+   The light branch of every isLightMode ternary is what renders,
+   so these keep small fixed-px labels legible and add breathing room.
+   ============================================================ */
+@layer utilities {
+  .text-\[9px\]   { font-size: 11px !important; line-height: 1.5 !important; }
+  .text-\[10px\]  { font-size: 12px !important; line-height: 1.5 !important; }
+  .text-\[11px\]  { font-size: 13px !important; line-height: 1.5 !important; }
+  .text-\[12px\]  { font-size: 14px !important; line-height: 1.55 !important; }
+  .text-\[13px\]  { font-size: 15px !important; line-height: 1.55 !important; }
+  .text-\[14px\]  { font-size: 16px !important; line-height: 1.6 !important; }
+}
+
+/* Comfortable, readable body copy everywhere */
+body {
+  line-height: 1.65;
+  letter-spacing: 0.005em;
+}
+

@@ -52,7 +52,7 @@ export default function MobileHeader({
     <>
       {/* ── Top Mobile Bar ──────────────────────────────── */}
       <header
-        className="md:hidden flex items-center justify-between h-14 px-4 border-b z-40 relative bg-white border-slate-200"
+        className="md:hidden shrink-0 flex items-center justify-between h-14 px-4 border-b z-40 relative bg-white border-slate-200"
         style={{ boxShadow: '0 1px 4px rgba(15,23,42,0.08)' }}
       >
         {/* Left: hamburger + logo */}
