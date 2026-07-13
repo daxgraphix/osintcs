@@ -27,15 +27,6 @@ export function validateEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
-export function validatePhone(value: string): boolean {
-  const digits = value.replace(/[^0-9]/g, '');
-  const cleaned = value.trim();
-  if (cleaned.startsWith('+')) {
-    return digits.length >= 7 && digits.length <= 20 && /^\+?[\s.\-()]*[0-9][\s.\-()0-9]*[0-9]$/.test(cleaned);
-  }
-  return digits.length >= 7 && digits.length <= 20;
-}
-
 export function validateHash(value: string): boolean {
   const cleaned = value.trim().toLowerCase();
   const hexRegex = /^[a-f0-9]+$/;

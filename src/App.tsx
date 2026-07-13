@@ -12,7 +12,6 @@ import {
   Globe,
   Server,
   User,
-  Phone,
   Key,
   Mail,
   Hash,
@@ -49,8 +48,8 @@ import {
   Network,
 } from 'lucide-react';
 
-import { InvestigationTarget, TargetType, ScanResults, Finding } from './types';
-import { detectTargetType, parseInvestigationTarget, validateDomain, validateEmail, validatePhone, validateHash, validateIp, validateUrl, validateUsername, scanMyIp } from './services/osintServices';
+import { InvestigationTarget, TargetType, ScanResults, MyIpResult, Finding } from './types';
+import { detectTargetType, parseInvestigationTarget, scanMyIp } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
@@ -250,6 +249,37 @@ export default function App() {
   // Light-only theme — red/white palette
   const isLightMode = true;
 
+  // Build a complete ScanResults object for a detected public IP so the
+  // full report (findings, remediation, export) is populated consistently.
+  const makeMyIpResults = (result: MyIpResult): ScanResults => ({
+    target: { value: result.ip, type: 'myip' },
+    scanTime: new Date().toLocaleTimeString(),
+    findings: [
+      {
+        id: 'MYIP_DETECTED',
+        module: 'myip',
+        title: 'Public IP Detected',
+        description: `Your public IP is ${result.ip} (${result.ipVersion}), provided by ${result.isp || 'Unknown ISP'} in ${result.country || 'Unknown'}.`,
+        severity: 'pass',
+        category: 'Network Identity',
+        remediation: 'Consider using a reputable VPN or proxy if IP exposure and geolocation leakage are a concern.',
+      },
+    ],
+    riskScore: 0,
+    timeline: [],
+    myip: result,
+    recommendations: [
+      {
+        id: 'MYIP_PRIVACY',
+        title: 'Mask Your Public IP With a Trusted VPN',
+        description: 'Your public IP exposes your ISP, approximate geolocation, and a stable network fingerprint that can be used for tracking and regional content profiling.',
+        priority: 'medium',
+        category: 'Network Privacy',
+        impact: 'Reduces trackability and prevents location-based leakage of your connection identity.',
+      },
+    ],
+  });
+
   const [simulateDelay, setSimulateDelay] = useState(true);
   const [strictScans, setStrictScans] = useState(false);
 
@@ -424,16 +454,7 @@ export default function App() {
         setQuery('Detecting your public IP...');
         try {
           const result = await scanMyIp();
-          setResults({
-            target: { value: result.ip, type: 'myip' as TargetType },
-            findings: [],
-            riskScore: 0,
-            grade: 'SECURE',
-            timeline: [],
-            myip: result,
-            scanTime: new Date().toLocaleTimeString(),
-          });
-          setViewingReport(true);
+          setResults(makeMyIpResults(result));
         } catch (e) {
           showToast('Failed to detect IP. Please try again.', 'error');
         } finally {
@@ -676,31 +697,6 @@ export default function App() {
       {/* --- MAIN CONTENT CANVAS WORKSPACE --- */}
       <main className="flex-1 flex flex-col min-w-0 z-10 relative overflow-y-auto max-h-screen">
         
-        {/* Universal Header (Top Navbar on main canvas) */}
-        <header className={`hidden md:flex items-center justify-between h-16 px-8 border-b ${
-          isLightMode ? 'bg-white border-slate-100' : 'bg-[#070a13] border-slate-850'
-        }`}>
-          <div className="flex items-center gap-3">
-            <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-red-500/10 border border-red-500/20 text-red-400 uppercase tracking-widest font-bold">
-              Public Beta
-            </span>
-            <div className={`h-4 w-px ${isLightMode ? 'bg-slate-200' : 'bg-slate-800'}`} />
-            <p className={`text-xs font-mono font-semibold ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
-              GUEST ACCESS MODE · RECON ACTIVE
-            </p>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <a
-              href="#module_grid"
-              onClick={() => handleSelectModule('home')}
-              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-red-600/15"
-            >
-              Start Scan
-            </a>
-          </div>
-        </header>
-
         {/* Dynamic page/module views container */}
         <div className="flex-1 p-4 sm:p-6 lg:p-8">
           <AnimatePresence mode="wait">
@@ -940,7 +936,7 @@ export default function App() {
                             type="text"
                             value={query}
                             onChange={(e) => handleQueryChange(e.target.value)}
-                            placeholder="Enter a domain, URL, email, username, phone or hash..."
+                            placeholder="Enter a domain, URL, email, username or hash..."
                             className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm placeholder-slate-500 focus:ring-0 ${
                               isLightMode ? 'text-slate-900' : 'text-white'
                             }`}
@@ -1108,7 +1104,7 @@ export default function App() {
                               <p className="text-[11px] text-slate-400 leading-normal">
                                 {query.trim()
                                   ? `Target "${sanitizeText(query.slice(0, 20), 20)}..." analyzed. Optimal module: ${detectedType.toUpperCase()}.`
-                                  : 'Enter any target (domain, IP, email, username, phone, hash, image) for intelligent routing.'}
+                                  : 'Enter any target (domain, IP, email, username, hash, image) for intelligent routing.'}
                               </p>
                           </div>
                         </div>
@@ -1118,7 +1114,7 @@ export default function App() {
 {[
                              { step: '01', name: 'Domain Intelligence', active: query.trim() && (detectedType === 'domain' || detectedType === 'website') },
                              { step: '02', name: 'SSL/TLS Analysis', active: query.trim() && detectedType === 'website' },
-                             { step: '03', name: 'Digital Footprinting', active: query.trim() && (detectedType === 'email' || detectedType === 'username' || detectedType === 'phone') },
+                             { step: '03', name: 'Digital Footprinting', active: query.trim() && (detectedType === 'email' || detectedType === 'username') },
                              { step: '04', name: 'Image Forensics', active: query.trim() && (detectedType === 'image' || detectedType === 'metadata') },
                            ].map((m, idx) => (
                              <div
@@ -1239,7 +1235,7 @@ export default function App() {
                       <div className="space-y-1.5">
                         <h4 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Deep OSINT Entity Lookup</h4>
                         <p className="text-xs text-slate-400 leading-normal">
-                          Investigate emails, usernames, phone numbers, domains and companies through open-source signals.
+                          Investigate emails, usernames, domains and companies through open-source signals.
                         </p>
                       </div>
                       <div className="text-xs font-semibold text-amber-400 font-mono group-hover:underline flex items-center gap-1">
@@ -1393,7 +1389,6 @@ export default function App() {
                         <ul className="space-y-1.5">
                           <li><button onClick={() => handleSelectModule('email')} className="hover:text-red-400 cursor-pointer">Email Audit</button></li>
                           <li><button onClick={() => handleSelectModule('username')} className="hover:text-red-400 cursor-pointer">Username Footprint</button></li>
-                          <li><button onClick={() => handleSelectModule('phone')} className="hover:text-red-400 cursor-pointer">Phone Registry</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
@@ -1520,7 +1515,7 @@ export default function App() {
                          From IOC to Actionable Intelligence
                        </h4>
                        <p className="text-slate-400">
-                         Begin with any indicator of compromise (domain, IP, email, username, phone, hash, image) and transform disparate data points into correlated, source-verified intelligence packages.
+                         Begin with any indicator of compromise (domain, IP, email, username, hash, image) and transform disparate data points into correlated, source-verified intelligence packages.
                        </p>
 
                           <div className="grid grid-cols-1 gap-3 pt-2">
@@ -1676,15 +1671,7 @@ export default function App() {
                                   setQuery('Detecting your public IP...');
                                   try {
                                     const result = await scanMyIp();
-                                    setResults({
-                                      target: { value: result.ip, type: 'myip' as TargetType },
-                                      findings: [],
-                                      riskScore: 0,
-                                      grade: 'SECURE',
-                                      timeline: [],
-                                      myip: result,
-                                      scanTime: new Date().toLocaleTimeString(),
-                                    });
+                                    setResults(makeMyIpResults(result));
                                     setViewingReport(true);
                                   } catch (e) {
                                     showToast('Failed to detect IP. Please try again.', 'error');
@@ -1714,15 +1701,7 @@ export default function App() {
                               setQuery('Detecting your public IP...');
                               try {
                                 const result = await scanMyIp();
-                                setResults({
-                                  target: { value: result.ip, type: 'myip' as TargetType },
-                                  findings: [],
-                                  riskScore: 0,
-                                  grade: 'SECURE',
-                                  timeline: [],
-                                  myip: result,
-                                  scanTime: new Date().toLocaleTimeString(),
-                                });
+                                setResults(makeMyIpResults(result));
                                 setViewingReport(true);
                               } catch (e) {
                                 showToast('Failed to detect IP. Please try again.', 'error');
@@ -1831,7 +1810,7 @@ export default function App() {
                                   isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/20 hover:border-slate-700'
                                 }`}
                               >
-                          <div onClick={() => setResults(scan)} className="cursor-pointer space-y-2 pr-6 no-copy">
+                          <div onClick={() => { setResults(scan); setViewingReport(true); }} className="cursor-pointer space-y-2 pr-6 no-copy">
                             <div className="flex justify-between items-center text-[10px] font-mono">
                               <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/25 uppercase font-bold">
                                 {scan.target.type}
@@ -1979,7 +1958,7 @@ export default function App() {
                               isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40 hover:border-slate-700'
                             }`}
                           >
-                            <div onClick={() => setResults(scan)} className="cursor-pointer space-y-3 pr-6 no-copy">
+                            <div onClick={() => { setResults(scan); setViewingReport(true); }} className="cursor-pointer space-y-3 pr-6 no-copy">
                               <div className="flex justify-between items-center text-[10px] font-mono">
                                 <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase">
                                   {scan.target.type}

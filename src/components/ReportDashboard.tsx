@@ -35,13 +35,13 @@ import {
   FileSpreadsheet,
   Lock,
   Mail,
-  Phone,
   User,
   Hash,
   FileCode,
   Server,
   Code,
   MapPin,
+  Network,
   ListFilter,
   Eye,
   FileCheck,
@@ -69,7 +69,7 @@ type TabType =
   | 'whois'
   | 'ssl'
   | 'headers'
-  | 'phone'
+  | 'myip'
   | 'timeline'
   | 'recommendations'
   | 'export';
@@ -82,7 +82,7 @@ export default function ReportDashboard({
 }: ReportDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (results.image?.authenticity) return 'image_verify';
-    if (results.phone) return 'phone';
+    if (results.myip) return 'myip';
     return 'overview';
   });
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -418,8 +418,8 @@ export default function ReportDashboard({
               ? { id: 'ssl', label: 'SSL', icon: Lock }
               : null,
             target.type === 'website' ? { id: 'headers', label: 'Headers', icon: Server } : null,
-            target.type === 'phone' ? { id: 'phone', label: 'Phone Registry', icon: Phone } : null,
             target.type === 'ip' ? { id: 'ip', label: 'IP Lookup', icon: Database } : null,
+            target.type === 'myip' ? { id: 'myip', label: 'My IP', icon: Network } : null,
             target.type === 'email' ? { id: 'email', label: 'Email Audit', icon: Mail } : null,
             target.type === 'username' ? { id: 'username', label: 'Username Footprint', icon: User } : null,
             target.type === 'hash' ? { id: 'hash', label: 'Hash Intel', icon: Key } : null,
@@ -1701,171 +1701,6 @@ export default function ReportDashboard({
             </div>
           )}
 
-          {/* PHONE REGISTRY PANEL TAB */}
-          {activeTab === 'phone' && results.phone && (
-            <div id="phone_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Phone Details Card */}
-              <div className="lg:col-span-1 space-y-6">
-                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
-                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">NUMBER INTELLIGENCE</h4>
-                  
-                  <div className="space-y-3">
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Phone Number</span>
-                      <span className="text-sm font-mono font-bold text-slate-900 break-all">{results.phone.phoneNumber}</span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">International Format</span>
-                      <span className="text-sm font-mono font-bold text-red-400 break-all">{results.phone.internationalFormat}</span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                        <span className="text-[10px] text-slate-500 block mb-1">Country Code</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.phoneCountryCode}</span>
-                      </div>
-                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                        <span className="text-[10px] text-slate-500 block mb-1">Country</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.countryName}</span>
-                      </div>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Carrier</span>
-                      <span className="text-sm font-mono font-bold text-slate-900">{results.phone.carrier}</span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Line Type</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.lineType === 'mobile' ? 'text-emerald-400' :
-                        results.phone.lineType === 'landline' ? 'text-amber-400' :
-                        results.phone.lineType === 'voip' ? 'text-purple-400' : 'text-slate-600'
-                      }`}>
-                        {results.phone.lineType}
-                      </span>
-                    </div>
-
-                    {results.phone.region && (
-                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                        <span className="text-[10px] text-slate-500 block mb-1">Region</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.region}</span>
-                      </div>
-                    )}
-
-                    {results.phone.areaCode && (
-                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                        <span className="text-[10px] text-slate-500 block mb-1">Area Code</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.areaCode}</span>
-                      </div>
-                    )}
-
-                    {results.phone.localNumber && (
-                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                        <span className="text-[10px] text-slate-500 block mb-1">Local Number</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.localNumber}</span>
-                      </div>
-                    )}
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Format Validity</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.formatValid ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
-                        {results.phone.formatValid ? 'E.164 Compliant' : 'Non-Standard Format'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Line Type Confidence</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.lineTypeConfidence === 'high' ? 'text-emerald-400' :
-                        results.phone.lineTypeConfidence === 'medium' ? 'text-amber-400' : 'text-red-400'
-                      }`}>
-                        {results.phone.lineTypeConfidence || 'N/A'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Carrier Confidence</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.carrierConfidence === 'high' ? 'text-emerald-400' :
-                        results.phone.carrierConfidence === 'medium' ? 'text-amber-400' : 'text-red-400'
-                      }`}>
-                        {results.phone.carrierConfidence || 'N/A'}
-                      </span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Validation Status</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.valid ? 'text-emerald-400' : 'text-red-400'
-                      }`}>
-                        {results.phone.valid ? 'Valid E.164 Format' : 'Invalid Format'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Phone Findings */}
-              <div className="lg:col-span-2 border border-slate-200 bg-white rounded-xl p-6 space-y-6">
-                <div>
-                  <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">PHONE ANALYSIS FINDINGS</h3>
-                  <p className="text-xs text-slate-500 mt-1">Validation and classification results for the target phone number</p>
-                </div>
-
-                <div className="space-y-3">
-                  {results.findings.filter(f => f.module === 'phone').length === 0 ? (
-                    <div className="p-4 rounded-lg bg-slate-50/30 border border-slate-200 text-center">
-                      <span className="text-xs text-slate-500">No phone-specific findings detected.</span>
-                    </div>
-                  ) : (
-                    results.findings.filter(f => f.module === 'phone').map((finding, idx) => (
-                      <div key={idx} className={`p-4 rounded-lg border ${
-                        finding.severity === 'pass' ? 'border-emerald-500/20 bg-emerald-500/5' :
-                        finding.severity === 'medium' ? 'border-amber-500/20 bg-amber-500/5' :
-                        'border-red-500/20 bg-red-500/5'
-                      }`}>
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-semibold text-slate-900">{finding.title}</h4>
-                            <p className="text-xs text-slate-600 leading-relaxed">{finding.description}</p>
-                            <div className="flex items-center gap-2 pt-1">
-                              <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${
-                                finding.severity === 'pass' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                                finding.severity === 'medium' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                                'bg-red-500/10 text-red-400 border border-red-500/20'
-                              }`}>
-                                {finding.severity}
-                              </span>
-                              <span className="text-[10px] text-slate-500 font-mono">{finding.category}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Additional phone metadata */}
-                <div className="border-t border-slate-200 pt-6">
-                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">NUMBER DETAILS</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="p-4 rounded-lg bg-slate-50/30 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Original Input</span>
-                      <span className="text-xs font-mono text-slate-700 break-all">{results.phone.phoneNumber}</span>
-                    </div>
-                    <div className="p-4 rounded-lg bg-slate-50/30 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">E.164 Normalized</span>
-                      <span className="text-xs font-mono text-red-400 break-all">{results.phone.internationalFormat}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* MY IP PANEL TAB */}
           {activeTab === 'myip' && results.myip && (
@@ -1974,41 +1809,37 @@ export default function ReportDashboard({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
                         <span className="text-[10px] text-slate-500 block mb-1">Country Code</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.phoneCountryCode}</span>
+                        <span className="text-sm font-mono font-bold text-slate-900">{results.ip.countryCode}</span>
                       </div>
                       <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
                         <span className="text-[10px] text-slate-500 block mb-1">Country</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.countryName}</span>
+                        <span className="text-sm font-mono font-bold text-slate-900">{results.ip.country}</span>
                       </div>
                     </div>
 
                     <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Line Type</span>
-                      <span className={`text-sm font-mono font-bold uppercase ${
-                        results.phone.lineType === 'mobile' ? 'text-emerald-400' :
-                        results.phone.lineType === 'landline' ? 'text-amber-400' :
-                        results.phone.lineType === 'voip' ? 'text-purple-400' : 'text-slate-600'
-                      }`}>
-                        {results.phone.lineType}
-                      </span>
+                      <span className="text-[10px] text-slate-500 block mb-1">Organization</span>
+                      <span className="text-sm font-mono font-bold text-slate-900">{results.ip.org}</span>
                     </div>
 
-                    {results.phone.region && (
+                    {results.ip.region && (
                       <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
                         <span className="text-[10px] text-slate-500 block mb-1">Region</span>
-                        <span className="text-sm font-mono font-bold text-slate-900">{results.phone.region}</span>
+                        <span className="text-sm font-mono font-bold text-slate-900">{results.ip.region}</span>
                       </div>
                     )}
 
                     <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Network Prefix / Area Code</span>
-                      <span className="text-sm font-mono font-bold text-slate-900">{results.phone.areaCode}</span>
+                      <span className="text-[10px] text-slate-500 block mb-1">ASN</span>
+                      <span className="text-sm font-mono font-bold text-slate-900">{results.ip.asn}</span>
                     </div>
 
-                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
-                      <span className="text-[10px] text-slate-500 block mb-1">Local Number</span>
-                      <span className="text-sm font-mono font-bold text-slate-900">{results.phone.localNumber}</span>
-                    </div>
+                    {results.ip.city && (
+                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
+                        <span className="text-[10px] text-slate-500 block mb-1">City</span>
+                        <span className="text-sm font-mono font-bold text-slate-900">{results.ip.city}</span>
+                      </div>
+                    )}
 
                     {results.ip.currency && (
                       <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">

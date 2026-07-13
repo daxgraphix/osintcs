@@ -4,7 +4,6 @@ import {
   Globe,
   Server,
   User,
-  Phone,
   Key,
   Mail,
   Hash,
@@ -108,14 +107,6 @@ export const QUICK_MODULES: ModuleConfig[] = [
     description: 'Reconnaissance of digital identities across standard web, social, and developer platforms.',
     helpHint: 'Queries GitHub profiles, dev communities, and public social registries in parallel.',
     icon: User,
-  },
-  {
-    id: 'phone',
-    label: 'Phone Registry',
-    placeholder: 'Enter telephone number (e.g., +15550199)...',
-    description: 'Verify phone number prefixes, carrier operators, and line classifications.',
-    helpHint: 'Decrypts international country formats, line layouts, and carrier codes.',
-    icon: Phone,
   },
   {
     id: 'hash',

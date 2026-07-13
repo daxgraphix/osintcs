@@ -9,7 +9,6 @@ export type TargetType =
   | 'ip'
   | 'email'
   | 'username'
-  | 'phone'
   | 'image'
   | 'hash'
   | 'metadata'
@@ -168,23 +167,6 @@ export interface EmailResult {
   dkimRecord?: string;
 }
 
-export interface PhoneResult {
-  phoneNumber: string;
-  valid: boolean;
-  countryCode?: string;
-  countryName?: string;
-  carrier?: string;
-  lineType?: 'mobile' | 'landline' | 'voip' | 'unknown';
-  internationalFormat?: string;
-  region?: string;
-  areaCode?: string;
-  localNumber?: string;
-  formatValid?: boolean;
-  lineTypeConfidence?: 'high' | 'medium' | 'low';
-  carrierConfidence?: 'high' | 'medium' | 'low';
-  phoneCountryCode?: string;
-}
-
 export interface MyIpResult {
   ip: string;
   ipVersion: 'IPv4' | 'IPv6';
@@ -289,7 +271,6 @@ export interface ScanResults {
   headers?: HeaderResult;
   ip?: IPResult;
   email?: EmailResult;
-  phone?: PhoneResult;
   username?: UsernameResult;
   image?: ImageResult;
   hash?: HashResult;

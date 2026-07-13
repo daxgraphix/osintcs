@@ -12,7 +12,6 @@ import {
   scanHeaders,
   getIpDetails,
   analyzeEmail,
-  scanPhoneNumber,
   investigateUsername,
   analyzeHash,
   extractFileMetadata,
@@ -73,7 +72,6 @@ async function performScan(
   let headersData = undefined;
   let ipData = undefined;
   let emailData = undefined;
-  let phoneData = undefined;
   let usernameData = undefined;
   let hashData = undefined;
   let imageData = undefined;
@@ -118,31 +116,6 @@ async function performScan(
     emailData = await analyzeEmail(finalTarget.value);
     await log(`EMAIL-OK: Mail records present: ${emailData.mxRecordsPresent}. Disposable address: ${emailData.isDisposable}.`, 80);
     findings.push(...analyzeEmailRules(emailData));
-  } else if (finalTarget.type === 'phone') {
-    await log('PHONE-DECRYPT: Parsing international country prefixes...', 120);
-    phoneData = await scanPhoneNumber(finalTarget.value);
-    await log(`PHONE-OK: Valid prefix. Carrier determined as "${phoneData.carrier}".`, 80);
-    if (!phoneData.valid) {
-      findings.push({
-        id: 'PHONE_INVALID',
-        module: 'phone',
-        title: 'Suboptimal Phone Format',
-        description: 'The phone length or layout does not match standard ITU-T E.164 recommendations.',
-        severity: 'medium',
-        category: 'Phone Validity',
-        remediation: 'Re-verify phone layout and prepend correct international (+) country prefixes.',
-      });
-    } else {
-      findings.push({
-        id: 'PHONE_VALID_PASS',
-        module: 'phone',
-        title: 'Phone Format Is Valid',
-        description: `Phone resolves accurately in standard E.164 tables to ${phoneData.countryName}.`,
-        severity: 'pass',
-        category: 'Phone Validity',
-        remediation: 'No action required.',
-      });
-    }
   } else if (finalTarget.type === 'myip') {
     await log('IP-DETECT: Resolving public IP via external API...', 150);
     myipData = await scanMyIp();
@@ -246,7 +219,6 @@ async function performScan(
     headers: headersData,
     ip: ipData,
     email: emailData,
-    phone: phoneData,
     username: usernameData,
     hash: hashData,
     image: imageData,
