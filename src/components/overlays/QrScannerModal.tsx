@@ -97,7 +97,7 @@ export default function QrScannerModal({
       >
         <div className="bg-[#0b0e1a] px-4 py-3 border-b border-slate-850 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <QrCode className="w-4 h-4 text-cyan-400" />
+            <QrCode className="w-4 h-4 text-red-400" />
             <span className="text-xs font-mono font-bold text-slate-300">QR Code Scanner</span>
           </div>
           <button
@@ -126,17 +126,17 @@ export default function QrScannerModal({
               <video ref={videoRef} className="w-full h-full object-cover" />
               <canvas ref={canvasRef} className="hidden" />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-48 h-48 border-2 border-cyan-500/40 rounded-lg relative">
-                  <div className="absolute inset-0 border-2 border-cyan-400/20 rounded-lg animate-pulse" />
-                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400 rounded-tl-lg" />
-                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400 rounded-tr-lg" />
-                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400 rounded-bl-lg" />
-                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400 rounded-br-lg" />
+                <div className="w-48 h-48 border-2 border-red-500/40 rounded-lg relative">
+                  <div className="absolute inset-0 border-2 border-red-400/20 rounded-lg animate-pulse" />
+                  <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-red-400 rounded-tl-lg" />
+                  <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-red-400 rounded-tr-lg" />
+                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-red-400 rounded-bl-lg" />
+                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-red-400 rounded-br-lg" />
                 </div>
               </div>
               {scanning && (
                 <div className="absolute inset-x-0 flex items-center justify-center">
-                  <ScanLine className="w-6 h-6 text-cyan-400 animate-bounce drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
+                  <ScanLine className="w-6 h-6 text-red-400 animate-bounce drop-shadow-[0_0_6px_rgba(34,211,238,0.8)]" />
                 </div>
               )}
             </div>

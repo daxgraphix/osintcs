@@ -12,7 +12,8 @@ export type TargetType =
   | 'phone'
   | 'image'
   | 'hash'
-  | 'metadata';
+  | 'metadata'
+  | 'myip';
 
 export interface InvestigationTarget {
   value: string;
@@ -181,6 +182,24 @@ export interface PhoneResult {
   formatValid?: boolean;
   lineTypeConfidence?: 'high' | 'medium' | 'low';
   carrierConfidence?: 'high' | 'medium' | 'low';
+  phoneCountryCode?: string;
+}
+
+export interface MyIpResult {
+  ip: string;
+  ipVersion: 'IPv4' | 'IPv6';
+  country?: string;
+  region?: string;
+  city?: string;
+  isp?: string;
+  org?: string;
+  asn?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  userAgent?: string;
+  platform?: string;
+  language?: string;
 }
 
 export interface UsernamePlatformCheck {
@@ -274,6 +293,7 @@ export interface ScanResults {
   username?: UsernameResult;
   image?: ImageResult;
   hash?: HashResult;
+  myip?: MyIpResult;
   findings: Finding[];
   recommendations: Recommendation[];
   timeline: TimelineEvent[];

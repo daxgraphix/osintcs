@@ -1,15 +1,28 @@
 import React from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
-  Globe,
-  FileText,
-  Layers,
-  History,
-  Settings,
-  ChevronRight,
-  ChevronLeft,
+  Globe, FileText, Layers, History, Settings,
+  ChevronRight, ChevronLeft, Shield, Mail, User,
+  Phone, Key, Database, Server, Eye, FileCode,
+  Network,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 import { QUICK_MODULES } from '../pages/moduleConfig';
+
+/* ── Module accent colours — all high-contrast for light mode ── */
+const MODULE_ACCENTS: Record<string, { bg: string; border: string; text: string; icon: string }> = {
+  risk:     { bg: 'rgba(220,38,38,0.10)',   border: 'rgba(220,38,38,0.30)',   text: '#b91c1c',  icon: '#dc2626' },
+  image:    { bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.25)',   text: '#dc2626',  icon: '#ef4444' },
+  domain:   { bg: 'rgba(71,85,105,0.08)',   border: 'rgba(71,85,105,0.22)',   text: '#334155',  icon: '#475569' },
+  website:  { bg: 'rgba(71,85,105,0.07)',   border: 'rgba(71,85,105,0.20)',   text: '#475569',  icon: '#64748b' },
+  ip:       { bg: 'rgba(220,38,38,0.08)',   border: 'rgba(220,38,38,0.22)',   text: '#dc2626',  icon: '#ef4444' },
+  email:    { bg: 'rgba(194,65,12,0.08)',   border: 'rgba(194,65,12,0.22)',   text: '#c2410c',  icon: '#ea580c' },
+  username: { bg: 'rgba(71,85,105,0.08)',   border: 'rgba(71,85,105,0.22)',   text: '#475569',  icon: '#64748b' },
+  phone:    { bg: 'rgba(101,65,168,0.08)',  border: 'rgba(101,65,168,0.22)',  text: '#6d28d9',  icon: '#7c3aed' },
+  hash:     { bg: 'rgba(8,145,178,0.08)',   border: 'rgba(8,145,178,0.22)',   text: '#0e7490',  icon: '#0891b2' },
+  metadata: { bg: 'rgba(22,163,74,0.08)',   border: 'rgba(22,163,74,0.22)',   text: '#15803d',  icon: '#16a34a' },
+  myip:     { bg: 'rgba(37,99,235,0.08)',   border: 'rgba(37,99,235,0.22)',   text: '#1d4ed8',  icon: '#2563eb' },
+};
 
 export default function Sidebar({
   activeTab,
@@ -36,174 +49,285 @@ export default function Sidebar({
   setViewingBatch: (v: boolean) => void;
   onSelectModule: (id: typeof activeTab) => void;
 }) {
+  const navBtn = (
+    id: typeof activeTab,
+    icon: React.ReactNode,
+    label: string,
+    accent?: { bg: string; border: string; text: string; icon: string }
+  ) => {
+    const isActive = activeTab === id;
+    const iconColor = isActive ? (accent?.icon ?? '#dc2626') : '#64748b';
+    return (
+      <button
+        key={String(id)}
+        onClick={() => onSelectModule(id)}
+        title={!sidebarOpen ? label : undefined}
+        className={`
+          w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold
+          transition-all duration-150 cursor-pointer relative group
+        `}
+        style={isActive ? {
+          background: accent ? accent.bg : 'rgba(220,38,38,0.10)',
+          border: `1px solid ${accent ? accent.border : 'rgba(220,38,38,0.28)'}`,
+          color: accent ? accent.text : '#b91c1c',
+          boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+        } : {
+          background: 'transparent',
+          border: '1px solid transparent',
+          color: '#475569',
+        }}
+        onMouseEnter={e => {
+          if (!isActive) {
+            (e.currentTarget as HTMLButtonElement).style.background = '#f1f5f9';
+            (e.currentTarget as HTMLButtonElement).style.color = '#0f172a';
+            (e.currentTarget as HTMLButtonElement).style.border = '1px solid #e2e8f0';
+          }
+        }}
+        onMouseLeave={e => {
+          if (!isActive) {
+            (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+            (e.currentTarget as HTMLButtonElement).style.color = '#475569';
+            (e.currentTarget as HTMLButtonElement).style.border = '1px solid transparent';
+          }
+        }}
+      >
+        {/* Icon wrapper */}
+        <span
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-lg transition-colors"
+          style={{
+            color: iconColor,
+            background: isActive ? 'rgba(255,255,255,0.7)' : 'transparent',
+          }}
+        >
+          {icon}
+        </span>
+
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.span
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 'auto' }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.15 }}
+              className="truncate overflow-hidden whitespace-nowrap font-semibold"
+            >
+              {label}
+            </motion.span>
+          )}
+        </AnimatePresence>
+
+        {/* Active dot indicator when collapsed */}
+        {isActive && !sidebarOpen && (
+          <span
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full"
+            style={{ background: accent?.icon ?? '#dc2626' }}
+          />
+        )}
+      </button>
+    );
+  };
+
   return (
     <aside
-      className={`hidden md:flex flex-col shrink-0 border-r transition-all duration-300 z-30 ${
-        isLightMode ? 'bg-white border-slate-200' : 'bg-[#090d16] border-slate-850'
-      } ${sidebarOpen ? 'w-64' : 'w-20'}`}
+      id="sidebar_root"
+      className={`
+        hidden md:flex flex-col shrink-0 border-r transition-all duration-300 z-30
+        bg-white border-slate-200
+        ${sidebarOpen ? 'w-64' : 'w-[68px]'}
+      `}
+      style={{ boxShadow: '1px 0 0 0 #e2e8f0, 2px 0 8px rgba(15,23,42,0.04)' }}
     >
-      <div
-        className={`h-16 flex items-center justify-between px-4 border-b ${
-          isLightMode ? 'border-slate-100' : 'border-slate-850'
-        }`}
-      >
-<div className="flex items-center gap-2.5 overflow-hidden">
-           <div className="p-1.5 rounded bg-cyan-500/10 text-cyan-500 border border-cyan-500/20">
-             <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-             </svg>
-           </div>
-           {sidebarOpen && (
-             <div className="flex flex-col leading-none">
-               <span className={`text-base font-black font-display tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
-                 osint<span className="text-cyan-400">cs</span>
-               </span>
-               <span className="text-[8px] font-mono tracking-widest text-slate-500 mt-0.5">OSINT SUITE</span>
+       {/* ── Logo / Collapse Row ─────────────────────────── */}
+       <div className="h-16 flex items-center justify-between px-3 border-b border-slate-200 bg-white">
+         <button
+           onClick={() => onSelectModule('home')}
+           className="flex items-center gap-2.5 overflow-hidden min-w-0 cursor-pointer bg-transparent border-none p-0"
+         >
+           <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
+             {/* Shield logo mark */}
+             <div
+               className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl"
+               style={{
+                 background: 'rgba(220,38,38,0.10)',
+                 border: '1.5px solid rgba(220,38,38,0.28)',
+               }}
+             >
+               <Shield className="w-4.5 h-4.5" style={{ color: '#dc2626' }} />
              </div>
-           )}
-         </div>
 
-        <button
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className={`p-1.5 rounded-md hover:bg-slate-800/35 text-slate-500 hover:text-slate-300 transition-colors cursor-pointer`}
-        >
-          {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-        </button>
-      </div>
+             <AnimatePresence>
+               {sidebarOpen && (
+                 <motion.div
+                   initial={{ opacity: 0, x: -8 }}
+                   animate={{ opacity: 1, x: 0 }}
+                   exit={{ opacity: 0, x: -8 }}
+                   transition={{ duration: 0.15 }}
+                   className="flex flex-col leading-none overflow-hidden"
+                 >
+                   <span className="text-[16px] font-black font-display tracking-tight text-slate-900">
+                     osint<span style={{ color: '#dc2626' }}>cs</span>
+                   </span>
+                   <span className="text-[9px] font-mono tracking-widest mt-0.5 font-bold" style={{ color: '#64748b' }}>
+                     INTEL SUITE
+                   </span>
+                 </motion.div>
+               )}
+             </AnimatePresence>
+           </div>
+         </button>
 
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6 scrollbar-thin">
-        <div className="space-y-1">
-          <button
-            onClick={() => onSelectModule('home')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-              activeTab === 'home'
-                ? 'bg-cyan-500/10 text-cyan-400 border-l-2 border-cyan-500'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/30'
-            }`}
-          >
-            <Globe className="w-4 h-4" />
-            {sidebarOpen && <span>Lobby Home</span>}
-          </button>
+         <button
+           onClick={() => setSidebarOpen(!sidebarOpen)}
+           className="p-1.5 rounded-lg transition-colors cursor-pointer shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+           style={{ border: '1px solid #e2e8f0' }}
+         >
+           {sidebarOpen
+             ? <ChevronLeft className="w-3.5 h-3.5" />
+             : <ChevronRight className="w-3.5 h-3.5" />
+           }
+         </button>
+       </div>
+
+      {/* ── Scrollable Nav Body ─────────────────────────── */}
+      <div className="flex-1 overflow-y-auto py-4 px-2.5 space-y-5 scrollbar-thin bg-white">
+
+        {/* Home */}
+        <div>
+          {navBtn('home',
+            <Globe className="w-4 h-4" />,
+            'Lobby Home',
+            { bg: 'rgba(71,85,105,0.08)', border: 'rgba(71,85,105,0.22)', text: '#334155', icon: '#475569' }
+          )}
         </div>
 
+        {/* OSINT Tools */}
         <div className="space-y-1">
           {sidebarOpen && (
-            <span className="text-[10px] font-mono font-bold text-slate-500 tracking-wider block px-3 mb-2">
-              OSINT TOOLS
+            <span
+              className="text-[10px] font-mono font-bold tracking-widest px-3 block mb-2"
+              style={{ color: '#64748b' }}
+            >
+              RECON MODULES
             </span>
           )}
-          <div className="space-y-0.5">
-            {QUICK_MODULES.map((mod) => {
-              const Icon = mod.icon;
-              const isSelected = activeTab === mod.id;
-              return (
-                <button
-                  key={mod.id}
-                  onClick={() => onSelectModule(mod.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    isSelected
-                      ? 'bg-cyan-500/10 text-cyan-400 border-l-2 border-cyan-500'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
-                  }`}
-                  title={mod.label}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  {sidebarOpen && <span className="truncate">{mod.label}</span>}
-                </button>
-              );
-            })}
-          </div>
+          {!sidebarOpen && <div className="h-px mx-2 mb-2 bg-slate-200" />}
+
+          {QUICK_MODULES.map((mod) => {
+            const accent = MODULE_ACCENTS[mod.id] ?? MODULE_ACCENTS.hash;
+            const Icon = mod.icon;
+            return navBtn(mod.id, <Icon className="w-4 h-4" />, mod.label, accent);
+          })}
         </div>
 
-        <div className="space-y-1 pt-2 border-t border-slate-850/65">
+        {/* Workspace */}
+        <div className="space-y-1 pt-1">
+          <div className="h-px mx-1 mb-3 bg-slate-200" />
           {sidebarOpen && (
-            <span className="text-[10px] font-mono font-bold text-slate-500 tracking-wider block px-3 mb-2">
+            <span
+              className="text-[10px] font-mono font-bold tracking-widest px-3 block mb-2"
+              style={{ color: '#64748b' }}
+            >
               WORKSPACE
             </span>
           )}
-          <div className="space-y-0.5">
-            {results && (
-              <button
-                onClick={() => {
-                  setViewingReport(true);
-                  setViewingBatch(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all border cursor-pointer mb-1 ${
-                  viewingReport
-                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
-                    : isLightMode
-                    ? 'text-slate-600 border-dashed border-cyan-500/35 hover:text-cyan-600 hover:bg-cyan-500/5'
-                    : 'text-slate-400 border-dashed border-cyan-500/20 hover:text-cyan-400 hover:bg-cyan-500/5'
-                }`}
-                title={`View report for ${results.target.value}`}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-                </span>
-                <FileText className="w-4 h-4 shrink-0 text-cyan-500" />
-                {sidebarOpen && <span className="truncate">Active Report</span>}
-              </button>
-            )}
 
-            {batchResults && batchResults.length > 0 && (
-              <button
-                onClick={() => {
-                  setViewingBatch(true);
-                  setViewingReport(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all border cursor-pointer mb-1 ${
-                  viewingBatch && !viewingReport
-                    ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30'
-                    : isLightMode
-                    ? 'text-slate-600 border-dashed border-emerald-500/35 hover:text-emerald-600 hover:bg-emerald-500/5'
-                    : 'text-slate-400 border-dashed border-emerald-500/20 hover:text-emerald-400 hover:bg-emerald-500/5'
-                }`}
-                title={`View batch of ${batchResults.length} targets`}
-              >
-                <span className="relative flex h-2 w-2 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <Layers className="w-4 h-4 shrink-0 text-emerald-500" />
-                {sidebarOpen && <span className="truncate">Batch ({batchResults.length})</span>}
-              </button>
-            )}
+          {/* Active report link */}
+          {results && (
+            <button
+              onClick={() => { setViewingReport(true); setViewingBatch(false); }}
+              className={`
+                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold
+                transition-all cursor-pointer mb-1
+              `}
+              style={viewingReport ? {
+                background: 'rgba(220,38,38,0.10)',
+                border: '1px solid rgba(220,38,38,0.28)',
+                color: '#b91c1c',
+              } : {
+                background: 'rgba(220,38,38,0.04)',
+                border: '1px dashed rgba(220,38,38,0.25)',
+                color: '#dc2626',
+              }}
+              title={`View report: ${results?.target?.value}`}
+            >
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+              </span>
+              <FileText className="w-4 h-4 shrink-0" />
+              <AnimatePresence>
+                {sidebarOpen && (
+                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate">
+                    Active Report
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </button>
+          )}
 
+          {/* Batch report link */}
+          {batchResults && batchResults.length > 0 && (
             <button
-              onClick={() => onSelectModule('history')}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'history'
-                  ? 'bg-cyan-500/10 text-cyan-400 border-l-2 border-cyan-500'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
-              }`}
+              onClick={() => { setViewingBatch(true); setViewingReport(false); }}
+              className={`
+                w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold
+                transition-all cursor-pointer mb-1
+              `}
+              style={viewingBatch && !viewingReport ? {
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                color: '#334155',
+              } : {
+                background: 'transparent',
+                border: '1px dashed #cbd5e1',
+                color: '#64748b',
+              }}
+              title={`Batch: ${batchResults.length} targets`}
             >
-              <History className="w-4 h-4 shrink-0" />
-              {sidebarOpen && <span>Scan History</span>}
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-500 opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400" />
+              </span>
+              <Layers className="w-4 h-4 shrink-0" />
+              <AnimatePresence>
+                {sidebarOpen && (
+                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="truncate">
+                    Batch ({batchResults.length})
+                  </motion.span>
+                )}
+              </AnimatePresence>
             </button>
-            <button
-              onClick={() => onSelectModule('settings')}
-              className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'settings'
-                  ? 'bg-cyan-500/10 text-cyan-400 border-l-2 border-cyan-500'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/20'
-              }`}
-            >
-              <Settings className="w-4 h-4 shrink-0" />
-              {sidebarOpen && <span>Settings & Sandbox</span>}
-            </button>
-          </div>
+          )}
+
+          {navBtn('history', <History className="w-4 h-4" />, 'Scan History',
+            { bg: 'rgba(71,85,105,0.08)', border: 'rgba(71,85,105,0.22)', text: '#334155', icon: '#475569' }
+          )}
+          {navBtn('settings', <Settings className="w-4 h-4" />, 'Settings',
+            { bg: 'rgba(71,85,105,0.08)', border: 'rgba(71,85,105,0.22)', text: '#334155', icon: '#475569' }
+          )}
         </div>
       </div>
 
-      <div className={`p-4 border-t ${isLightMode ? 'border-slate-100' : 'border-slate-850'}`}>
-        <div className="flex items-center gap-2 px-1.5 py-1 rounded bg-emerald-500/5 border border-emerald-500/10">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-          {sidebarOpen && (
-            <span className="text-[9px] font-mono text-emerald-400 font-bold uppercase tracking-wider">
-              LOCAL SECURE SANDBOX
-            </span>
-          )}
+      {/* ── Footer Status Badge ─────────────────────────── */}
+      <div className="p-3 border-t border-slate-200 bg-white">
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-xl"
+          style={{ background: 'rgba(220,38,38,0.06)', border: '1.5px solid rgba(220,38,38,0.20)' }}
+        >
+          <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+          <AnimatePresence>
+            {sidebarOpen && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-[10px] font-mono font-bold tracking-widest"
+                style={{ color: '#dc2626' }}
+              >
+                LOCAL SECURE SANDBOX
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </aside>

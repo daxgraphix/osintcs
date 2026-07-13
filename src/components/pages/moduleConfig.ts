@@ -39,6 +39,7 @@ import {
   ArrowRight,
   Info,
   FileSpreadsheet,
+  Network,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 
@@ -131,5 +132,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     description: 'Deconstruct internal document headers, creation dates, and author software tools.',
     helpHint: 'Saves your file securely in sandbox memory. Zero server uploads occur.',
     icon: FileCode,
+  },
+  {
+    id: 'myip',
+    label: 'What is My IP',
+    placeholder: 'Detecting your public IP address...',
+    description: 'Discover your current public IP, network provider, and connection fingerprint.',
+    helpHint: 'Resolves external IPv4/IPv6, ASN, ISP, and estimated geolocation from your browser.',
+    icon: Network,
   },
 ];

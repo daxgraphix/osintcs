@@ -16,6 +16,7 @@ import {
   investigateUsername,
   analyzeHash,
   extractFileMetadata,
+  scanMyIp,
   parseInvestigationTarget,
 } from '../services/osintServices';
 import {
@@ -76,6 +77,7 @@ async function performScan(
   let usernameData = undefined;
   let hashData = undefined;
   let imageData = undefined;
+  let myipData = undefined;
 
   if (finalTarget.type === 'domain' || finalTarget.type === 'website') {
     await log('DNS-QUERY: Connecting to Cloudflare DNS-over-HTTPS gateway...', 120);
@@ -141,6 +143,19 @@ async function performScan(
         remediation: 'No action required.',
       });
     }
+  } else if (finalTarget.type === 'myip') {
+    await log('IP-DETECT: Resolving public IP via external API...', 150);
+    myipData = await scanMyIp();
+    await log(`MYIP-OK: Detected ${myipData.ipVersion} address ${myipData.ip} (${myipData.isp}, ${myipData.country}).`, 80);
+    findings.push({
+      id: 'MYIP_DETECTED',
+      module: 'myip',
+      title: 'Public IP Detected',
+      description: `Your public IP is ${myipData.ip} (${myipData.ipVersion}), provided by ${myipData.isp} in ${myipData.country}.`,
+      severity: 'pass',
+      category: 'Network Identity',
+      remediation: 'Consider using a VPN or proxy if IP exposure is a concern.',
+    });
   } else if (finalTarget.type === 'username') {
     await log('USER-RECON: Initiating multi-platform search array for profile handles...', 180);
     usernameData = await investigateUsername(finalTarget.value);
@@ -235,6 +250,7 @@ async function performScan(
     username: usernameData,
     hash: hashData,
     image: imageData,
+    myip: myipData,
     findings,
     recommendations,
     timeline,
@@ -347,5 +363,5 @@ export function useScanWorkflow({
     }, 400);
   };
 
-  return { isScanning, scanLogs, triggerInvestigation, triggerBatchInvestigation };
+  return { isScanning, setIsScanning, scanLogs, triggerInvestigation, triggerBatchInvestigation };
 }

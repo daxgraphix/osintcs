@@ -190,7 +190,7 @@ export function buildTimeline(scanResults: {
  */
 export function generateReportDocument(
   results: any,
-  format: 'markdown' | 'json' | 'csv' | 'txt' | 'html',
+  format: 'markdown' | 'json' | 'csv' | 'txt' | 'html' | 'pdf',
   template: 'detailed' | 'concise' = 'detailed'
 ): string {
   const { target, scanTime, riskScore, findings, recommendations } = results;
@@ -347,6 +347,69 @@ export function generateReportDocument(
 
     html += `<p style="margin-top:60px;color:#64748b;font-size:12px;text-align:center;border-top:1px solid #e2e8f0;padding-top:20px;">Report compiled by OSINTCS Privacy-First Workspace.</p>`;
     html += `</body></html>`;
+    return html;
+  }
+
+  if (format === 'pdf') {
+    let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>OSINTCS Investigation Report: ${target.value}</title>`;
+    html += `<style>@page{size:A4;margin:20mm;} body{font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#1e293b;padding:0;max-width:100%;margin:0;} .container{max-width:900px;margin:0 auto;padding:40px;} h1{font-size:24px;border-bottom:3px solid #dc2626;padding-bottom:12px;color:#0f172a;margin-top:0;} h2{font-size:18px;color:#0f172a;margin-top:32px;border-bottom:1px solid #e2e8f0;padding-bottom:8px;} h3{font-size:14px;color:#334155;margin-top:24px;} .meta{background:#f8fafc;border:1px solid #e2e8f0;padding:16px;border-radius:8px;margin:16px 0;} .meta p{margin:4px 0;font-size:13px;} .badge{display:inline-block;padding:3px 10px;border-radius:4px;font-weight:bold;font-size:11px;color:#fff;margin-right:6px;} .critical{background:#dc2626;} .high{background:#ea580c;} .medium{background:#d97706;} .low{background:#2563eb;} .pass{background:#16a34a;} .card{border:1px solid #e2e8f0;padding:16px;border-radius:8px;margin-bottom:16px;background:#ffffff;} table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px;} th,td{border:1px solid #cbd5e1;padding:10px;text-align:left;} th{background:#f1f5f9;font-weight:bold;} pre{background:#f8fafc;padding:12px;border-radius:6px;overflow-x:auto;font-size:12px;border:1px solid #e2e8f0;} code{font-family:monospace;font-size:12px;} .summary-box{background:#f8fafc;border-left:4px solid #dc2626;padding:16px;margin:16px 0;border-radius:0 8px 8px 0;} .footer{margin-top:60px;padding-top:20px;border-top:1px solid #e2e8f0;text-align:center;color:#64748b;font-size:11px;} @media print{body{padding:0;} .container{padding:0;}}</style></head><body><div class="container">`;
+    html += `<h1>OSINTCS Security Investigation Report (${template.toUpperCase()})</h1>`;
+    html += `<div class="meta">`;
+    html += `<p><strong>Target:</strong> <code>${target.value}</code> (${target.type.toUpperCase()})</p>`;
+    html += `<p><strong>Scan Timestamp:</strong> ${scanTime}</p>`;
+    html += `<p><strong>Risk Score:</strong> <strong style="font-size:1.3em;color:#dc2626;">${riskScore}/100</strong> (Grade: <strong>${metrics.grade}</strong>)</p>`;
+    html += `<p><strong>Critical:</strong> ${metrics.criticalCount} | <strong>High:</strong> ${metrics.highCount} | <strong>Medium:</strong> ${metrics.mediumCount} | <strong>Low:</strong> ${metrics.lowCount}</p>`;
+    html += `</div>`;
+
+    html += `<h2>Executive Summary</h2>`;
+    html += `<div class="summary-box">`;
+    html += `<p>A comprehensive browser-side OSINT audit of <code>${target.value}</code> was executed. The analysis identified <strong>${metrics.criticalCount}</strong> critical vulnerabilities, <strong>${metrics.highCount}</strong> high-risk findings, and <strong>${metrics.mediumCount}</strong> moderate-risk findings. The overall grade assigned is <strong>${metrics.grade}</strong>.</p>`;
+    html += `</div>`;
+
+    html += `<h2>Key Findings</h2>`;
+    findings.forEach((f: Finding) => {
+      if (f.severity !== 'pass') {
+        html += `<div class="card">`;
+        html += `<h3><span class="badge ${f.severity}">${f.severity.toUpperCase()}</span> ${f.title}</h3>`;
+        html += `<p><strong>Module:</strong> ${f.module.toUpperCase()} | <strong>Category:</strong> ${f.category}</p>`;
+        html += `<p>${f.description}</p>`;
+        if (template !== 'concise') {
+          html += `<p><strong>Remediation:</strong> <code>${f.remediation}</code></p>`;
+        }
+        html += `</div>`;
+      }
+    });
+
+    html += `<h2>Actionable Recommendations</h2>`;
+    html += `<table><thead><tr><th>Priority</th><th>Action Recommendation</th>${template !== 'concise' ? '<th>Vulnerability Category</th>' : ''}</tr></thead><tbody>`;
+    recommendations.forEach((r: Recommendation) => {
+      html += `<tr><td><span class="badge ${r.priority === 'high' ? 'critical' : r.priority === 'medium' ? 'high' : 'low'}">${r.priority.toUpperCase()}</span></td><td><strong>${r.title}</strong><br>${r.description}</td>${template !== 'concise' ? `<td>${r.category}</td>` : ''}</tr>`;
+    });
+    html += `</tbody></table>`;
+
+    if (template !== 'concise') {
+      html += `<h2>Technical Evidence Details</h2>`;
+      if (results.dns) {
+        html += `<h3>DNS Zone Records</h3><pre>${JSON.stringify(results.dns.records, null, 2)}</pre>`;
+      }
+      if (results.whois) {
+        html += `<h3>WHOIS Registry Data</h3><pre style="white-space:pre-wrap;">${results.whois.raw || 'N/A'}</pre>`;
+      }
+      if (results.ssl) {
+        html += `<h3>SSL Handshake Details</h3>`;
+        html += `<table><tr><td><strong>Issuer</strong></td><td>${results.ssl.issuer}</td></tr>`;
+        html += `<tr><td><strong>Protocol</strong></td><td>${results.ssl.protocol}</td></tr>`;
+        html += `<tr><td><strong>Cipher Suite</strong></td><td>${results.ssl.cipher}</td></tr>`;
+        html += `<tr><td><strong>Remaining Days</strong></td><td>${results.ssl.daysRemaining} days</td></tr>`;
+        html += `</table>`;
+      }
+    }
+
+    html += `<div class="footer">`;
+    html += `<p>Report compiled by OSINTCS Privacy-First Workspace.</p>`;
+    html += `<p>Generated on ${new Date().toISOString().split('T')[0]}</p>`;
+    html += `</div>`;
+    html += `</div></body></html>`;
     return html;
   }
 

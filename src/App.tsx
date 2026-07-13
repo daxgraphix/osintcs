@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import {
   Shield,
-  ShieldCheck,
   Search,
   Globe,
   Server,
@@ -26,8 +25,6 @@ import {
   Cpu,
   Lock,
   Database,
-  Sun,
-  Moon,
   QrCode,
   Trash2,
   History,
@@ -36,6 +33,7 @@ import {
   ChevronLeft,
   Play,
   Check,
+  Copy,
   CameraOff,
   CheckCircle2,
   X,
@@ -47,11 +45,12 @@ import {
   Settings,
   ArrowRight,
   Info,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Network,
 } from 'lucide-react';
 
 import { InvestigationTarget, TargetType, ScanResults, Finding } from './types';
-import { detectTargetType, parseInvestigationTarget, validateDomain, validateEmail, validatePhone, validateHash, validateIp, validateUrl, validateUsername } from './services/osintServices';
+import { detectTargetType, parseInvestigationTarget, validateDomain, validateEmail, validatePhone, validateHash, validateIp, validateUrl, validateUsername, scanMyIp } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
@@ -61,7 +60,6 @@ import QrScannerModal from './components/overlays/QrScannerModal';
 import Sidebar from './components/layout/Sidebar';
 import MobileHeader from './components/layout/MobileHeader';
 import ReportDashboard from './components/ReportDashboard';
-import { initSecurityMonitor } from './utils/antiTamper';
 import { sanitizeText, sanitizeFilename, escapeHtml } from './utils/security';
 
 export default function App() {
@@ -249,19 +247,8 @@ export default function App() {
     }
   }, [toast]);
 
-  // Three-state Theme System
-  const [theme, setTheme] = useState<'dark' | 'light' | 'high-contrast'>(() => {
-    const stored = localStorage.getItem('osintcs_theme');
-    if (stored === 'high-contrast' || stored === 'light' || stored === 'dark') {
-      return stored;
-    }
-    const oldLight = localStorage.getItem('osintcs_is_light');
-    if (oldLight === 'true') return 'light';
-    return 'dark';
-  });
-
-  const isLightMode = theme === 'light' || theme === 'high-contrast';
-  const isHighContrast = theme === 'high-contrast';
+  // Light-only theme — red/white palette
+  const isLightMode = true;
 
   const [simulateDelay, setSimulateDelay] = useState(true);
   const [strictScans, setStrictScans] = useState(false);
@@ -332,11 +319,6 @@ export default function App() {
     }
   }, [viewingBatch]);
 
-  // Sync theme
-  useEffect(() => {
-    localStorage.setItem('osintcs_theme', theme);
-  }, [theme]);
-
   // Handle live type auto-detection
   useEffect(() => {
     if (query) {
@@ -344,14 +326,6 @@ export default function App() {
       setDetectedType(type);
     }
   }, [query]);
-
-  // Initialize anti-tampering monitor
-  useEffect(() => {
-    const stop = initSecurityMonitor();
-    return () => {
-      if (stop) stop();
-    };
-  }, []);
 
   // Prevent copying of sensitive UI sections
   useEffect(() => {
@@ -421,6 +395,7 @@ export default function App() {
   // Investigation workflow is delegated to the shared useScanWorkflow hook.
   const {
     isScanning,
+    setIsScanning,
     scanLogs,
     triggerInvestigation: runInvestigation,
     triggerBatchInvestigation: runBatchInvestigation,
@@ -440,6 +415,33 @@ export default function App() {
       setViewingReport(false);
     },
   });
+
+  /* Auto-detect public IP when the "What is My IP" module is opened */
+  useEffect(() => {
+    if (activeTab === 'myip' && !results?.myip && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        setQuery('Detecting your public IP...');
+        try {
+          const result = await scanMyIp();
+          setResults({
+            target: { value: result.ip, type: 'myip' as TargetType },
+            findings: [],
+            riskScore: 0,
+            grade: 'SECURE',
+            timeline: [],
+            myip: result,
+            scanTime: new Date().toLocaleTimeString(),
+          });
+          setViewingReport(true);
+        } catch (e) {
+          showToast('Failed to detect IP. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, showToast]);
 
   // Thin wrappers preserving the original public call signatures.
   const triggerInvestigation = useCallback((overrideTarget?: InvestigationTarget, localFile?: File) => {
@@ -622,9 +624,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen font-sans flex flex-col md:flex-row transition-colors duration-200 ${
-      theme === 'high-contrast'
-        ? 'high-contrast bg-white text-black'
-        : isLightMode
+      isLightMode
         ? 'bg-slate-50 text-slate-800'
         : 'bg-black text-slate-200'
     }`}>
@@ -670,8 +670,6 @@ export default function App() {
         mobileMenuOpen={mobileMenuOpen}
         setMobileMenuOpen={setMobileMenuOpen}
         isLightMode={isLightMode}
-        theme={theme}
-        setTheme={setTheme}
         onSelectModule={handleSelectModule}
       />
 
@@ -683,7 +681,7 @@ export default function App() {
           isLightMode ? 'bg-white border-slate-100' : 'bg-[#070a13] border-slate-850'
         }`}>
           <div className="flex items-center gap-3">
-            <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 uppercase tracking-widest font-bold">
+            <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-red-500/10 border border-red-500/20 text-red-400 uppercase tracking-widest font-bold">
               Public Beta
             </span>
             <div className={`h-4 w-px ${isLightMode ? 'bg-slate-200' : 'bg-slate-800'}`} />
@@ -693,34 +691,10 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => {
-                setTheme((prev) => {
-                  if (prev === 'dark') return 'light';
-                  if (prev === 'light') return 'high-contrast';
-                  return 'dark';
-                });
-              }}
-              className={`p-2 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
-                isLightMode
-                  ? 'border-slate-200 bg-white text-amber-500 hover:bg-slate-50 shadow-sm'
-                  : 'border-slate-800 bg-slate-900/40 text-slate-400 hover:text-slate-200'
-              }`}
-              title={isLightMode ? "Switch to Dark Mode" : "Switch to Light Mode"}
-            >
-              {theme === 'high-contrast' ? (
-                <span className="text-[10px] font-mono font-black text-cyan-400">HC</span>
-              ) : isLightMode ? (
-                <Sun className="w-4.5 h-4.5" />
-              ) : (
-                <Moon className="w-4.5 h-4.5" />
-              )}
-            </button>
-            
             <a
               href="#module_grid"
               onClick={() => handleSelectModule('home')}
-              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-cyan-600/15"
+              className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase transition-all shadow-md shadow-red-600/15"
             >
               Start Scan
             </a>
@@ -745,9 +719,6 @@ export default function App() {
                   results={results}
                   onBack={() => setViewingReport(false)}
                   isLightMode={isLightMode}
-                  setIsLightMode={(val) => setTheme(val ? 'light' : 'dark')}
-                  theme={theme}
-                  setTheme={setTheme}
                   showToast={showToast}
                 />
               </motion.div>
@@ -766,7 +737,7 @@ export default function App() {
                 <div className="max-w-4xl mx-auto space-y-6">
                   <div className="flex items-center justify-between border-b pb-4 border-slate-800">
                     <div className="flex items-center gap-3">
-                      <Layers className="w-8 h-8 text-cyan-500" />
+                      <Layers className="w-8 h-8 text-red-500" />
                       <div>
                         <h1 className="text-2xl font-black font-display">Batch Scan Overview</h1>
                         <p className="text-xs text-slate-400 font-mono">Completed reconnaissance across {batchResults.length} targets</p>
@@ -777,8 +748,8 @@ export default function App() {
                         onClick={handleExportBatchCSV}
                         className={`px-4 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
                           isLightMode
-                            ? 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100 shadow-sm'
-                            : 'border-cyan-950 bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+                            ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm'
+                            : 'border-red-950 bg-red-500/10 text-red-400 hover:bg-red-500/20'
                         }`}
                         title="Export consolidated CSV summary of the risk scores and key findings for all scanned targets"
                       >
@@ -801,7 +772,7 @@ export default function App() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className={`border p-4 rounded-xl ${isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-[#0e1424]/40'}`}>
                       <div className="text-[10px] font-mono font-bold text-slate-500 uppercase">Average Risk Level</div>
-                      <div className="text-3xl font-black text-cyan-500 mt-1">
+                      <div className="text-3xl font-black text-red-500 mt-1">
                         {batchResults.length > 0 ? Math.round(batchResults.reduce((acc, r) => acc + r.riskScore, 0) / batchResults.length) : 0} <span className="text-xs font-normal text-slate-500">/ 100</span>
                       </div>
                     </div>
@@ -835,9 +806,9 @@ export default function App() {
                       {batchResults.map((r, idx) => {
                         const sDetails = calculateRiskScore(r.findings);
                         return (
-                          <div key={idx} className="p-4 flex items-center justify-between transition-colors hover:bg-cyan-500/5">
+                          <div key={idx} className="p-4 flex items-center justify-between transition-colors hover:bg-red-500/5">
                             <div className="flex items-center gap-3 truncate max-w-[70%]">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-500 font-mono border border-cyan-500/25 uppercase shrink-0">
+                              <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/10 text-red-500 font-mono border border-red-500/25 uppercase shrink-0">
                                 {r.target.type}
                               </span>
                                <span className={`text-sm font-bold truncate ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{sanitizeText(r.target.value, 80)}</span>
@@ -858,8 +829,8 @@ export default function App() {
                                 }}
                                 className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                                   isLightMode 
-                                    ? 'bg-slate-100 hover:bg-cyan-500 hover:text-white text-slate-700 border border-slate-200' 
-                                    : 'bg-slate-900 border border-slate-800 hover:border-cyan-500 text-slate-300'
+                                    ? 'bg-slate-100 hover:bg-red-500 hover:text-white text-slate-700 border border-slate-200' 
+                                    : 'bg-slate-900 border border-slate-800 hover:border-red-500 text-slate-300'
                                 }`}
                               >
                                 <Eye className="w-3.5 h-3.5" /> Inspect
@@ -889,16 +860,16 @@ export default function App() {
                   
                   {/* Left Column (Brand info & quick search bar) */}
                   <div className="lg:col-span-7 space-y-6 text-left">
-<div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-cyan-500/5 border border-cyan-500/10">
-           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-           <span className="text-[10px] font-mono tracking-widest text-cyan-400 font-bold uppercase">
+<div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/5 border border-red-500/10">
+           <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+           <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
              OSINT INTELLIGENCE PLATFORM
            </span>
          </div>
 
                     <div className="space-y-1">
 <h1 className="text-4xl sm:text-6xl font-black font-display tracking-tight leading-none">
-         osint<span className="text-cyan-400">cs</span>
+         osint<span className="text-red-400">cs</span>
        </h1>
        <h2 className={`text-3xl sm:text-5xl font-black tracking-tight leading-none ${
          isLightMode ? 'text-slate-600' : 'text-slate-400'
@@ -920,7 +891,7 @@ export default function App() {
            onClick={() => setScanMode('single')}
            className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
              scanMode === 'single'
-               ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+               ? 'bg-red-500/10 text-red-400 border-red-500/25'
                : isLightMode
                ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-850'
                : 'border-slate-850 bg-[#0e1424]/20 text-slate-400 hover:text-slate-200'
@@ -933,7 +904,7 @@ export default function App() {
            onClick={() => setScanMode('batch')}
            className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
              scanMode === 'batch'
-               ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25'
+               ? 'bg-red-500/10 text-red-400 border-red-500/25'
                : isLightMode
                ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-850'
                : 'border-slate-850 bg-[#0e1424]/20 text-slate-400 hover:text-slate-200'
@@ -958,8 +929,8 @@ export default function App() {
                           }}
                           className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                             isLightMode
-                              ? 'border-slate-200 bg-white shadow-sm focus-within:border-cyan-500'
-                              : 'border-slate-850 bg-[#0e1424]/40 shadow-lg shadow-black/40 focus-within:border-cyan-500/80'
+                              ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500'
+                              : 'border-slate-850 bg-[#0e1424]/40 shadow-lg shadow-black/40 focus-within:border-red-500/80'
                           }`}
                         >
                           <div className="pl-3.5 text-slate-500">
@@ -991,7 +962,7 @@ export default function App() {
                             <button
                               type="submit"
                               disabled={!query.trim() || isScanning}
-                              className="px-5 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer font-sans"
+                              className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer font-sans"
                             >
                               Analyze
                             </button>
@@ -1011,8 +982,8 @@ export default function App() {
                                 rows={4}
                                 className={`w-full bg-transparent border rounded-lg p-3 text-xs font-mono outline-none transition-all resize-none ${
                                   isLightMode 
-                                    ? 'text-slate-900 border-slate-200 focus:border-cyan-500 placeholder-slate-400' 
-                                    : 'text-white border-slate-800 focus:border-cyan-500/80 placeholder-slate-600'
+                                    ? 'text-slate-900 border-slate-200 focus:border-red-500 placeholder-slate-400' 
+                                    : 'text-white border-slate-800 focus:border-red-500/80 placeholder-slate-600'
                                 }`}
                                 disabled={isScanning}
                               />
@@ -1037,7 +1008,7 @@ export default function App() {
                                       : 'border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-750'
                                   }`}
                                 >
-                                  <Upload className="w-3.5 h-3.5 text-cyan-500" />
+                                  <Upload className="w-3.5 h-3.5 text-red-500" />
                                   <span>Upload List (.txt / .csv)</span>
                                 </button>
                               </div>
@@ -1056,7 +1027,7 @@ export default function App() {
                                     }
                                   }}
                                 disabled={!batchQuery.trim() || isScanning}
-                                className="px-5 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-bold text-xs transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 font-sans"
+                                className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-bold text-xs transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 font-sans"
                               >
                                 <Play className="w-3.5 h-3.5" />
                                 <span>Run Batch Scan</span>
@@ -1076,7 +1047,7 @@ export default function App() {
                             className={`px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer ${
                               isLightMode
                                 ? 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                                : 'border-slate-800 bg-slate-900/35 hover:border-cyan-500/40 text-slate-400 hover:text-cyan-400'
+                                : 'border-slate-800 bg-slate-900/35 hover:border-red-500/40 text-slate-400 hover:text-red-400'
                             }`}
                           >
                             {chip}
@@ -1092,12 +1063,12 @@ export default function App() {
                       isLightMode ? 'border-slate-200 bg-white shadow-slate-100' : 'border-slate-850 bg-[#0e1424]/40'
                     }`}>
                       {/* Interactive background effect */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-xl pointer-events-none" />
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-xl pointer-events-none" />
 
                       <div className="space-y-6">
                         {/* Title Row */}
                         <div className="flex items-center justify-between border-b border-slate-800/40 pb-3">
-                          <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Sliders className="w-3.5 h-3.5" /> SMART TARGET ROUTER
                           </span>
                           <span className={`text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${
@@ -1118,7 +1089,7 @@ export default function App() {
                                 cx="32"
                                 cy="32"
                                 r="28"
-                                className="fill-none stroke-cyan-400 transition-all duration-500"
+                                className="fill-none stroke-red-400 transition-all duration-500"
                                 strokeWidth="4"
                                 strokeDasharray={176}
                                 strokeDashoffset={query.trim() ? 20 : 140}
@@ -1154,7 +1125,7 @@ export default function App() {
                                key={idx}
                                className={`p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
                                  m.active
-                                   ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-300'
+                                   ? 'border-red-500/50 bg-red-500/10 text-red-300'
                                    : 'border-slate-800/40 bg-slate-950/20 text-slate-500'
                                }`}
                              >
@@ -1177,7 +1148,7 @@ export default function App() {
                               handleSelectModule('risk');
                             }
                           }}
-                          className="text-cyan-400 hover:text-cyan-300 font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                          className="text-red-400 hover:text-red-300 font-bold uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
                         >
                           {query.trim() ? 'Open Scan' : 'Browse Tools'} <ArrowRight className="w-3.5 h-3.5" />
                         </button>
@@ -1210,7 +1181,7 @@ export default function App() {
                 <section id="module_grid" className="space-y-8">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-850 pb-4">
 <div className="space-y-1">
-                       <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest block">
+                       <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
                          OSINTCS MODULES
                        </span>
                        <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">
@@ -1228,14 +1199,14 @@ export default function App() {
                     <div
                       onClick={() => handleSelectModule('domain')}
                       className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-cyan-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-cyan-500/30'
+                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
                       }`}
                     >
                       <div className="flex justify-between items-start">
-                        <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
                           <Globe className="w-5 h-5" />
                         </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
                           Flagship
                         </span>
                       </div>
@@ -1245,7 +1216,7 @@ export default function App() {
                           DNSSec, mail policy, RDAP, SSL, ASN, reverse IP and web security intelligence in one structured scan.
                         </p>
                       </div>
-                      <div className="text-xs font-semibold text-cyan-400 font-mono group-hover:underline flex items-center gap-1">
+                      <div className="text-xs font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
                         Open module <ArrowRight className="w-3.5 h-3.5" />
                       </div>
                     </div>
@@ -1254,7 +1225,7 @@ export default function App() {
                     <div
                       onClick={() => handleSelectModule('email')}
                       className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-cyan-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-cyan-500/30'
+                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
                       }`}
                     >
                       <div className="flex justify-between items-start">
@@ -1280,7 +1251,7 @@ export default function App() {
                     <div
                       onClick={() => handleSelectModule('image')}
                       className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-cyan-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-cyan-500/30'
+                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
                       }`}
                     >
                       <div className="flex justify-between items-start">
@@ -1306,7 +1277,7 @@ export default function App() {
                     <div
                       onClick={() => handleSelectModule('website')}
                       className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-cyan-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-cyan-500/30'
+                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
                       }`}
                     >
                       <div className="flex justify-between items-start">
@@ -1333,7 +1304,7 @@ export default function App() {
                 {/* ANALYSIS ENGINE STAGES (Details list) */}
                 <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start border-t border-slate-850 pt-12">
                   <div className="lg:col-span-5 space-y-4">
-                    <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest block">
+                    <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
                       ANALYSIS PIPELINE
                     </span>
                     <h3 className="text-2xl font-black font-display tracking-tight">
@@ -1358,10 +1329,10 @@ export default function App() {
                       { num: '09', title: 'Website Risk Profiling', desc: 'Detect cross-origin risks, cookies, and untrusted exposure vectors.' },
                       { num: '10', title: 'Image Forensics Verification', desc: 'Extract metadata and execute AI authenticity and ELA noise scans.' },
                     ].map((step, idx) => (
-                      <div key={idx} className={`border p-3 rounded-lg flex items-start gap-3 transition-all hover:border-cyan-500/20 hover:translate-y-0.5 ${
+                      <div key={idx} className={`border p-3 rounded-lg flex items-start gap-3 transition-all hover:border-red-500/20 hover:translate-y-0.5 ${
                         isLightMode ? 'border-slate-100 bg-white/60' : 'border-slate-850 bg-slate-900/10'
                       }`}>
-                        <span className="text-[10px] font-mono font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded shrink-0">
+                        <span className="text-[10px] font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded shrink-0">
                           {step.num}
                         </span>
                         <div className="space-y-0.5 min-w-0">
@@ -1378,7 +1349,7 @@ export default function App() {
                   isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.06),transparent)]'
                 }`}>
                   <div className="max-w-xl mx-auto space-y-4">
-                    <span className="text-[10px] font-mono font-bold text-cyan-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
+                    <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
                     <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full intelligence pipeline.</h3>
                     <p className="text-xs text-slate-400">
                       Audit DNS, SSL, security headers, registry calendars, cookies, and port vulnerabilities in a single synchronous step.
@@ -1389,7 +1360,7 @@ export default function App() {
                         handleSelectModule('risk');
                         triggerInvestigation({ value: 'cloudflare.com', type: 'domain' });
                       }}
-                      className="px-6 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-cyan-600/10"
+                      className="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-red-600/10"
                     >
                       Launch Intelligence Scan
                     </button>
@@ -1402,7 +1373,7 @@ export default function App() {
                 }`}>
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-8">
                     <div className="md:col-span-5 space-y-3">
-                      <span className="text-base font-black font-display">osint<span className="text-cyan-400">cs</span></span>
+                      <span className="text-base font-black font-display">osint<span className="text-red-400">cs</span></span>
                       <p className="text-[11px] text-slate-500 leading-relaxed max-w-sm">
                         Professional-grade OSINT platform for infrastructure intelligence, digital forensics, and security assessments. All analysis runs locally in your browser.
                       </p>
@@ -1412,25 +1383,25 @@ export default function App() {
                       <div className="space-y-2">
                         <strong className="text-slate-500 uppercase tracking-wider font-black block">RECON MODULES</strong>
                         <ul className="space-y-1.5">
-                          <li><button onClick={() => handleSelectModule('domain')} className="hover:text-cyan-400 cursor-pointer">Domain DNS</button></li>
-                          <li><button onClick={() => handleSelectModule('website')} className="hover:text-cyan-400 cursor-pointer">Website SSL</button></li>
-                          <li><button onClick={() => handleSelectModule('ip')} className="hover:text-cyan-400 cursor-pointer">IP Address</button></li>
+                          <li><button onClick={() => handleSelectModule('domain')} className="hover:text-red-400 cursor-pointer">Domain DNS</button></li>
+                          <li><button onClick={() => handleSelectModule('website')} className="hover:text-red-400 cursor-pointer">Website SSL</button></li>
+                          <li><button onClick={() => handleSelectModule('ip')} className="hover:text-red-400 cursor-pointer">IP Address</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
                         <strong className="text-slate-500 uppercase tracking-wider font-black block">IDENTITY OSINT</strong>
                         <ul className="space-y-1.5">
-                          <li><button onClick={() => handleSelectModule('email')} className="hover:text-cyan-400 cursor-pointer">Email Audit</button></li>
-                          <li><button onClick={() => handleSelectModule('username')} className="hover:text-cyan-400 cursor-pointer">Username Footprint</button></li>
-                          <li><button onClick={() => handleSelectModule('phone')} className="hover:text-cyan-400 cursor-pointer">Phone Registry</button></li>
+                          <li><button onClick={() => handleSelectModule('email')} className="hover:text-red-400 cursor-pointer">Email Audit</button></li>
+                          <li><button onClick={() => handleSelectModule('username')} className="hover:text-red-400 cursor-pointer">Username Footprint</button></li>
+                          <li><button onClick={() => handleSelectModule('phone')} className="hover:text-red-400 cursor-pointer">Phone Registry</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
                         <strong className="text-slate-500 uppercase tracking-wider font-black block">FORENSIC CHECKS</strong>
                         <ul className="space-y-1.5">
-                          <li><button onClick={() => handleSelectModule('image')} className="hover:text-cyan-400 cursor-pointer">Image Authenticity</button></li>
-                          <li><button onClick={() => handleSelectModule('metadata')} className="hover:text-cyan-400 cursor-pointer">Metadata Extractor</button></li>
-                          <li><button onClick={() => handleSelectModule('hash')} className="hover:text-cyan-400 cursor-pointer">Hash Intel</button></li>
+                          <li><button onClick={() => handleSelectModule('image')} className="hover:text-red-400 cursor-pointer">Image Authenticity</button></li>
+                          <li><button onClick={() => handleSelectModule('metadata')} className="hover:text-red-400 cursor-pointer">Metadata Extractor</button></li>
+                          <li><button onClick={() => handleSelectModule('hash')} className="hover:text-red-400 cursor-pointer">Hash Intel</button></li>
                         </ul>
                       </div>
                     </div>
@@ -1458,7 +1429,7 @@ export default function App() {
                 {/* Tool Title Block */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-5">
                   <div className="flex items-start gap-3">
-                    <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 shrink-0">
+                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 shrink-0">
                       {React.createElement(QUICK_MODULES.find(m => m.id === activeTab)?.icon || Shield, { className: "w-6 h-6" })}
                     </div>
                     <div>
@@ -1494,7 +1465,7 @@ export default function App() {
                       }`}>
                         <div>
                           <h3 className={`text-xs font-bold font-mono uppercase tracking-wider mb-4 flex items-center gap-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" /> Target Image
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" /> Target Image
                           </h3>
                           <div
                             onDragOver={handleDragOver}
@@ -1503,7 +1474,7 @@ export default function App() {
                             onClick={() => fileInputRef.current?.click()}
                             className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 ${
                               isDragging
-                                ? 'border-cyan-500 bg-cyan-500/5 scale-[1.01]'
+                                ? 'border-red-500 bg-red-500/5 scale-[1.01]'
                                 : isLightMode
                                 ? 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/50'
                                 : 'border-slate-850 bg-slate-950/40 hover:border-slate-700 hover:bg-[#0e1424]/20'
@@ -1517,7 +1488,7 @@ export default function App() {
                               className="hidden"
                               id="image_file_picker"
                             />
-                            <Upload className={`w-8 h-8 ${isDragging ? 'text-cyan-500 animate-bounce' : 'text-slate-500'}`} />
+                            <Upload className={`w-8 h-8 ${isDragging ? 'text-red-500 animate-bounce' : 'text-slate-500'}`} />
                             <div className="space-y-1">
                               <p className={`text-sm font-bold ${isLightMode ? 'text-slate-800' : 'text-white'}`}>Drop or choose an image</p>
                               <p className="text-xs text-slate-500 font-mono">JPEG, PNG, WebP, GIF, AVIF · max 20 MB</p>
@@ -1528,12 +1499,12 @@ export default function App() {
                         <div className="space-y-4 pt-6 mt-6 border-t border-slate-850">
                           <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-cyan-500/10"
+                            className="w-full py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-500/10"
                           >
                             <Eye className="w-4 h-4" /> Scan authenticity
                           </button>
                           <div className="text-[10px] text-slate-500 leading-normal flex items-start gap-1.5 font-mono">
-                            <AlertCircle className="w-3.5 h-3.5 text-cyan-500 shrink-0 mt-0.5" />
+                            <AlertCircle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
                             <div>
                               Scans authenticity traces. Cloud AI detection is used as the primary score when configured.
                             </div>
@@ -1560,7 +1531,7 @@ export default function App() {
                               { title: 'Visual forensic metric', desc: 'Discrete Fourier spectral patterns and ELA compression noise grids.' }
                             ].map((item, index) => (
                               <div key={index} className="p-3 rounded-lg border border-slate-850 bg-slate-900/10 flex items-start gap-2.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500 mt-1.5" />
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5" />
                                 <div className="space-y-0.5">
                                   <strong className="text-xs font-semibold block text-slate-300">{item.title}</strong>
                                   <p className="text-[10px] text-slate-500 leading-normal">{item.desc}</p>
@@ -1580,7 +1551,7 @@ export default function App() {
                       onClick={() => fileInputRef.current?.click()}
                       className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-3.5 ${
                         isDragging
-                          ? 'border-cyan-500 bg-cyan-500/5 scale-[1.01]'
+                          ? 'border-red-500 bg-red-500/5 scale-[1.01]'
                           : isLightMode
                           ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 shadow-sm'
                           : 'border-slate-850 bg-[#0e1424]/40 hover:border-slate-700'
@@ -1593,14 +1564,180 @@ export default function App() {
                         className="hidden"
                         id="metadata_file_picker"
                       />
-                      <FileUp className={`w-10 h-10 ${isDragging ? 'text-cyan-500 animate-bounce' : 'text-slate-500'}`} />
+                      <FileUp className={`w-10 h-10 ${isDragging ? 'text-red-500 animate-bounce' : 'text-slate-500'}`} />
                       <div className="space-y-1">
                         <p className={`text-sm font-bold ${isLightMode ? 'text-slate-800' : 'text-white'}`}>Drag & drop files to inspect metadata</p>
                         <p className="text-xs text-slate-500">Supports PDF, JPEG, PNG, Excel, Docx, or binary files up to 25MB (or drop .txt/.csv list for Batch Scans)</p>
                       </div>
-                      <span className="text-[10px] px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-cyan-400 font-mono font-semibold uppercase tracking-wider mt-1 cursor-pointer">
+                      <span className="text-[10px] px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-red-400 font-mono font-semibold uppercase tracking-wider mt-1 cursor-pointer">
                         Click to Browse Local Files
                       </span>
+                    </div>
+                  ) : activeTab === 'myip' ? (
+                    /* What is My IP — dedicated interface */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
+                              <Network className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>What is My IP</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Public IP, ASN, ISP, geolocation, and connection fingerprint</p>
+                            </div>
+                          </div>
+                          {results?.myip && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Detected
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Detecting your public IP...</span>
+                          </div>
+                        ) : results?.myip ? (
+                          <div className="space-y-6">
+                            {/* Hero IP display */}
+                            <div className={`p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isLightMode ? 'border-blue-200 bg-blue-50' : 'border-blue-500/30 bg-blue-500/10'}`}>
+                              <div className="space-y-1 min-w-0">
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Your Public IP Address</span>
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-2xl sm:text-3xl font-black font-mono break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.myip.ip}</span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 ${results.myip.ipVersion === 'IPv6' ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'}`}>{results.myip.ipVersion}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(results.myip!.ip);
+                                  showToast('IP address copied to clipboard', 'success');
+                                }}
+                                className={`shrink-0 px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isLightMode ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Copy
+                              </button>
+                            </div>
+
+                            {/* Network & Location */}
+                            <div>
+                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Network &amp; Location</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {[
+                                  { label: 'ISP', value: results.myip.isp },
+                                  { label: 'Organization', value: results.myip.org },
+                                  { label: 'ASN', value: results.myip.asn },
+                                  { label: 'Country', value: results.myip.country },
+                                  { label: 'Region', value: results.myip.region },
+                                  { label: 'City', value: results.myip.city },
+                                  { label: 'Timezone', value: results.myip.timezone },
+                                  ...(results.myip.latitude !== undefined && results.myip.longitude !== undefined
+                                    ? [{ label: 'Coordinates', value: `${results.myip.latitude.toFixed(4)}, ${results.myip.longitude.toFixed(4)}` }]
+                                    : []),
+                                ].map((field, idx) => (
+                                  <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                    <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                    <span className={`text-sm font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Connection Fingerprint */}
+                            <div>
+                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Connection Fingerprint</h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {[
+                                  { label: 'Platform', value: results.myip.platform },
+                                  { label: 'Language', value: results.myip.language },
+                                  { label: 'Scan Time', value: results.scanTime },
+                                ].map((field, idx) => (
+                                  <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                    <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                    <span className={`text-sm font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                  </div>
+                                ))}
+                                <div className={`p-3.5 rounded-lg border col-span-1 sm:col-span-2 ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">User Agent</span>
+                                  <span className={`text-xs font-mono break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.myip.userAgent || 'N/A'}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning) return;
+                                  setIsScanning(true);
+                                  setQuery('Detecting your public IP...');
+                                  try {
+                                    const result = await scanMyIp();
+                                    setResults({
+                                      target: { value: result.ip, type: 'myip' as TargetType },
+                                      findings: [],
+                                      riskScore: 0,
+                                      grade: 'SECURE',
+                                      timeline: [],
+                                      myip: result,
+                                      scanTime: new Date().toLocaleTimeString(),
+                                    });
+                                    setViewingReport(true);
+                                  } catch (e) {
+                                    showToast('Failed to detect IP. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Scan Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (isScanning) return;
+                              setIsScanning(true);
+                              setQuery('Detecting your public IP...');
+                              try {
+                                const result = await scanMyIp();
+                                setResults({
+                                  target: { value: result.ip, type: 'myip' as TargetType },
+                                  findings: [],
+                                  riskScore: 0,
+                                  grade: 'SECURE',
+                                  timeline: [],
+                                  myip: result,
+                                  scanTime: new Date().toLocaleTimeString(),
+                                });
+                                setViewingReport(true);
+                              } catch (e) {
+                                showToast('Failed to detect IP. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }}
+                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Network className="w-4 h-4" /> Detect My Public IP
+                            </span>
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     /* Dynamic Text Inputs Form */
@@ -1619,8 +1756,8 @@ export default function App() {
                         }}
                         className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                           isLightMode
-                            ? 'border-slate-200 bg-white shadow-sm focus-within:border-cyan-500'
-                            : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-cyan-500/85'
+                            ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500'
+                            : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-red-500/85'
                         }`}
                       >
                         <div className="pl-3.5 text-slate-500">
@@ -1652,7 +1789,7 @@ export default function App() {
                           <button
                             type="submit"
                             disabled={!query.trim() || isScanning}
-                            className="px-5 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                            className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
                           >
                             Analyze
                           </button>
@@ -1663,7 +1800,7 @@ export default function App() {
                       <div className="flex items-center justify-between text-xs font-mono text-slate-500">
                         <span>* {QUICK_MODULES.find(m => m.id === activeTab)?.helpHint}</span>
                         {query.trim() && (
-                          <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold uppercase">
+                          <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase">
                             MATCH: {detectedType}
                           </span>
                         )}
@@ -1696,7 +1833,7 @@ export default function App() {
                               >
                           <div onClick={() => setResults(scan)} className="cursor-pointer space-y-2 pr-6 no-copy">
                             <div className="flex justify-between items-center text-[10px] font-mono">
-                              <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/25 uppercase font-bold">
+                              <span className="px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/25 uppercase font-bold">
                                 {scan.target.type}
                               </span>
                               <span className="text-slate-500 font-bold">{scGrade} GRADE ({scan.riskScore})</span>
@@ -1732,46 +1869,12 @@ export default function App() {
               >
                 <div className="border-b border-slate-850 pb-4">
                   <h2 className="text-xl font-black font-display flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-cyan-500" /> Workspace Settings
+                    <Sliders className="w-5 h-5 text-red-500" /> Workspace Settings
                   </h2>
                   <p className="text-xs text-slate-400 font-medium">Configure simulated telemetry delays and inspect browser DOM cache stores.</p>
                 </div>
 
                 <div className="max-w-2xl mx-auto space-y-6">
-                  {/* Theme Switch Panel */}
-                  <div className={`border rounded-xl p-5 space-y-4 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Appearance</h3>
-                        <p className="text-xs text-slate-500 mt-1">Switch between dark, light, and high-contrast modes.</p>
-                      </div>
-                      <div className="flex bg-slate-900/35 p-1 rounded-lg border border-slate-800 shrink-0">
-                        {[
-                          { id: 'dark', label: 'Dark', icon: Moon },
-                          { id: 'light', label: 'Light', icon: Sun },
-                          { id: 'high-contrast', label: 'Contrast', icon: ShieldCheck }
-                        ].map((opt) => {
-                          const Icon = opt.icon;
-                          const active = theme === opt.id;
-                          return (
-                            <button
-                              key={opt.id}
-                              onClick={() => setTheme(opt.id as any)}
-                              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                active
-                                  ? 'bg-cyan-500 text-white shadow-sm'
-                                  : 'text-slate-400 hover:text-slate-200'
-                              }`}
-                            >
-                              <Icon className="w-3.5 h-3.5" />
-                              <span>{opt.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Settings Control Block */}
                   <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
                     <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Recon Controls</h3>
@@ -1788,7 +1891,7 @@ export default function App() {
                           onChange={(e) => setSimulateDelay(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
                       </label>
                     </div>
 
@@ -1804,7 +1907,7 @@ export default function App() {
                           onChange={(e) => setStrictScans(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
                       </label>
                     </div>
                   </div>
@@ -1843,7 +1946,7 @@ export default function App() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-4">
                   <div>
                     <h2 className="text-xl font-black font-display flex items-center gap-2">
-                      <History className="w-5 h-5 text-cyan-400" /> Stored Local Investigations
+                      <History className="w-5 h-5 text-red-400" /> Stored Local Investigations
                     </h2>
                     <p className="text-xs text-slate-400 font-medium">Browse, review, and export findings from all sandbox runs.</p>
                   </div>
@@ -1878,7 +1981,7 @@ export default function App() {
                           >
                             <div onClick={() => setResults(scan)} className="cursor-pointer space-y-3 pr-6 no-copy">
                               <div className="flex justify-between items-center text-[10px] font-mono">
-                                <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold uppercase">
+                                <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase">
                                   {scan.target.type}
                                 </span>
                                 <div className="flex items-center gap-1.5">
