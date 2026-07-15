@@ -2384,6 +2384,13 @@ export default function ReportDashboard({
               </div>
             </div>
           )}
+
+          {/* Branding Footer */}
+          <div className="border-t border-slate-200 bg-white py-4 px-4 text-center">
+            <p className="text-[11px] text-slate-500 font-mono">
+              Created by <span className="text-red-600 font-bold">Cyberswahili</span> — OSINTCS v2.0 · Browser-Based Security Sandbox Intelligence · Zero Telemetry
+            </p>
+          </div>
         </motion.div>
       </div>
     </div>
