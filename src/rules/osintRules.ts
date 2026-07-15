@@ -704,8 +704,53 @@ export function analyzeMetadataRules(metadata: any): Finding[] {
 }
 
 /**
- * Hash Rules Engine
+ * Recon Toolkit Rules Engine
+ * Converts recon items that carry an actionable severity into findings.
  */
+export function analyzeReconResult(result: any): Finding[] {
+  const findings: Finding[] = [];
+  const module = result?.module || 'recon';
+  const target = result?.target || '';
+
+  (result?.items || []).forEach((item: any, idx: number) => {
+    const sev = item?.severity;
+    if (!sev || sev === 'pass' || sev === 'info') return;
+
+    const description = item.detail
+      ? `${item.detail}`
+      : item.value
+      ? `Observed: ${item.value}`
+      : `${item.label} detected during ${module} reconnaissance.`;
+
+    findings.push(
+      createFinding(
+        `RECON_${module.toUpperCase()}_${idx}`,
+        module,
+        item.label,
+        description,
+        sev,
+        `${module.toUpperCase()} Recon`,
+        `Review "${item.label}" in the ${module} report and apply remediation per your security policy.`
+      )
+    );
+  });
+
+  if (findings.length === 0) {
+    findings.push(
+      createFinding(
+        `RECON_${module.toUpperCase()}_PASS`,
+        module,
+        `${module} scan completed — no high-risk anomalies`,
+        `Reconnaissance of ${target} returned no medium or high severity indicators.`,
+        'pass',
+        `${module.toUpperCase()} Recon`,
+        'No action required.'
+      )
+    );
+  }
+
+  return findings;
+}
 export function analyzeHashRules(hash: any): Finding[] {
   const findings: Finding[] = [];
 

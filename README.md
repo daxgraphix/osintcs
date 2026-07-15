@@ -1,6 +1,8 @@
 # OSINT.CS — Cyber Intelligence Platform
 
-OSINT.CS is a browser-based OSINT (Open Source Intelligence) platform that runs entirely in the client. It performs reconnaissance across domains, DNS, SSL, IP, email, usernames, hashes, files, and public IP detection using public APIs with graceful fallbacks. Results are aggregated into an interactive report dashboard with risk scoring, remediation recommendations, timeline visualization, and multi-format export.
+> **Created by Cyberswahili** — Browser-based OSINT reconnaissance suite for infrastructure intelligence, digital forensics, and security assessments.
+
+OSINT.CS is a fully client-side OSINT platform that performs reconnaissance across domains, DNS, SSL, IP, email, usernames, hashes, files, and public IP detection using public APIs with graceful fallbacks. Results are aggregated into an interactive report dashboard with risk scoring, remediation recommendations, timeline visualization, and multi-format export.
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS v4 (light-mode design tokens)
@@ -8,6 +10,19 @@ OSINT.CS is a browser-based OSINT (Open Source Intelligence) platform that runs 
 - **Icons:** Lucide React
 - **QR:** jsQR
 - **No backend required** — all scans execute client-side against public endpoints.
+
+---
+
+## Latest Updates
+
+- **15+ Recon Modules** — Expanded from 5 to 15 integrated modules covering the full reconnaissance lifecycle.
+- **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, and Google Dorking.
+- **Identity & People OSINT** — Added People Hunter module with breach-exposure simulation and identity correlation.
+- **Live Integrations** — DNS-over-HTTPS caching, live HTTP header probing via CORS proxy, WAF vendor detection from response headers, and real subdomain enumeration via certificate-transparency logs.
+- **Performance** — DoH response caching reduces redundant network calls; deterministic simulation fallbacks preserve offline resilience.
+- **Home Screen Redesign** — Categorized module grid, expanded analysis pipeline (15 steps), updated stats ticker, and refreshed CTAs.
+- **Report Enhancements** — Generic recon panel renders any module result; export filenames sanitized; findings rules expanded for new modules.
+- **Branding** — Created by Cyberswahili branding applied across app footer, reports, and console.
 
 ---
 
@@ -22,7 +37,7 @@ The landing screen offers a universal input field with intelligent target routin
 ### Report Dashboard
 After any scan, the dashboard replaces the lobby and presents:
 - **Overview** — target summary, risk score, grade, timeline, and at-a-glance metadata.
-- **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP.
+- **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking.
 - **Evidence** — raw scan payloads and parsed responses.
 - **Findings** — rule-based detections with severity (`pass`, `medium`, `high`), category, and remediation text.
 - **Recommendations** — auto-generated remediation actions derived from findings.
@@ -87,6 +102,51 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - Displays IPv4/IPv6, ASN, ISP, organization, country, region, city, timezone, coordinates, platform, language, and user agent.
 - Generates a privacy finding and remediation recommendation (VPN/proxy guidance).
 
+### 10. Website Scanner
+- Probes live HTTP response headers via CORS proxy.
+- Detects server technology, CMS, security headers (CSP, HSTS, X-Frame-Options, COOP/COEP, Permissions-Policy), CORS configuration, and cookie flags (Secure, HttpOnly, SameSite).
+- Falls back to deterministic simulation when the proxy is unreachable.
+
+### 11. Subdomain Finder
+- Queries **crt.sh** certificate-transparency logs for passive subdomain enumeration.
+- Validates discovered hosts via DNS-over-HTTPS A/AAAA resolution.
+- Falls back to seeded simulation when crt.sh is rate-limited or offline.
+
+### 12. Port Scanner
+- Top-profile sweep (34 common ports: 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 8888, etc.).
+- Deep-profile expansion (additional high-risk ports: 111, 143, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8000, 8009, 8081, 8443, 8888, 9000, 9200, 9300, 10000, 27017, 50000, etc.).
+- Falls back to deterministic simulation preserving open/closed distribution.
+
+### 13. Network Scan
+- Broader port coverage with top/deep segmentation.
+- Simulated service fingerprinting and exposure triage.
+
+### 14. URL Fuzzer
+- Probes common admin paths, backup files, debug endpoints, and parameter vectors.
+- Severity classification (medium/high) based on endpoint sensitivity.
+
+### 15. WAF Detector
+- Inspects response headers for WAF/CDN vendor fingerprints (Cloudflare, Akamai, AWS WAF, Imperva, Sucuri, etc.).
+- Detects challenge pages and security header configurations.
+- Falls back to heuristic detection when live probing is unavailable.
+
+### 16. People Hunter
+- Correlates email addresses, usernames, and domain affiliations.
+- Simulates breach-exposure indicators and entity correlation.
+- Returns exposure count and medium-severity finding when exposure is high.
+
+### 17. Domain Finder
+- Discovers related domains via search-engine dorks and pattern enumeration.
+- Returns discovered domains with confidence scoring.
+
+### 18. Virtual Hosts (VHosts)
+- Enumerates virtual hostnames associated with an IP or CDN endpoint.
+- Returns discovered vhost entries with HTTP response validation.
+
+### 19. Google Dorking
+- Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
+- Returns query templates for manual or automated execution.
+
 ---
 
 ## Scan Workflow
@@ -94,9 +154,9 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 1. **Target resolution** — `detectTargetType()` inspects the input (regex for email, IP, phone-style digits, hex hash, URL, domain). Module tabs override the detected type so selecting "Email Audit" forces `email` routing.
 2. **Rate limiting** — `checkRateLimit()` enforces per-minute caps (single scans: 10/min; batch scans: 3/min).
 3. **Orchestration** — `useScanWorkflow` runs `performScan()`, which calls the appropriate service function(s), then pipes results through:
-   - `calculateRiskScore(findings)` → numeric score + grade.
-   - `generateRecommendations(findings)` → prioritized remediation list.
-   - `buildTimeline(...)` → chronological scan events.
+    - `calculateRiskScore(findings)` → numeric score + grade.
+    - `generateRecommendations(findings)` → prioritized remediation list.
+    - `buildTimeline(...)` → chronological scan events.
 4. **Sanitization** — all user inputs are passed through `sanitizeText`, `sanitizeFilename`, and `escapeHtml` before rendering or logging.
 5. **Persistence** — single scan results are held in React state; completed scans are appended to `recentScans` in `sessionStorage` for history recall.
 
@@ -108,10 +168,11 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - **Timeline** — chronological walkthrough of every reconnaissance step.
 - **Findings** — rule-based detections with module, category, severity, description, and remediation text.
 - **Recommendations** — generated from findings with priority, category, and impact statement.
-- **Evidence** — raw payloads (DNS answers, RDAP text, SSL chain details, headers, email MX/DMARC/SPF records, EXIF tables, port scan table, etc.).
+- **Evidence** — raw payloads (DNS answers, RDAP text, SSL chain details, headers, email MX/DMARC/SPF records, EXIF tables, port scan table, subdomain list, WAF headers, etc.).
 - **Export formats** — TXT, JSON, CSV, Markdown, HTML.
 - **Copy to clipboard** — one-tap copy for IPs, phone numbers, and hash values.
 - **Remediation notes** — myip and other modules include privacy/security guidance directly in findings.
+- **Branding** — Reports and console display "Created by Cyberswahili" attribution.
 
 ---
 
@@ -121,6 +182,7 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - **Mobile:** top app bar with hamburger menu, slide-in navigation drawer, and a scrollable main content area.
 - **App shell:** viewport-locked layout (`h-screen overflow-hidden`) with independent scroll panes for sidebar and main content, so the page never double-scrolls.
 - **Typography:** Inter (UI), Space Grotesk (display), JetBrains Mono (terminal/logs).
+- **Branding:** Created by Cyberswahili displayed in footer, report console, and lobby.
 
 ---
 
@@ -134,3 +196,7 @@ npm run lint    # tsc --noEmit
 ```
 
 No environment variables or backend server are required. All scans run against public, no-auth endpoints from the browser.
+
+---
+
+*Created by Cyberswahili — Professional-grade OSINT platform for infrastructure intelligence, digital forensics, and security assessments. All analysis runs locally in your browser.*

@@ -12,7 +12,17 @@ export type TargetType =
   | 'image'
   | 'hash'
   | 'metadata'
-  | 'myip';
+  | 'myip'
+  | 'googlehacking'
+  | 'websitescanner'
+  | 'networkscan'
+  | 'subdomain'
+  | 'portscan'
+  | 'urlfuzz'
+  | 'waf'
+  | 'peoplehunter'
+  | 'domainfinder'
+  | 'vhosts';
 
 export interface InvestigationTarget {
   value: string;
@@ -262,9 +272,37 @@ export interface HashResult {
   entropy?: number;
 }
 
+export type ReconStatus =
+  | 'found'
+  | 'open'
+  | 'closed'
+  | 'available'
+  | 'registered'
+  | 'detected'
+  | 'blocked'
+  | 'safe'
+  | 'unknown';
+
+export interface ReconItem {
+  label: string;
+  value?: string;
+  status?: ReconStatus;
+  severity?: Severity;
+  detail?: string;
+}
+
+export interface ReconResult {
+  module: string;
+  target: string;
+  summary: string;
+  items: ReconItem[];
+  extra?: Record<string, string | number | boolean | undefined>;
+}
+
 export interface ScanResults {
   target: InvestigationTarget;
   scanTime: string;
+  recon?: Record<string, ReconResult>;
   dns?: DNSResult;
   whois?: WHOISResult;
   ssl?: SSLResult;

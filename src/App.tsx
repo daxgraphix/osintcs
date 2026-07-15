@@ -858,9 +858,9 @@ export default function App() {
                   <div className="lg:col-span-7 space-y-6 text-left">
 <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/5 border border-red-500/10">
            <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-           <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
-             OSINT INTELLIGENCE PLATFORM
-           </span>
+            <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
+              OSINT INTELLIGENCE PLATFORM · BY CYBERSWAHILI
+            </span>
          </div>
 
                     <div className="space-y-1">
@@ -875,8 +875,8 @@ export default function App() {
                     </div>
 
 <p className={`text-sm sm:text-base leading-relaxed ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>
-         osintcs integrates advanced OSINT capabilities including DNS intelligence, SSL/TLS analysis, WHOIS investigation, image forensics, and website security scanning into a unified, browser-based platform.
-       </p>
+          osintcs integrates advanced OSINT capabilities including DNS intelligence, SSL/TLS analysis, WHOIS investigation, image forensics, website security scanning, subdomain enumeration, port profiling, WAF detection, and identity reconnaissance into a unified, browser-based platform.
+        </p>
 
                     {/* Integrated Quick Search Bar with Dual Mode */}
                     <div className="space-y-4">
@@ -1156,145 +1156,71 @@ export default function App() {
                 {/* STATISTICS TICKER */}
                 <section className="grid grid-cols-2 lg:grid-cols-4 gap-6 border-y border-slate-850 py-8 text-center font-mono">
                   <div>
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Integrations</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>8+</span>
+                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
+                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>15+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>40+</span>
+                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>100+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Report Formats</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>CSV / JSON</span>
+                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>5 Formats</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Access Mode</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Guest Access</span>
+                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>100% Local</span>
                   </div>
                 </section>
 
                 {/* PLATFORM MODULES SECTION */}
-                <section id="module_grid" className="space-y-8">
+                <section id="module_grid" className="space-y-10">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-850 pb-4">
-<div className="space-y-1">
-                       <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
-                         OSINTCS MODULES
-                       </span>
-                       <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">
-                         Purpose-built for intelligence professionals
-                       </h3>
-                     </div>
-                     <p className="text-xs text-slate-400 max-w-sm">
-                       Each tool is engineered for depth, accuracy, and operational security in real-world investigations.
-                     </p>
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
+                        OSINTCS MODULES
+                      </span>
+                      <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">
+                        Full-spectrum reconnaissance arsenal
+                      </h3>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-sm">
+                      15+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, and attack-surface discovery.
+                    </p>
                   </div>
 
-                  {/* 4 Cards Grid matching visual layout */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Module 1: Domain Analyzer */}
-                    <div
-                      onClick={() => handleSelectModule('domain')}
-                      className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
-                          <Globe className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
-                          Flagship
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <h4 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Domain Analyzer</h4>
-                        <p className="text-xs text-slate-400 leading-normal">
-                          DNSSec, mail policy, RDAP, SSL, ASN, reverse IP and web security intelligence in one structured scan.
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
-                        Open module <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-
-                    {/* Module 2: Deep OSINT */}
-                    <div
-                      onClick={() => handleSelectModule('email')}
-                      className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
-                          <User className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                          Identity Check
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <h4 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Deep OSINT Entity Lookup</h4>
-                        <p className="text-xs text-slate-400 leading-normal">
-                          Investigate emails, usernames, domains and companies through open-source signals.
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-amber-400 font-mono group-hover:underline flex items-center gap-1">
-                        Open module <ArrowRight className="w-3.5 h-3.5" />
+                  {[
+                    { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','ip'] },
+                    { category: 'IDENTITY & PEOPLE', color: 'text-amber-400', modules: ['email','username','peoplehunter'] },
+                    { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip'] },
+                  ].map((cat) => (
+                    <div key={cat.category} className="space-y-4">
+                      <h4 className={`text-[10px] font-mono font-bold uppercase tracking-widest ${cat.color}`}>{cat.category}</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {cat.modules.map((modId) => {
+                          const mod = QUICK_MODULES.find(m => m.id === modId);
+                          if (!mod) return null;
+                          const Icon = mod.icon;
+                          return (
+                            <div key={modId} onClick={() => handleSelectModule(modId)} className={`border rounded-xl p-4 space-y-3 group transition-all cursor-pointer hover:-translate-y-0.5 ${isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'}`}>
+                              <div className="flex justify-between items-start">
+                                <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <h5 className={`font-bold text-sm ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{mod.label}</h5>
+                                <p className="text-[11px] text-slate-400 leading-normal line-clamp-2">{mod.description}</p>
+                              </div>
+                              <div className="text-[11px] font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
+                                Open module <ArrowRight className="w-3 h-3" />
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-
-                    {/* Module 3: Image Authenticity Scanner */}
-                    <div
-                      onClick={() => handleSelectModule('image')}
-                      className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
-                          <Eye className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          Forensics
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <h4 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Image Authenticity Scanner</h4>
-                        <p className="text-xs text-slate-400 leading-normal">
-                          Check photos for AI-generation traces, metadata gaps, file integrity, compression behavior and visual forensic signals.
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-emerald-400 font-mono group-hover:underline flex items-center gap-1">
-                        Open module <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-
-                    {/* Module 4: Website Risk Scanner */}
-                    <div
-                      onClick={() => handleSelectModule('website')}
-                      className={`border rounded-xl p-5 space-y-4 group transition-all cursor-pointer hover:-translate-y-0.5 ${
-                        isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div className="p-3 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                          <Server className="w-5 h-5" />
-                        </div>
-                        <span className="text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                          Security
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        <h4 className={`font-bold text-base ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Website Risk Scanner</h4>
-                        <p className="text-xs text-slate-400 leading-normal">
-                          Audit your own website for response headers, TLS, cookies, CORS, DNS mail security and public exposures.
-                        </p>
-                      </div>
-                      <div className="text-xs font-semibold text-indigo-400 font-mono group-hover:underline flex items-center gap-1">
-                        Open module <ArrowRight className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </section>
 
                 {/* ANALYSIS ENGINE STAGES (Details list) */}
@@ -1315,15 +1241,20 @@ export default function App() {
                   <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     {[
                       { num: '01', title: 'DNS Intelligence Mapping', desc: 'Resolve MX, NS, SPF, DMARC, and TXT records for attack surface analysis.' },
-                      { num: '02', title: 'CDN & Origin Detection', desc: 'Identify origin IPs and true hosting providers behind CDN layers.' },
-                      { num: '03', title: 'Mail Server Security Audit', desc: 'Audit SMTP configurations, open relays, and spoofing vulnerabilities.' },
-                      { num: '04', title: 'WHOIS & RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
-                      { num: '05', title: 'SSL/TLS Configuration Audit', desc: 'Analyze certificates, cipher suites, and protocol versions.' },
-                      { num: '06', title: 'BGP/ASN Route Mapping', desc: 'Trace autonomous network systems and physical hosting infrastructure.' },
-                      { num: '07', title: 'Reverse IP Mapping', desc: 'Identify co-hosted servers and shared hosting neighbors.' },
-                      { num: '08', title: 'HTTP Security Headers Scan', desc: 'Verify CSP, HSTS, X-Frame, and secure transport options.' },
-                      { num: '09', title: 'Website Risk Profiling', desc: 'Detect cross-origin risks, cookies, and untrusted exposure vectors.' },
-                      { num: '10', title: 'Image Forensics Verification', desc: 'Extract metadata and execute AI authenticity and ELA noise scans.' },
+                      { num: '02', title: 'Website Security Scan', desc: 'Live headers, TLS, cookies, CORS, CMS, security header fingerprinting.' },
+                      { num: '03', title: 'Mail Server Audit', desc: 'Audit SMTP, open relays, spoofing vectors, and mailflow posture.' },
+                      { num: '04', title: 'WHOIS / RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
+                      { num: '05', title: 'SSL/TLS Audit', desc: 'Certificates, cipher suites, protocol versions, and chain trust.' },
+                      { num: '06', title: 'BGP / ASN Mapping', desc: 'Trace autonomous networks and physical hosting infrastructure.' },
+                      { num: '07', title: 'Reverse IP / Hostmap', desc: 'Co-hosted servers, shared hosting neighbors, and origin exposure.' },
+                      { num: '08', title: 'Security Headers Review', desc: 'CSP, HSTS, X-Frame, COOP/COEP, and secure transport options.' },
+                      { num: '09', title: 'Subdomain Enumeration', desc: 'Certificate transparency logs and passive recon coverage.' },
+                      { num: '10', title: 'Port & Service Profiling', desc: 'Top and deep port sweeps, service fingerprinting, and exposure triage.' },
+                      { num: '11', title: 'WAF Detection', desc: 'Identify CDN/WAF vendors, challenge pages, and header-based protections.' },
+                      { num: '12', title: 'Identity & People OSINT', desc: 'Email breach exposure, username footprinting, and entity correlation.' },
+                      { num: '13', title: 'Image & Metadata Forensics', desc: 'EXIF, GPS, AI-generation indicators, and ELA compression analysis.' },
+                      { num: '14', title: 'URL & Path Discovery', desc: 'Endpoint fuzzing, common admin paths, and parameter exposure.' },
+                      { num: '15', title: 'Local Execution Mode', desc: 'Zero backend dependency. All scanning runs in-browser with fallback simulation.' },
                     ].map((step, idx) => (
                       <div key={idx} className={`border p-3 rounded-lg flex items-start gap-3 transition-all hover:border-red-500/20 hover:translate-y-0.5 ${
                         isLightMode ? 'border-slate-100 bg-white/60' : 'border-slate-850 bg-slate-900/10'
@@ -1346,14 +1277,14 @@ export default function App() {
                 }`}>
                   <div className="max-w-xl mx-auto space-y-4">
                     <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
-                    <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full intelligence pipeline.</h3>
+                    <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full reconnaissance suite.</h3>
                     <p className="text-xs text-slate-400">
-                      Audit DNS, SSL, security headers, registry calendars, cookies, and port vulnerabilities in a single synchronous step.
+                      Audit DNS, SSL, headers, subdomains, WAF, open ports, virtual hosts, and known paths in a single synchronous workflow.
                     </p>
                     <button
                       onClick={() => {
                         setQuery('cloudflare.com');
-                        handleSelectModule('risk');
+                        handleSelectModule('domain');
                         triggerInvestigation({ value: 'cloudflare.com', type: 'domain' });
                       }}
                       className="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-red-600/10"
@@ -1371,31 +1302,41 @@ export default function App() {
                     <div className="md:col-span-5 space-y-3">
                       <span className="text-base font-black font-display">osint<span className="text-red-400">cs</span></span>
                       <p className="text-[11px] text-slate-500 leading-relaxed max-w-sm">
-                        Professional-grade OSINT platform for infrastructure intelligence, digital forensics, and security assessments. All analysis runs locally in your browser.
+                        Created by <span className="text-red-400 font-bold">Cyberswahili</span>. Professional-grade OSINT platform for infrastructure intelligence, digital forensics, and security assessments. All analysis runs locally in your browser.
                       </p>
                     </div>
 
                     <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-6 font-mono text-[10px] text-left">
                       <div className="space-y-2">
-                        <strong className="text-slate-500 uppercase tracking-wider font-black block">RECON MODULES</strong>
+                        <strong className="text-slate-500 uppercase tracking-wider font-black block">INFRASTRUCTURE</strong>
                         <ul className="space-y-1.5">
                           <li><button onClick={() => handleSelectModule('domain')} className="hover:text-red-400 cursor-pointer">Domain DNS</button></li>
                           <li><button onClick={() => handleSelectModule('website')} className="hover:text-red-400 cursor-pointer">Website SSL</button></li>
+                          <li><button onClick={() => handleSelectModule('websitescanner')} className="hover:text-red-400 cursor-pointer">Web Security</button></li>
+                          <li><button onClick={() => handleSelectModule('subdomain')} className="hover:text-red-400 cursor-pointer">Subdomains</button></li>
+                          <li><button onClick={() => handleSelectModule('portscan')} className="hover:text-red-400 cursor-pointer">Port Scanner</button></li>
+                          <li><button onClick={() => handleSelectModule('network')} className="hover:text-red-400 cursor-pointer">Network Scan</button></li>
+                        </ul>
+                      </div>
+                      <div className="space-y-2">
+                        <strong className="text-slate-500 uppercase tracking-wider font-black block">ATTACK SURFACE</strong>
+                        <ul className="space-y-1.5">
+                          <li><button onClick={() => handleSelectModule('urlfuzz')} className="hover:text-red-400 cursor-pointer">URL Fuzzer</button></li>
+                          <li><button onClick={() => handleSelectModule('waf')} className="hover:text-red-400 cursor-pointer">WAF Detector</button></li>
+                          <li><button onClick={() => handleSelectModule('domainfinder')} className="hover:text-red-400 cursor-pointer">Domain Finder</button></li>
+                          <li><button onClick={() => handleSelectModule('vhosts')} className="hover:text-red-400 cursor-pointer">VHosts</button></li>
+                          <li><button onClick={() => handleSelectModule('googlehacking')} className="hover:text-red-400 cursor-pointer">Google Dorking</button></li>
                           <li><button onClick={() => handleSelectModule('ip')} className="hover:text-red-400 cursor-pointer">IP Address</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
-                        <strong className="text-slate-500 uppercase tracking-wider font-black block">IDENTITY OSINT</strong>
+                        <strong className="text-slate-500 uppercase tracking-wider font-black block">IDENTITY & FORENSICS</strong>
                         <ul className="space-y-1.5">
                           <li><button onClick={() => handleSelectModule('email')} className="hover:text-red-400 cursor-pointer">Email Audit</button></li>
                           <li><button onClick={() => handleSelectModule('username')} className="hover:text-red-400 cursor-pointer">Username Footprint</button></li>
-                        </ul>
-                      </div>
-                      <div className="space-y-2">
-                        <strong className="text-slate-500 uppercase tracking-wider font-black block">FORENSIC CHECKS</strong>
-                        <ul className="space-y-1.5">
-                          <li><button onClick={() => handleSelectModule('image')} className="hover:text-red-400 cursor-pointer">Image Authenticity</button></li>
-                          <li><button onClick={() => handleSelectModule('metadata')} className="hover:text-red-400 cursor-pointer">Metadata Extractor</button></li>
+                          <li><button onClick={() => handleSelectModule('peoplehunter')} className="hover:text-red-400 cursor-pointer">People Hunter</button></li>
+                          <li><button onClick={() => handleSelectModule('image')} className="hover:text-red-400 cursor-pointer">Image Forensics</button></li>
+                          <li><button onClick={() => handleSelectModule('metadata')} className="hover:text-red-400 cursor-pointer">Metadata</button></li>
                           <li><button onClick={() => handleSelectModule('hash')} className="hover:text-red-400 cursor-pointer">Hash Intel</button></li>
                         </ul>
                       </div>
@@ -1403,7 +1344,7 @@ export default function App() {
                   </div>
 
                   <div className="border-t border-slate-850/50 py-6 text-center text-[10px] text-slate-500 space-y-1 leading-normal">
-                    <p>osintcs © 2026. Browser-Based Security Sandbox Intelligence.</p>
+                    <p>osintcs © 2026. Created by <span className="text-red-400 font-bold">Cyberswahili</span>. Browser-Based Security Sandbox Intelligence.</p>
                     <p>All investigation processes are executed locally. Zero telemetry data logs exit the browser context.</p>
                   </div>
                 </footer>

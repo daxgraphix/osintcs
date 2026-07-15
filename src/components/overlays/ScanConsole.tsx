@@ -194,7 +194,7 @@ export default function ScanConsole({
               style={{ background: '#070707', borderColor: '#111' }}
             >
               <span className="text-[9px] font-mono" style={{ color: '#2a2a2a' }}>
-                OSINTCS  v2.0  ·  LOCAL  EXECUTION  ·  ZERO  TELEMETRY
+                OSINTCS  v2.0  ·  CREATED BY CYBERSWAHILI  ·  LOCAL  EXECUTION  ·  ZERO  TELEMETRY
               </span>
               <span className="text-[9px] font-mono" style={{ color: '#ef4444' }}>
                 ● SCANNING

@@ -17,6 +17,16 @@ import {
   extractFileMetadata,
   scanMyIp,
   parseInvestigationTarget,
+  runGoogleHacking,
+  scanWebsite,
+  scanNetwork,
+  findSubdomains,
+  scanPorts,
+  fuzzUrls,
+  detectWaf,
+  huntPeople,
+  findDomains,
+  findVirtualHosts,
 } from '../services/osintServices';
 import {
   analyzeDnsRules,
@@ -28,6 +38,7 @@ import {
   analyzeEmailRules,
   analyzeMetadataRules,
   analyzeHashRules,
+  analyzeReconResult,
 } from '../rules/osintRules';
 import {
   calculateRiskScore,
@@ -76,6 +87,7 @@ async function performScan(
   let hashData = undefined;
   let imageData = undefined;
   let myipData = undefined;
+  let reconData: Record<string, any> = {};
 
   if (finalTarget.type === 'domain' || finalTarget.type === 'website') {
     await log('DNS-QUERY: Connecting to Cloudflare DNS-over-HTTPS gateway...', 120);
@@ -203,6 +215,40 @@ async function performScan(
       findings.push(...analyzeMetadataRules(imageData));
     }
   }
+  else if (
+    finalTarget.type === 'googlehacking' ||
+    finalTarget.type === 'websitescanner' ||
+    finalTarget.type === 'networkscan' ||
+    finalTarget.type === 'subdomain' ||
+    finalTarget.type === 'portscan' ||
+    finalTarget.type === 'urlfuzz' ||
+    finalTarget.type === 'waf' ||
+    finalTarget.type === 'peoplehunter' ||
+    finalTarget.type === 'domainfinder' ||
+    finalTarget.type === 'vhosts'
+  ) {
+    const mod = finalTarget.type;
+    await log(`RECON-${mod.toUpperCase()}: Launching ${mod} reconnaissance pipeline...`, 150);
+    let reconResult: any;
+    switch (mod) {
+      case 'googlehacking': reconResult = await runGoogleHacking(finalTarget.value); break;
+      case 'websitescanner': reconResult = await scanWebsite(finalTarget.value); break;
+      case 'networkscan': reconResult = await scanNetwork(finalTarget.value); break;
+      case 'subdomain': reconResult = await findSubdomains(finalTarget.value); break;
+      case 'portscan': reconResult = await scanPorts(finalTarget.value); break;
+      case 'urlfuzz': reconResult = await fuzzUrls(finalTarget.value); break;
+      case 'waf': reconResult = await detectWaf(finalTarget.value); break;
+      case 'peoplehunter': reconResult = await huntPeople(finalTarget.value); break;
+      case 'domainfinder': reconResult = await findDomains(finalTarget.value); break;
+      case 'vhosts': reconResult = await findVirtualHosts(finalTarget.value); break;
+      default: reconResult = null;
+    }
+    if (reconResult) {
+      await log(`RECON-${mod.toUpperCase()}: Analysis complete (${reconResult.items.length} records).`, 80);
+      reconData[mod] = reconResult;
+      findings.push(...analyzeReconResult(reconResult));
+    }
+  }
 
   await log('RISK-CALC: Triggering rule scoring and grade classification algorithms...', 120);
   const metrics = calculateRiskScore(findings);
@@ -213,6 +259,7 @@ async function performScan(
   return {
     target: finalTarget,
     scanTime,
+    recon: reconData,
     dns: dnsData,
     whois: whoisData,
     ssl: sslData,
