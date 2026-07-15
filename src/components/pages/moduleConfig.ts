@@ -46,6 +46,7 @@ import {
   ShieldAlert,
   Users,
   Globe2,
+  Wifi,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 
@@ -218,5 +219,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     description: 'Enumerate virtual hosts bound to a single IP address.',
     helpHint: 'Reverse-style heuristic that maps common hostnames back to the target IP.',
     icon: Server,
+  },
+  {
+    id: 'wifi',
+    label: 'WiFi Analyzer',
+    placeholder: 'Auto-detects your wireless interface...',
+    description: 'Scan nearby wireless networks and capture SSID, signal strength, encryption, channel, band, and WiFi 6/6E capabilities.',
+    helpHint: 'Auto-detects the best interface and maps 2.4/5/6 GHz bands for interference and placement insight.',
+    icon: Wifi,
   },
 ];

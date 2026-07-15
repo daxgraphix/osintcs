@@ -49,7 +49,8 @@ import {
   Camera,
   Fingerprint,
   Image,
-  Database
+  Database,
+  Wifi,
 } from 'lucide-react';
 import { ScanResults, Finding, Recommendation, TimelineEvent } from '../types';
 import { calculateRiskScore, generateReportDocument } from '../engines/osintEngines';
@@ -420,6 +421,7 @@ export default function ReportDashboard({
             target.type === 'website' ? { id: 'headers', label: 'Headers', icon: Server } : null,
             target.type === 'ip' ? { id: 'ip', label: 'IP Lookup', icon: Database } : null,
             target.type === 'myip' ? { id: 'myip', label: 'My IP', icon: Network } : null,
+            results.recon?.wifi ? { id: 'wifi', label: 'WiFi', icon: Wifi } : null,
             target.type === 'email' ? { id: 'email', label: 'Email Audit', icon: Mail } : null,
             target.type === 'username' ? { id: 'username', label: 'Username Footprint', icon: User } : null,
             target.type === 'hash' ? { id: 'hash', label: 'Hash Intel', icon: Key } : null,
@@ -2265,6 +2267,74 @@ export default function ReportDashboard({
                   );
                 })}
               </div>
+            </div>
+          )}
+
+          {/* WIFI ANALYZER TAB */}
+          {activeTab === 'wifi' && results.recon?.wifi && (
+            <div id="wifi_panel" className="space-y-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Networks Detected', value: results.recon.wifi.extra?.Networks },
+                  { label: 'Best Interface', value: results.recon.wifi.extra?.Interface },
+                  { label: 'Open Networks', value: results.recon.wifi.extra?.Open, danger: Number(results.recon.wifi.extra?.Open) > 0 },
+                  { label: 'Strongest Signal', value: results.recon.wifi.extra?.Strongest },
+                ].map((field, idx) => (
+                  <div key={idx} className={`p-4 rounded-xl border ${isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase block mb-1">{field.label}</span>
+                    <span className={`text-sm font-mono font-bold break-all ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {[
+                  { label: '2.4 GHz', value: results.recon.wifi.extra?.['2.4GHz'], color: 'text-amber-500' },
+                  { label: '5 GHz', value: results.recon.wifi.extra?.['5GHz'], color: 'text-cyan-500' },
+                  { label: '6 GHz', value: results.recon.wifi.extra?.['6GHz'], color: 'text-violet-500' },
+                  { label: 'WPA3 (secur)', value: results.recon.wifi.extra?.WPA3, color: 'text-emerald-500' },
+                ].map((field, idx) => (
+                  <div key={idx} className={`p-3 rounded-lg border text-center ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                    <div className={`text-2xl font-black font-mono ${field.color}`}>{field.value ?? 0}</div>
+                    <span className="text-[10px] font-mono text-slate-500 uppercase block mt-0.5">{field.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className={`border rounded-xl overflow-hidden ${isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-[#0e1424]/20'}`}>
+                <div className={`px-4 py-3 border-b font-mono text-[10px] font-bold flex items-center justify-between ${isLightMode ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-800 bg-[#0c1221] text-slate-400'}`}>
+                  <span>DETECTED WIRELESS NETWORKS ({results.recon.wifi.items.length})</span>
+                  <span>SSID · BSSID · RSSI · CH · BAND · SECURITY · WiFi GEN</span>
+                </div>
+                <div className="divide-y ${isLightMode ? 'divide-slate-200' : 'divide-slate-800/40'}">
+                  {results.recon.wifi.items.map((net: any, idx: number) => {
+                    const parts = (net.detail || '').split('·').map((p: string) => p.trim());
+                    const rssi = parts.find((p: string) => p.includes('dBm')) || '—';
+                    const channel = parts.find((p: string) => p.startsWith('Ch'))?.replace('Ch', '') || '—';
+                    const band = parts.find((p: string) => p.includes('GHz')) || '—';
+                    const security = parts.find((p: string) => /WPA|WEP|Open/.test(p)) || '—';
+                    const gen = parts.find((p: string) => p.startsWith('WiFi')) || '—';
+                    const secColor = security === 'Open' ? 'text-red-400' : security === 'WPA3' ? 'text-emerald-400' : isLightMode ? 'text-slate-700' : 'text-slate-300';
+                    const rssiNum = parseInt(rssi, 10);
+                    const rssiColor = isNaN(rssiNum) ? '' : rssiNum >= -50 ? 'text-emerald-400' : rssiNum >= -67 ? 'text-amber-400' : 'text-red-400';
+                    return (
+                      <div key={idx} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 font-mono text-[11px] hover:bg-cyan-500/5">
+                        <span className={`font-bold w-full sm:w-40 truncate ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{net.label}</span>
+                        <span className={`w-full sm:w-32 truncate ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{net.value}</span>
+                        <span className={`w-20 ${rssiColor}`}>{rssi}</span>
+                        <span className={`w-10 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{channel}</span>
+                        <span className={`w-16 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{band}</span>
+                        <span className={`w-16 ${secColor}`}>{security}</span>
+                        <span className={`w-16 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{gen}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
+                Browsers cannot perform real 802.11 radio scans, so this survey is a deterministic simulation of the local wireless environment. Use it to reason about channel overlap, band distribution, and open-network exposure — verify any findings against a native WiFi analyzer before acting.
+              </p>
             </div>
           )}
 

@@ -31,6 +31,7 @@ const MODULE_ACCENTS: Record<string, { bg: string; border: string; text: string;
   peoplehunter:   { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
   domainfinder:   { bg: 'rgba(22,163,74,0.08)',  border: 'rgba(22,163,74,0.22)',  text: '#15803d',  icon: '#16a34a' },
   vhosts:         { bg: 'rgba(71,85,105,0.08)',  border: 'rgba(71,85,105,0.22)', text: '#475569',  icon: '#64748b' },
+  wifi:          { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
 };
 
 export default function Sidebar({

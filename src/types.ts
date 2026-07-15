@@ -22,7 +22,8 @@ export type TargetType =
   | 'waf'
   | 'peoplehunter'
   | 'domainfinder'
-  | 'vhosts';
+  | 'vhosts'
+  | 'wifi';
 
 export interface InvestigationTarget {
   value: string;

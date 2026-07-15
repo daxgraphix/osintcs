@@ -15,7 +15,7 @@ OSINT.CS is a fully client-side OSINT platform that performs reconnaissance acro
 
 ## Latest Updates
 
-- **15+ Recon Modules** — Expanded from 5 to 15 integrated modules covering the full reconnaissance lifecycle.
+- **19+ Recon Modules** — Expanded from 5 to 19 integrated modules covering the full reconnaissance lifecycle, including the new Wifi Analyzer.
 - **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, and Google Dorking.
 - **Identity & People OSINT** — Added People Hunter module with breach-exposure simulation and identity correlation.
 - **Live Integrations** — DNS-over-HTTPS caching, live HTTP header probing via CORS proxy, WAF vendor detection from response headers, and real subdomain enumeration via certificate-transparency logs.
@@ -37,7 +37,7 @@ The landing screen offers a universal input field with intelligent target routin
 ### Report Dashboard
 After any scan, the dashboard replaces the lobby and presents:
 - **Overview** — target summary, risk score, grade, timeline, and at-a-glance metadata.
-- **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking.
+- **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking, Wifi Analyzer.
 - **Evidence** — raw scan payloads and parsed responses.
 - **Findings** — rule-based detections with severity (`pass`, `medium`, `high`), category, and remediation text.
 - **Recommendations** — auto-generated remediation actions derived from findings.
@@ -146,6 +146,12 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 ### 19. Google Dorking
 - Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
 - Returns query templates for manual or automated execution.
+
+### 20. Wifi Analyzer
+- Auto-detects the best available wireless interface (deterministic heuristic across 2.4/5/6 GHz bands).
+- Scans nearby wireless networks and captures **SSID**, **BSSID** (MAC), **RSSI** (dBm signal strength), **channel**, **band** (2.4 / 5 / 6 GHz), **security type** (Open / WEP / WPA / WPA2 / WPA3), and **Wifi 6 / 6E** capability.
+- Surfaces channel-interference and open-network exposure with findings and remediation guidance.
+- Note: browsiers cannot perform real 802.11 radio scans, so results are a deterministic, seeded simulation of the local wireless environment.
 
 ---
 

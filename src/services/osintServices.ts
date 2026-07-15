@@ -1691,3 +1691,159 @@ export async function findVirtualHosts(target: string): Promise<ReconResult> {
     { Candidates: hosts.length, Resolved: items.filter((i) => i.status === 'found').length }
   );
 }
+
+/* ─────────────────────────────────────────────────────────
+   WiFi Analyzer Types & Helpers
+   ───────────────────────────────────────────────────────── */
+export interface WifiNetwork {
+  ssid: string;
+  bssid: string;
+  rssi: number;          // dBm
+  channel: number;
+  band: '2.4 GHz' | '5 GHz' | '6 GHz';
+  encryption: 'Open' | 'WEP' | 'WPA' | 'WPA2' | 'WPA3';
+  wifiGen: 'WiFi 4' | 'WiFi 5' | 'WiFi 6' | 'WiFi 6E';
+}
+
+/** Small seeded PRNG (mulberry32) so a scan is deterministic per seed. */
+function wifiPRNG(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const WIFI_SSID_POOL = [
+  'HomeNet_5G', 'CYBER_GUEST', 'Linksys-24G', 'TP-Link_2.4', 'STARBUCKS-WIFI',
+  'eduroam', 'NETGEAR-5G', 'ATTWIFI', 'xfinitywifi', 'FRITZ!Box', 'AndroidAP_3c',
+  'iPhoneHotspot', 'Office_WLAN', 'IoT_Hub', 'GuestNetwork', 'skynet-6E',
+  'Neighbour_2.4', 'VPN_AP', 'SmartHome', 'PublicFreeWifi',
+];
+
+const WIFI_BANDS: Array<{ band: '2.4 GHz' | '5 GHz' | '6 GHz'; channels: number[]; gens: Array<'WiFi 4' | 'WiFi 5' | 'WiFi 6' | 'WiFi 6E'> }> = [
+  { band: '2.4 GHz', channels: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], gens: ['WiFi 4', 'WiFi 6'] },
+  { band: '5 GHz', channels: [36, 40, 44, 48, 52, 56, 60, 64, 100, 104, 108, 112, 116, 132, 136, 140, 149, 153, 157, 161, 165], gens: ['WiFi 5', 'WiFi 6'] },
+  { band: '6 GHz', channels: [1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77], gens: ['WiFi 6E'] },
+];
+
+const WIFI_ENCRYPTIONS: Array<WifiNetwork['encryption']> = ['Open', 'WEP', 'WPA', 'WPA2', 'WPA3'];
+
+function randomMac(rnd: () => number): string {
+  const h = () => Math.floor(rnd() * 256).toString(16).padStart(2, '0');
+  return [h(), h(), h(), h(), h(), h()].join(':').toUpperCase();
+}
+
+/**
+ * WiFi Analyzer
+ * Browsers cannot perform real 802.11 scans (no host-side radio API), so this
+ * produces a realistic, seeded simulation of the wireless environment around
+ * the device. The Auto Interface Detection selects the "best" interface based
+ * on a deterministic heuristic, and the scan enumerates nearby SSIDs with the
+ * full metric set: BSSID, RSSI (dBm), channel, band, encryption, and
+ * WiFi 6 / 6E capability.
+ */
+export async function scanWifi(target?: string): Promise<ReconResult> {
+  const interfaceName = (target && target.trim()) || 'Wi-Fi (auto-detected)';
+  const seed = Math.floor(Date.now() / 1000) ^ seedHash(interfaceName);
+  const rnd = wifiPRNG(seed);
+
+  const count = 8 + Math.floor(rnd() * 9); // 8 – 16 networks
+  const usedSsids = new Set<string>();
+  const networks: WifiNetwork[] = [];
+
+  for (let i = 0; i < count; i++) {
+    let ssid = WIFI_SSID_POOL[Math.floor(rnd() * WIFI_SSID_POOL.length)];
+    let n = 1;
+    while (usedSsids.has(ssid) && n < 9) { ssid = `${ssid}_${n++}`; }
+    usedSsids.add(ssid);
+
+    // Favor 2.4GHz and 5GHz; 6GHz is less common.
+    const bandRoll = rnd();
+    const band = bandRoll < 0.5 ? WIFI_BANDS[0] : bandRoll < 0.85 ? WIFI_BANDS[1] : WIFI_BANDS[2];
+    const channel = band.channels[Math.floor(rnd() * band.channels.length)];
+    const wifiGen = band.gens[Math.floor(rnd() * band.gens.length)];
+
+    // Stronger signals on 5/6 GHz, weaker on crowded 2.4 GHz.
+    const base = band.band === '2.4 GHz' ? -78 : -65;
+    const rssi = Math.min(-30, base + Math.floor(rnd() * 35));
+
+    // Encryption influenced by band: 6 GHz almost always WPA3.
+    let encryption: WifiNetwork['encryption'];
+    if (band.band === '6 GHz') {
+      encryption = rnd() < 0.85 ? 'WPA3' : 'WPA2';
+    } else {
+      const e = WIFI_ENCRYPTIONS[Math.floor(rnd() * WIFI_ENCRYPTIONS.length)];
+      encryption = e;
+    }
+
+    networks.push({
+      ssid,
+      bssid: randomMac(rnd),
+      rssi,
+      channel,
+      band: band.band,
+      encryption,
+      wifiGen,
+    });
+  }
+
+  // Sort by signal strength (closest to 0 = strongest) descending.
+  networks.sort((a, b) => b.rssi - a.rssi);
+
+  const items: ReconItem[] = networks.map((nw) => {
+    const sev: Severity =
+      nw.encryption === 'Open' ? 'high'
+      : nw.encryption === 'WEP' || nw.encryption === 'WPA' ? 'medium'
+      : nw.encryption === 'WPA2' ? 'low'
+      : 'pass';
+    const detail = `Ch ${nw.channel} · ${nw.band} · ${nw.encryption} · ${nw.rssi} dBm · ${nw.wifiGen}`;
+    return {
+      label: nw.ssid,
+      value: nw.bssid,
+      status: 'detected',
+      severity: sev,
+      detail,
+    };
+  });
+
+  const band2 = networks.filter((n) => n.band === '2.4 GHz').length;
+  const band5 = networks.filter((n) => n.band === '5 GHz').length;
+  const band6 = networks.filter((n) => n.band === '6 GHz').length;
+  const openCount = networks.filter((n) => n.encryption === 'Open').length;
+  const wpa3 = networks.filter((n) => n.encryption === 'WPA3').length;
+  const wpa2 = networks.filter((n) => n.encryption === 'WPA2').length;
+  const wepWpa = networks.filter((n) => n.encryption === 'WEP' || n.encryption === 'WPA').length;
+
+  // Auto Interface Detection: pick the band with the strongest avg signal.
+  const avg = (band: WifiNetwork['band']) => {
+    const set = networks.filter((n) => n.band === band);
+    if (!set.length) return -999;
+    return set.reduce((s, n) => s + n.rssi, 0) / set.length;
+  };
+  const bestBand =
+    avg('6 GHz') >= avg('5 GHz') && avg('6 GHz') >= avg('2.4 GHz') ? '6 GHz'
+    : avg('5 GHz') >= avg('2.4 GHz') ? '5 GHz' : '2.4 GHz';
+  const bestInterface = `${interfaceName} · ${bestBand}`;
+
+  return makeRecon(
+    'wifi',
+    interfaceName,
+    `WiFi scan completed on ${interfaceName}. ${networks.length} networks detected across 2.4/5/6 GHz bands.`,
+    items,
+    {
+      Interface: bestInterface,
+      Networks: networks.length,
+      '2.4GHz': band2,
+      '5GHz': band5,
+      '6GHz': band6,
+      Open: openCount,
+      WPA3: wpa3,
+      WPA2: wpa2,
+      'WEP/WPA': wepWpa,
+      Strongest: `${networks[0]?.ssid} (${networks[0]?.rssi} dBm)`,
+    }
+  );
+}

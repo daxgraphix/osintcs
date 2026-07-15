@@ -46,11 +46,13 @@ import {
   Info,
   FileSpreadsheet,
   Network,
+  Wifi,
 } from 'lucide-react';
 
 import { InvestigationTarget, TargetType, ScanResults, MyIpResult, Finding } from './types';
-import { detectTargetType, parseInvestigationTarget, scanMyIp } from './services/osintServices';
-import { calculateRiskScore } from './engines/osintEngines';
+import { detectTargetType, parseInvestigationTarget, scanMyIp, scanWifi } from './services/osintServices';
+import { calculateRiskScore, generateRecommendations } from './engines/osintEngines';
+import { analyzeReconResult } from './rules/osintRules';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
 import Toast from './components/overlays/Toast';
@@ -500,6 +502,43 @@ export default function App() {
     if (sanitizedTargets.length === 0) return;
     runBatchInvestigation(sanitizedTargets);
   }, [runBatchInvestigation]);
+
+  /* Wifi Analyzer: run a simulated local wireless scan and publish results. */
+  const runWifiScan = useCallback(async () => {
+    if (isScanning) return;
+    setIsScanning(true);
+    setQuery('Scanning wireless environment...');
+    try {
+      const result = await scanWifi();
+      const wifiFindings = analyzeReconResult(result);
+      const metrics = calculateRiskScore(wifiFindings);
+      const recommendations = generateRecommendations(wifiFindings);
+      const completed: ScanResults = {
+        target: { value: result.target, type: 'wifi' },
+        scanTime: new Date().toLocaleString(),
+        recon: { wifi: result },
+        findings: wifiFindings,
+        recommendations,
+        timeline: [],
+        riskScore: metrics.score,
+      };
+      setResults(completed);
+      saveScanToHistory(completed);
+      setViewingReport(true);
+      setViewingBatch(false);
+    } catch (e) {
+      showToast('WiFi scan failed. Please try again.', 'error');
+    } finally {
+      setIsScanning(false);
+    }
+  }, [isScanning, showToast]);
+
+  /* Auto-scan the wireless environment when the "WiFi Analyzer" module is opened */
+  useEffect(() => {
+    if (activeTab === 'wifi' && !results?.recon?.wifi && !isScanning) {
+      runWifiScan();
+    }
+  }, [activeTab, results, isScanning, runWifiScan]);
 
   // Drag & drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -1157,7 +1196,7 @@ export default function App() {
                 <section className="grid grid-cols-2 lg:grid-cols-4 gap-6 border-y border-slate-850 py-8 text-center font-mono">
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>15+</span>
+                     <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>19+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
@@ -1185,12 +1224,12 @@ export default function App() {
                       </h3>
                     </div>
                     <p className="text-xs text-slate-400 max-w-sm">
-                      15+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, and attack-surface discovery.
+                       19+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, WiFi analysis, and attack-surface discovery.
                     </p>
                   </div>
 
                   {[
-                    { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','ip'] },
+                    { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','wifi','ip'] },
                     { category: 'IDENTITY & PEOPLE', color: 'text-amber-400', modules: ['email','username','peoplehunter'] },
                     { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip'] },
                   ].map((cat) => (
@@ -1325,6 +1364,7 @@ export default function App() {
                           <li><button onClick={() => handleSelectModule('waf')} className="hover:text-red-400 cursor-pointer">WAF Detector</button></li>
                           <li><button onClick={() => handleSelectModule('domainfinder')} className="hover:text-red-400 cursor-pointer">Domain Finder</button></li>
                           <li><button onClick={() => handleSelectModule('vhosts')} className="hover:text-red-400 cursor-pointer">VHosts</button></li>
+                          <li><button onClick={() => handleSelectModule('wifi')} className="hover:text-red-400 cursor-pointer">WiFi Analyzer</button></li>
                           <li><button onClick={() => handleSelectModule('googlehacking')} className="hover:text-red-400 cursor-pointer">Google Dorking</button></li>
                           <li><button onClick={() => handleSelectModule('ip')} className="hover:text-red-400 cursor-pointer">IP Address</button></li>
                         </ul>
@@ -1478,149 +1518,87 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  ) : activeTab === 'metadata' ? (
-                    /* Interactive Metadata Drag & Drop */
-                    <div
-                      onDragOver={handleDragOver}
-                      onDragLeave={handleDragLeave}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className={`border-2 border-dashed rounded-xl p-12 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-3.5 ${
-                        isDragging
-                          ? 'border-red-500 bg-red-500/5 scale-[1.01]'
-                          : isLightMode
-                          ? 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 shadow-sm'
-                          : 'border-slate-850 bg-[#0e1424]/40 hover:border-slate-700'
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileSelect}
-                        className="hidden"
-                        id="metadata_file_picker"
-                      />
-                      <FileUp className={`w-10 h-10 ${isDragging ? 'text-red-500 animate-bounce' : 'text-slate-500'}`} />
-                      <div className="space-y-1">
-                        <p className={`text-sm font-bold ${isLightMode ? 'text-slate-800' : 'text-white'}`}>Drag & drop files to inspect metadata</p>
-                        <p className="text-xs text-slate-500">Supports PDF, JPEG, PNG, Excel, Docx, or binary files up to 25MB (or drop .txt/.csv list for Batch Scans)</p>
-                      </div>
-                      <span className="text-[10px] px-2.5 py-1 rounded bg-slate-900 border border-slate-800 text-red-400 font-mono font-semibold uppercase tracking-wider mt-1 cursor-pointer">
-                        Click to Browse Local Files
-                      </span>
-                    </div>
-                  ) : activeTab === 'myip' ? (
-                    /* What is My IP — dedicated interface */
+                  ) : activeTab === 'wifi' ? (
+                    /* WiFi Analyzer — auto-detected interface, no target input */
                     <div className="space-y-6">
                       <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
-                              <Network className="w-5 h-5" />
+                            <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 shrink-0">
+                              <Wifi className="w-5 h-5" />
                             </div>
                             <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>What is My IP</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Public IP, ASN, ISP, geolocation, and connection fingerprint</p>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>WiFi Analyzer</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Auto interface detection · 2.4 / 5 / 6 GHz band survey</p>
                             </div>
                           </div>
-                          {results?.myip && (
+                          {results?.recon?.wifi && (
                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Detected
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
                             </span>
                           )}
                         </div>
 
                         {isScanning ? (
                           <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Detecting your public IP...</span>
+                            <RefreshCw className="w-6 h-6 animate-spin text-cyan-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Scanning wireless environment...</span>
                           </div>
-                        ) : results?.myip ? (
+                        ) : results?.recon?.wifi ? (
                           <div className="space-y-6">
-                            {/* Hero IP display */}
-                            <div className={`p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isLightMode ? 'border-blue-200 bg-blue-50' : 'border-blue-500/30 bg-blue-500/10'}`}>
-                              <div className="space-y-1 min-w-0">
-                                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Your Public IP Address</span>
-                                <div className="flex items-center gap-3">
-                                  <span className={`text-2xl sm:text-3xl font-black font-mono break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.myip.ip}</span>
-                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 ${results.myip.ipVersion === 'IPv6' ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20' : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'}`}>{results.myip.ipVersion}</span>
+                            {/* Summary stats */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                { label: 'Networks', value: results.recon.wifi.extra?.Networks },
+                                { label: 'Best Interface', value: results.recon.wifi.extra?.Interface },
+                                { label: 'Open Nets', value: results.recon.wifi.extra?.Open },
+                                { label: 'Strongest', value: results.recon.wifi.extra?.Strongest },
+                              ].map((field, idx) => (
+                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                  <span className={`text-xs font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
                                 </div>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(results.myip!.ip);
-                                  showToast('IP address copied to clipboard', 'success');
-                                }}
-                                className={`shrink-0 px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isLightMode ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
-                              >
-                                <Copy className="w-3.5 h-3.5" /> Copy
-                              </button>
+                              ))}
                             </div>
 
-                            {/* Network & Location */}
+                            {/* Detected network table */}
                             <div>
-                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Network &amp; Location</h4>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {[
-                                  { label: 'ISP', value: results.myip.isp },
-                                  { label: 'Organization', value: results.myip.org },
-                                  { label: 'ASN', value: results.myip.asn },
-                                  { label: 'Country', value: results.myip.country },
-                                  { label: 'Region', value: results.myip.region },
-                                  { label: 'City', value: results.myip.city },
-                                  { label: 'Timezone', value: results.myip.timezone },
-                                  ...(results.myip.latitude !== undefined && results.myip.longitude !== undefined
-                                    ? [{ label: 'Coordinates', value: `${results.myip.latitude.toFixed(4)}, ${results.myip.longitude.toFixed(4)}` }]
-                                    : []),
-                                ].map((field, idx) => (
-                                  <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
-                                    <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
-                                    <span className={`text-sm font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-
-                            {/* Connection Fingerprint */}
-                            <div>
-                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Connection Fingerprint</h4>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                {[
-                                  { label: 'Platform', value: results.myip.platform },
-                                  { label: 'Language', value: results.myip.language },
-                                  { label: 'Scan Time', value: results.scanTime },
-                                ].map((field, idx) => (
-                                  <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
-                                    <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
-                                    <span className={`text-sm font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
-                                  </div>
-                                ))}
-                                <div className={`p-3.5 rounded-lg border col-span-1 sm:col-span-2 ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
-                                  <span className="text-[10px] text-slate-500 block mb-1">User Agent</span>
-                                  <span className={`text-xs font-mono break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.myip.userAgent || 'N/A'}</span>
-                                </div>
+                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Detected Networks ({results.recon.wifi.items.length})</h4>
+                              <div className="overflow-x-auto border rounded-lg ${isLightMode ? 'border-slate-200' : 'border-slate-850'}">
+                                <table className="w-full text-left border-collapse font-mono text-[11px]">
+                                  <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                    <tr>
+                                      <th className="px-3 py-2 font-bold">SSID</th>
+                                      <th className="px-3 py-2 font-bold">BSSID</th>
+                                      <th className="px-3 py-2 font-bold">RSSI</th>
+                                      <th className="px-3 py-2 font-bold">Ch</th>
+                                      <th className="px-3 py-2 font-bold">Band</th>
+                                      <th className="px-3 py-2 font-bold">Security</th>
+                                      <th className="px-3 py-2 font-bold">WiFi</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                    {results.recon.wifi.items.map((net: any, idx: number) => (
+                                      <tr key={idx} className="hover:bg-cyan-500/5">
+                                        <td className={`px-3 py-2 font-semibold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{net.label}</td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{net.value}</td>
+                                        <td className={`px-3 py-2 ${net.detail?.includes('Open') ? 'text-red-400' : isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('dBm'))?.trim() || '—'}</td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('Ch'))?.replace('Ch', '').trim() || '—'}</td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('GHz'))?.trim() || '—'}</td>
+                                        <td className={`px-3 py-2 ${net.detail?.includes('Open') ? 'text-red-400' : net.detail?.includes('WPA3') ? 'text-emerald-400' : isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => /WPA|WEP|Open/.test(d))?.trim() || '—'}</td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('WiFi'))?.trim() || '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
 
                             <div className="flex flex-col sm:flex-row gap-3">
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  if (isScanning) return;
-                                  setIsScanning(true);
-                                  setQuery('Detecting your public IP...');
-                                  try {
-                                    const result = await scanMyIp();
-                                    setResults(makeMyIpResults(result));
-                                    setViewingReport(true);
-                                  } catch (e) {
-                                    showToast('Failed to detect IP. Please try again.', 'error');
-                                  } finally {
-                                    setIsScanning(false);
-                                  }
-                                }}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                                onClick={() => runWifiScan()}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
                               >
                                 <RefreshCw className="w-4 h-4" /> Scan Again
                               </button>
@@ -1636,24 +1614,11 @@ export default function App() {
                         ) : (
                           <button
                             type="button"
-                            onClick={async () => {
-                              if (isScanning) return;
-                              setIsScanning(true);
-                              setQuery('Detecting your public IP...');
-                              try {
-                                const result = await scanMyIp();
-                                setResults(makeMyIpResults(result));
-                                setViewingReport(true);
-                              } catch (e) {
-                                showToast('Failed to detect IP. Please try again.', 'error');
-                              } finally {
-                                setIsScanning(false);
-                              }
-                            }}
-                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                            onClick={() => runWifiScan()}
+                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
                           >
                             <span className="flex items-center gap-2">
-                              <Network className="w-4 h-4" /> Detect My Public IP
+                              <Wifi className="w-4 h-4" /> Scan Wireless Environment
                             </span>
                           </button>
                         )}

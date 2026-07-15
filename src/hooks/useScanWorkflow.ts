@@ -27,6 +27,7 @@ import {
   huntPeople,
   findDomains,
   findVirtualHosts,
+  scanWifi,
 } from '../services/osintServices';
 import {
   analyzeDnsRules,
@@ -225,7 +226,8 @@ async function performScan(
     finalTarget.type === 'waf' ||
     finalTarget.type === 'peoplehunter' ||
     finalTarget.type === 'domainfinder' ||
-    finalTarget.type === 'vhosts'
+    finalTarget.type === 'vhosts' ||
+    finalTarget.type === 'wifi'
   ) {
     const mod = finalTarget.type;
     await log(`RECON-${mod.toUpperCase()}: Launching ${mod} reconnaissance pipeline...`, 150);
@@ -241,6 +243,7 @@ async function performScan(
       case 'peoplehunter': reconResult = await huntPeople(finalTarget.value); break;
       case 'domainfinder': reconResult = await findDomains(finalTarget.value); break;
       case 'vhosts': reconResult = await findVirtualHosts(finalTarget.value); break;
+      case 'wifi': reconResult = await scanWifi(finalTarget.value); break;
       default: reconResult = null;
     }
     if (reconResult) {
