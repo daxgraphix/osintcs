@@ -21,6 +21,7 @@ const MODULE_ACCENTS: Record<string, { bg: string; border: string; text: string;
   hash:     { bg: 'rgba(8,145,178,0.08)',   border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
   metadata: { bg: 'rgba(22,163,74,0.08)',   border: 'rgba(22,163,74,0.22)',   text: '#15803d',  icon: '#16a34a' },
   myip:     { bg: 'rgba(37,99,235,0.08)',   border: 'rgba(37,99,235,0.22)',   text: '#1d4ed8',  icon: '#2563eb' },
+  ipadvance: { bg: 'rgba(37,99,235,0.10)',  border: 'rgba(37,99,235,0.25)',  text: '#1d4ed8',  icon: '#2563eb' },
   googlehacking: { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
   websitescanner: { bg: 'rgba(194,65,12,0.08)', border: 'rgba(194,65,12,0.22)', text: '#c2410c',  icon: '#ea580c' },
   networkscan:    { bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.22)', text: '#dc2626',  icon: '#ef4444' },
@@ -30,8 +31,10 @@ const MODULE_ACCENTS: Record<string, { bg: string; border: string; text: string;
   waf:            { bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.22)', text: '#dc2626',  icon: '#ef4444' },
   peoplehunter:   { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
   domainfinder:   { bg: 'rgba(22,163,74,0.08)',  border: 'rgba(22,163,74,0.22)',  text: '#15803d',  icon: '#16a34a' },
-  vhosts:         { bg: 'rgba(71,85,105,0.08)',  border: 'rgba(71,85,105,0.22)', text: '#475569',  icon: '#64748b' },
-  wifi:          { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
+  vhosts:         { bg: 'rgba(71,85,105,0.08)',  border: 'rgba(71,85,105,0.22)',  text: '#475569',  icon: '#64748b' },
+  techlookup:     { bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.22)', text: '#7e22ce', icon: '#a855f7' },
+  geolookup:     { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
+  speedtest:     { bg: 'rgba(22,163,74,0.08)',  border: 'rgba(22,163,74,0.22)',  text: '#15803d',  icon: '#16a34a' },
 };
 
 export default function Sidebar({

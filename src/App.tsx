@@ -46,13 +46,14 @@ import {
   Info,
   FileSpreadsheet,
   Network,
-  Wifi,
+  Radar,
+  MapPin,
+  Gauge,
 } from 'lucide-react';
 
-import { InvestigationTarget, TargetType, ScanResults, MyIpResult, Finding } from './types';
-import { detectTargetType, parseInvestigationTarget, scanMyIp, scanWifi } from './services/osintServices';
-import { calculateRiskScore, generateRecommendations } from './engines/osintEngines';
-import { analyzeReconResult } from './rules/osintRules';
+import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding } from './types';
+import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest } from './services/osintServices';
+import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
 import Toast from './components/overlays/Toast';
@@ -282,6 +283,128 @@ export default function App() {
     ],
   });
 
+  // Build a complete ScanResults object for an IP Advance intelligence report.
+  const makeIpAdvanceResults = (result: IpAdvanceResult): ScanResults => ({
+    target: { value: result.ip, type: 'ipadvance' },
+    scanTime: new Date().toLocaleTimeString(),
+    findings: [
+      {
+        id: 'IPADV_SUMMARY',
+        module: 'ipadvance',
+        title: 'IP Advance Intelligence Complete',
+        description: `Analysed ${result.ip} (${result.ipVersion}) — ${result.ipType} IP with ${result.riskGrade} purity (${result.riskScore}/100). ${result.neighbors.flagged} of ${result.neighbors.total} /24 neighbours flagged; ${result.sources.length} sources cross-validated.`,
+        severity: result.riskScore >= 70 ? 'pass' : 'medium',
+        category: 'IP Reputation',
+        remediation: 'Cross-validate across sources. Residential/native IPs are best for low-risk operations; datacenter IPs trigger platform risk controls.',
+      },
+    ],
+    riskScore: 100 - result.riskScore,
+    timeline: [],
+    ipadvance: result,
+    recommendations: [
+      {
+        id: 'IPADV_NATIVE',
+        title: result.isNativeIp ? 'Native IP Confirmed' : 'IP Location Mismatch',
+        description: result.isNativeIp
+          ? 'The country of registration matches the country of location, making this a locally located IP that is favourable for risk control.'
+          : 'The country of registration and country of location differ, which can raise risk-control flags during business operations.',
+        priority: result.isNativeIp ? 'low' : 'medium',
+        category: 'IP Posture',
+        impact: 'Native IPs improve trust scores across platforms; mismatched IPs are easier to flag.',
+      },
+    ],
+  });
+
+  // Build a complete ScanResults object for a Technology Lookup report.
+  const makeTechLookupResults = (result: TechLookupResult): ScanResults => ({
+    target: { value: result.domain, type: 'techlookup' },
+    scanTime: new Date().toLocaleTimeString(),
+    findings: [
+      {
+        id: 'TECH_SUMMARY',
+        module: 'techlookup',
+        title: 'Technology Stack Identified',
+        description: `Website ${result.domain} runs ${result.cms} on ${result.server} with ${result.jsFramework}. CDN: ${result.cdn} · WAF: ${result.waf}.`,
+        severity: result.cms === 'WordPress' ? 'medium' : 'info',
+        category: 'Web Stack',
+        remediation: result.cms === 'WordPress'
+          ? 'Keep CMS, themes, and plugins patched; WordPress is the most targeted web platform.'
+          : 'No action required.',
+      },
+    ],
+    riskScore: result.cms === 'WordPress' ? 35 : 8,
+    timeline: [],
+    techlookup: result,
+    recommendations: result.cms === 'WordPress' ? [
+      {
+        id: 'TECH_WP',
+        title: 'Harden the WordPress Deployment',
+        description: 'WordPress sites are the most attacked on the web; unpatched core, themes, and plugins are the leading breach vector.',
+        priority: 'medium',
+        category: 'Web Stack',
+        impact: 'Reduces exploit exposure from automated wp-login and plugin CVE scanning.',
+      },
+    ] : [],
+  });
+
+  // Build a complete ScanResults object for an IP Geo Lookup report.
+  const makeGeoLookupResults = (result: GeoLookupResult): ScanResults => ({
+    target: { value: result.target, type: 'geolookup' },
+    scanTime: new Date().toLocaleTimeString(),
+    findings: (() => {
+      const threats: string[] = [];
+      if (result.isTor) threats.push('Tor exit node');
+      if (result.isProxy) threats.push('proxy');
+      if (result.isVpn) threats.push('VPN');
+      if (result.isHosting) threats.push('hosting provider');
+      if (threats.length > 0) {
+        return [{
+          id: 'GEO_THREAT',
+          module: 'geolookup',
+          title: 'Anonymity / Threat Indicators Detected',
+          description: `Target ${result.target} resolves to ${result.city}, ${result.country} with flags: ${threats.join(', ')}.`,
+          severity: result.isTor || result.isProxy ? 'high' : 'medium',
+          category: 'Geo Intelligence',
+          remediation: 'Correlate with other modules before trusting geolocation — proxies and VPNs can misrepresent true location.',
+        }];
+      }
+      return [{
+        id: 'GEO_CLEAN',
+        module: 'geolookup',
+        title: 'Geolocation Resolved',
+        description: `Target ${result.target} maps to ${result.city}, ${result.region}, ${result.country} (AS${result.asn}). No anonymizing indicators.`,
+        severity: 'pass',
+        category: 'Geo Intelligence',
+        remediation: 'No action required.',
+      }];
+    })(),
+    riskScore: result.isTor || result.isProxy ? 75 : result.isVpn ? 45 : 12,
+    timeline: [],
+    geolookup: result,
+    recommendations: [],
+  });
+
+  // Build a complete ScanResults object for an Internet Speed Test report.
+  const makeSpeedTestResults = (result: SpeedTestResult): ScanResults => ({
+    target: { value: result.outgoingIp, type: 'speedtest' },
+    scanTime: new Date().toLocaleTimeString(),
+    findings: [
+      {
+        id: 'SPEED_SUMMARY',
+        module: 'speedtest',
+        title: 'Internet Speed Test Complete',
+        description: `Outgoing route ${result.outgoingIp}. Cloudflare edge: ${result.cloudflare.downloadMbps}↓/${result.cloudflare.uploadMbps}↑ Mbps. M-Lab (MSAK): ${result.mlab.downloadMbps}↓/${result.mlab.uploadMbps}↑ Mbps.`,
+        severity: result.cloudflare.downloadMbps < 10 ? 'medium' : 'pass',
+        category: 'Network Performance',
+        remediation: 'Cross-validate with a native speed test. Use a wired connection and pause background downloads for the most accurate reading.',
+      },
+    ],
+    riskScore: 0,
+    timeline: [],
+    speedtest: result,
+    recommendations: [],
+  });
+
   const [simulateDelay, setSimulateDelay] = useState(true);
   const [strictScans, setStrictScans] = useState(false);
 
@@ -453,12 +576,115 @@ export default function App() {
     if (activeTab === 'myip' && !results?.myip && !isScanning) {
       (async () => {
         setIsScanning(true);
-        setQuery('Detecting your public IP...');
         try {
           const result = await scanMyIp();
           setResults(makeMyIpResults(result));
         } catch (e) {
           showToast('Failed to detect IP. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, showToast]);
+
+  /* Auto-run IP Advance when the module is opened (uses your public IP by default) */
+  useEffect(() => {
+    if (activeTab === 'ipadvance' && !results?.ipadvance && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        try {
+          const result = await scanIpAdvance();
+          setResults(makeIpAdvanceResults(result));
+          saveScanToHistory(makeIpAdvanceResults(result));
+          setViewingReport(true);
+          setViewingBatch(false);
+        } catch (e) {
+          showToast('IP Advance scan failed. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, showToast]);
+
+  /* Auto-run Technology Lookup when opened with a target pre-filled (e.g. from URL) */
+  useEffect(() => {
+    if (activeTab === 'techlookup' && query.trim() && !results?.techlookup && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        setQuery('Fingerprinting website stack...');
+        try {
+          const result = await scanTechnology(query.trim());
+          setResults(makeTechLookupResults(result));
+          saveScanToHistory(makeTechLookupResults(result));
+          setViewingReport(true);
+          setViewingBatch(false);
+        } catch (e) {
+          showToast('Technology lookup failed. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, query, showToast]);
+
+  /* Auto-run Geo Lookup when opened with a target pre-filled */
+  useEffect(() => {
+    if (activeTab === 'geolookup' && query.trim() && !results?.geolookup && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        setQuery('Resolving geolocation...');
+        try {
+          const result = await scanGeoLookup(query.trim());
+          setResults(makeGeoLookupResults(result));
+          saveScanToHistory(makeGeoLookupResults(result));
+          setViewingReport(true);
+          setViewingBatch(false);
+        } catch (e) {
+          showToast('Geo lookup failed. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, query, showToast]);
+
+  /* Auto-run Technology Lookup when opened with a target pre-filled */
+  useEffect(() => {
+    if (activeTab === 'techlookup' && query.trim() && !results?.techlookup && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        setQuery('Fingerprinting website stack...');
+        try {
+          const result = await scanTechnology(query.trim());
+          setResults(makeTechLookupResults(result));
+          saveScanToHistory(makeTechLookupResults(result));
+          setViewingReport(true);
+          setViewingBatch(false);
+        } catch (e) {
+          showToast('Technology lookup failed. Please try again.', 'error');
+        } finally {
+          setIsScanning(false);
+        }
+      })();
+    }
+  }, [activeTab, results, isScanning, query, showToast]);
+
+  /* Auto-run Internet Speed Test when the module is opened (no target needed) */
+  useEffect(() => {
+    if (activeTab === 'speedtest' && !results?.speedtest && !isScanning) {
+      (async () => {
+        setIsScanning(true);
+        setQuery('Measuring bandwidth and latency...');
+        try {
+          const result = await scanSpeedTest();
+          setResults(makeSpeedTestResults(result));
+          saveScanToHistory(makeSpeedTestResults(result));
+          setViewingReport(true);
+          setViewingBatch(false);
+        } catch (e) {
+          showToast('Speed test failed. Please try again.', 'error');
         } finally {
           setIsScanning(false);
         }
@@ -502,43 +728,6 @@ export default function App() {
     if (sanitizedTargets.length === 0) return;
     runBatchInvestigation(sanitizedTargets);
   }, [runBatchInvestigation]);
-
-  /* Wifi Analyzer: run a simulated local wireless scan and publish results. */
-  const runWifiScan = useCallback(async () => {
-    if (isScanning) return;
-    setIsScanning(true);
-    setQuery('Scanning wireless environment...');
-    try {
-      const result = await scanWifi();
-      const wifiFindings = analyzeReconResult(result);
-      const metrics = calculateRiskScore(wifiFindings);
-      const recommendations = generateRecommendations(wifiFindings);
-      const completed: ScanResults = {
-        target: { value: result.target, type: 'wifi' },
-        scanTime: new Date().toLocaleString(),
-        recon: { wifi: result },
-        findings: wifiFindings,
-        recommendations,
-        timeline: [],
-        riskScore: metrics.score,
-      };
-      setResults(completed);
-      saveScanToHistory(completed);
-      setViewingReport(true);
-      setViewingBatch(false);
-    } catch (e) {
-      showToast('WiFi scan failed. Please try again.', 'error');
-    } finally {
-      setIsScanning(false);
-    }
-  }, [isScanning, showToast]);
-
-  /* Auto-scan the wireless environment when the "WiFi Analyzer" module is opened */
-  useEffect(() => {
-    if (activeTab === 'wifi' && !results?.recon?.wifi && !isScanning) {
-      runWifiScan();
-    }
-  }, [activeTab, results, isScanning, runWifiScan]);
 
   // Drag & drop handlers
   const handleDragOver = (e: React.DragEvent) => {
@@ -1150,12 +1339,14 @@ export default function App() {
 
                         {/* List of Module pathways */}
                         <div className="grid grid-cols-2 gap-2 pt-2">
-{[
+ {[
                              { step: '01', name: 'Domain Intelligence', active: query.trim() && (detectedType === 'domain' || detectedType === 'website') },
                              { step: '02', name: 'SSL/TLS Analysis', active: query.trim() && detectedType === 'website' },
                              { step: '03', name: 'Digital Footprinting', active: query.trim() && (detectedType === 'email' || detectedType === 'username') },
                              { step: '04', name: 'Image Forensics', active: query.trim() && (detectedType === 'image' || detectedType === 'metadata') },
-                           ].map((m, idx) => (
+                             { step: '05', name: 'Tech & Geo Intelligence', active: query.trim() && (detectedType === 'ip' || detectedType === 'domain') },
+                             { step: '06', name: 'IP Risk Purity', active: query.trim() && detectedType === 'ip' },
+                            ].map((m, idx) => (
                              <div
                                key={idx}
                                className={`p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
@@ -1196,7 +1387,7 @@ export default function App() {
                 <section className="grid grid-cols-2 lg:grid-cols-4 gap-6 border-y border-slate-850 py-8 text-center font-mono">
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
-                     <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>19+</span>
+                     <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{QUICK_MODULES.length}+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
@@ -1224,12 +1415,13 @@ export default function App() {
                       </h3>
                     </div>
                     <p className="text-xs text-slate-400 max-w-sm">
-                       19+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, WiFi analysis, and attack-surface discovery.
+                        {QUICK_MODULES.length}+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, geolocation, technology fingerprinting, and attack-surface discovery.
                     </p>
                   </div>
 
                   {[
-                    { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','wifi','ip'] },
+                     { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','ip','ipadvance'] },
+                    { category: 'TECHNOLOGY & GEO INTELLIGENCE', color: 'text-violet-400', modules: ['techlookup','geolookup','speedtest'] },
                     { category: 'IDENTITY & PEOPLE', color: 'text-amber-400', modules: ['email','username','peoplehunter'] },
                     { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip'] },
                   ].map((cat) => (
@@ -1364,9 +1556,9 @@ export default function App() {
                           <li><button onClick={() => handleSelectModule('waf')} className="hover:text-red-400 cursor-pointer">WAF Detector</button></li>
                           <li><button onClick={() => handleSelectModule('domainfinder')} className="hover:text-red-400 cursor-pointer">Domain Finder</button></li>
                           <li><button onClick={() => handleSelectModule('vhosts')} className="hover:text-red-400 cursor-pointer">VHosts</button></li>
-                          <li><button onClick={() => handleSelectModule('wifi')} className="hover:text-red-400 cursor-pointer">WiFi Analyzer</button></li>
                           <li><button onClick={() => handleSelectModule('googlehacking')} className="hover:text-red-400 cursor-pointer">Google Dorking</button></li>
                           <li><button onClick={() => handleSelectModule('ip')} className="hover:text-red-400 cursor-pointer">IP Address</button></li>
+                          <li><button onClick={() => handleSelectModule('ipadvance')} className="hover:text-red-400 cursor-pointer">IP Advance</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
@@ -1381,11 +1573,6 @@ export default function App() {
                         </ul>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="border-t border-slate-850/50 py-6 text-center text-[10px] text-slate-500 space-y-1 leading-normal">
-                    <p>osintcs © 2026. Created by <span className="text-red-400 font-bold">Cyberswahili</span>. Browser-Based Security Sandbox Intelligence.</p>
-                    <p>All investigation processes are executed locally. Zero telemetry data logs exit the browser context.</p>
                   </div>
                 </footer>
 
@@ -1518,21 +1705,21 @@ export default function App() {
                         </div>
                       </div>
                     </div>
-                  ) : activeTab === 'wifi' ? (
-                    /* WiFi Analyzer — auto-detected interface, no target input */
+                  ) : activeTab === 'ipadvance' ? (
+                    /* IP Advance — multi-source intelligence */
                     <div className="space-y-6">
                       <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 shrink-0">
-                              <Wifi className="w-5 h-5" />
+                            <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
+                              <Radar className="w-5 h-5" />
                             </div>
                             <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>WiFi Analyzer</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Auto interface detection · 2.4 / 5 / 6 GHz band survey</p>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Advance</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Multi-source intelligence · risk purity · BGP · neighbour scan</p>
                             </div>
                           </div>
-                          {results?.recon?.wifi && (
+                          {results?.ipadvance && (
                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
                             </span>
@@ -1541,64 +1728,63 @@ export default function App() {
 
                         {isScanning ? (
                           <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-cyan-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Scanning wireless environment...</span>
+                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Running multi-source IP intelligence...</span>
                           </div>
-                        ) : results?.recon?.wifi ? (
+                        ) : results?.ipadvance ? (
                           <div className="space-y-6">
-                            {/* Summary stats */}
+                            {/* Hero IP */}
+                            <div className={`p-5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${isLightMode ? 'border-blue-200 bg-blue-50' : 'border-blue-500/30 bg-blue-500/10'}`}>
+                              <div className="space-y-1 min-w-0">
+                                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Analysed IP Address</span>
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-2xl sm:text-3xl font-black font-mono break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.ipadvance.ip}</span>
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 ${results.ipadvance.ipVersion === 'IPv6' ? 'bg-violet-500/10 text-violet-600 border border-violet-500/20' : 'bg-blue-500/10 text-blue-600 border border-blue-500/20'}`}>{results.ipadvance.ipVersion}</span>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => { navigator.clipboard.writeText(results.ipadvance!.ip); showToast('IP address copied to clipboard', 'success'); }}
+                                className={`shrink-0 px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${isLightMode ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <Copy className="w-3.5 h-3.5" /> Copy
+                              </button>
+                            </div>
+
+                            {/* Risk + identity summary */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                               {[
-                                { label: 'Networks', value: results.recon.wifi.extra?.Networks },
-                                { label: 'Best Interface', value: results.recon.wifi.extra?.Interface },
-                                { label: 'Open Nets', value: results.recon.wifi.extra?.Open },
-                                { label: 'Strongest', value: results.recon.wifi.extra?.Strongest },
+                                { label: 'Risk Purity', value: `${results.ipadvance.riskScore}/100`, danger: results.ipadvance.riskScore < 50 },
+                                { label: 'Grade', value: results.ipadvance.riskGrade },
+                                { label: 'IP Type', value: results.ipadvance.ipType },
+                                { label: 'Native IP', value: results.ipadvance.isNativeIp ? 'Yes' : 'No', danger: !results.ipadvance.isNativeIp },
                               ].map((field, idx) => (
                                 <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
                                   <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
-                                  <span className={`text-xs font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                  <span className={`text-sm font-mono font-bold break-all ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value}</span>
                                 </div>
                               ))}
                             </div>
 
-                            {/* Detected network table */}
-                            <div>
-                              <h4 className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-3 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>Detected Networks ({results.recon.wifi.items.length})</h4>
-                              <div className="overflow-x-auto border rounded-lg ${isLightMode ? 'border-slate-200' : 'border-slate-850'}">
-                                <table className="w-full text-left border-collapse font-mono text-[11px]">
-                                  <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
-                                    <tr>
-                                      <th className="px-3 py-2 font-bold">SSID</th>
-                                      <th className="px-3 py-2 font-bold">BSSID</th>
-                                      <th className="px-3 py-2 font-bold">RSSI</th>
-                                      <th className="px-3 py-2 font-bold">Ch</th>
-                                      <th className="px-3 py-2 font-bold">Band</th>
-                                      <th className="px-3 py-2 font-bold">Security</th>
-                                      <th className="px-3 py-2 font-bold">WiFi</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
-                                    {results.recon.wifi.items.map((net: any, idx: number) => (
-                                      <tr key={idx} className="hover:bg-cyan-500/5">
-                                        <td className={`px-3 py-2 font-semibold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{net.label}</td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{net.value}</td>
-                                        <td className={`px-3 py-2 ${net.detail?.includes('Open') ? 'text-red-400' : isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('dBm'))?.trim() || '—'}</td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('Ch'))?.replace('Ch', '').trim() || '—'}</td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('GHz'))?.trim() || '—'}</td>
-                                        <td className={`px-3 py-2 ${net.detail?.includes('Open') ? 'text-red-400' : net.detail?.includes('WPA3') ? 'text-emerald-400' : isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => /WPA|WEP|Open/.test(d))?.trim() || '—'}</td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{net.detail?.split('·').find((d: string) => d.includes('WiFi'))?.trim() || '—'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-
+                            {/* Quick actions */}
                             <div className="flex flex-col sm:flex-row gap-3">
                               <button
                                 type="button"
-                                onClick={() => runWifiScan()}
-                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
+                                onClick={async () => {
+                                  if (isScanning) return;
+                                  setIsScanning(true);
+                                  setQuery('Running multi-source IP intelligence...');
+                                  try {
+                                    const result = await scanIpAdvance();
+                                    setResults(makeIpAdvanceResults(result));
+                                    saveScanToHistory(makeIpAdvanceResults(result));
+                                  } catch (e) {
+                                    showToast('IP Advance scan failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
                               >
                                 <RefreshCw className="w-4 h-4" /> Scan Again
                               </button>
@@ -1614,13 +1800,568 @@ export default function App() {
                         ) : (
                           <button
                             type="button"
-                            onClick={() => runWifiScan()}
+                            onClick={async () => {
+                              if (isScanning) return;
+                              setIsScanning(true);
+                              setQuery('Running multi-source IP intelligence...');
+                              try {
+                                const result = await scanIpAdvance();
+                                setResults(makeIpAdvanceResults(result));
+                                saveScanToHistory(makeIpAdvanceResults(result));
+                                setViewingReport(true);
+                              } catch (e) {
+                                showToast('IP Advance scan failed. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }}
+                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Radar className="w-4 h-4" /> Run IP Advance Scan
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : activeTab === 'techlookup' ? (
+                    /* Technology Lookup */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-500 shrink-0">
+                              <Cpu className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Technology Lookup</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Web stack · CMS · framework · CDN/WAF</p>
+                            </div>
+                          </div>
+                          {results?.techlookup && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Fingerprinting website stack...</span>
+                          </div>
+                        ) : results?.techlookup ? (
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                              {[
+                                { label: 'Web Server', value: results.techlookup.server },
+                                { label: 'CMS / Platform', value: results.techlookup.cms, danger: results.techlookup.cms === 'WordPress' },
+                                { label: 'JS Framework', value: results.techlookup.jsFramework },
+                                { label: 'CDN / Edge', value: results.techlookup.cdn },
+                                { label: 'WAF', value: results.techlookup.waf },
+                                { label: 'Hosting', value: results.techlookup.hosting },
+                              ].map((field, idx) => (
+                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                  <span className={`text-xs font-mono font-bold break-all ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="overflow-x-auto border rounded-lg ${isLightMode ? 'border-slate-200' : 'border-slate-850'}">
+                              <table className="w-full text-left border-collapse font-mono text-[11px]">
+                                <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                  <tr>
+                                    <th className="px-3 py-2 font-bold">Technology</th>
+                                    <th className="px-3 py-2 font-bold">Value</th>
+                                    <th className="px-3 py-2 font-bold">Category</th>
+                                  </tr>
+                                </thead>
+                                <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                  {results.techlookup.tech.map((t, idx) => (
+                                    <tr key={idx}>
+                                      <td className={`px-3 py-2 font-semibold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{t.label}</td>
+                                      <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{t.value}</td>
+                                      <td className={`px-3 py-2 ${isLightMode ? 'text-slate-500' : 'text-slate-500'}`}>{t.category}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning) return;
+                                  setIsScanning(true);
+                                  setQuery('Fingerprinting website stack...');
+                                  try {
+                                    const result = await scanTechnology(results.techlookup!.domain);
+                                    setResults(makeTechLookupResults(result));
+                                    saveScanToHistory(makeTechLookupResults(result));
+                                  } catch (e) {
+                                    showToast('Technology lookup failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Scan Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        ) : !query.trim() ? (
+                          <div className="space-y-4">
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!query.trim()) return;
+                                (async () => {
+                                  setIsScanning(true);
+                                  setQuery('Fingerprinting website stack...');
+                                  try {
+                                    const result = await scanTechnology(query.trim());
+                                    setResults(makeTechLookupResults(result));
+                                    saveScanToHistory(makeTechLookupResults(result));
+                                    setViewingReport(true);
+                                  } catch (err) {
+                                    showToast('Technology lookup failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                })();
+                              }}
+                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                                isLightMode
+                                  ? 'border-slate-200 bg-white shadow-sm focus-within:border-violet-500'
+                                  : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-violet-500/80'
+                              }`}
+                            >
+                              <div className="pl-3.5 text-slate-500">
+                                <Search className="w-5 h-5" />
+                              </div>
+                              <input
+                                type="text"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Enter a website URL or hostname (e.g., example.com)..."
+                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
+                                  isLightMode ? 'text-slate-900' : 'text-white'
+                                }`}
+                                disabled={isScanning}
+                              />
+                              <button
+                                type="submit"
+                                disabled={!query.trim() || isScanning}
+                                className="px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                              >
+                                Scan
+                              </button>
+                            </form>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              Enter a domain or URL to fingerprint its web server, CMS, framework, CDN and WAF.
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (isScanning || !query.trim()) return;
+                              setIsScanning(true);
+                              setQuery('Fingerprinting website stack...');
+                              try {
+                                const result = await scanTechnology(query.trim());
+                                setResults(makeTechLookupResults(result));
+                                saveScanToHistory(makeTechLookupResults(result));
+                                setViewingReport(true);
+                              } catch (e) {
+                                showToast('Technology lookup failed. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }}
+                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Cpu className="w-4 h-4" /> Scan Website Stack
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : activeTab === 'geolookup' ? (
+                    /* IP Geo Lookup */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 shrink-0">
+                              <MapPin className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Geo Lookup</h3>
+                              <p className="text-[11px] font-mono text-slate-400">City · region · country · ASN</p>
+                            </div>
+                          </div>
+                          {results?.geolookup && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Resolved
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-cyan-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Resolving geolocation...</span>
+                          </div>
+                        ) : results?.geolookup ? (
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                { label: 'IP', value: results.geolookup.ip },
+                                { label: 'Country', value: results.geolookup.country ? `${results.geolookup.country} (${results.geolookup.countryCode})` : 'N/A' },
+                                { label: 'Region', value: results.geolookup.region },
+                                { label: 'City', value: results.geolookup.city },
+                                { label: 'ASN', value: results.geolookup.asn },
+                                { label: 'ISP', value: results.geolookup.isp },
+                                { label: 'Timezone', value: results.geolookup.timezone },
+                                { label: 'Threat', value: results.geolookup.threatLevel },
+                              ].map((field, idx) => (
+                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                  <span className={`text-xs font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {(results.geolookup.latitude !== undefined && results.geolookup.longitude !== undefined) && (
+                              <div className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                <span className="text-[10px] text-slate-500 block mb-1">Coordinates</span>
+                                <span className={`text-xs font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.geolookup.latitude!.toFixed(4)}, {results.geolookup.longitude!.toFixed(4)}</span>
+                              </div>
+                            )}
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning) return;
+                                  setIsScanning(true);
+                                  setQuery('Resolving geolocation...');
+                                  try {
+                                    const result = await scanGeoLookup(results.geolookup!.target);
+                                    setResults(makeGeoLookupResults(result));
+                                    saveScanToHistory(makeGeoLookupResults(result));
+                                  } catch (e) {
+                                    showToast('Geo lookup failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Lookup Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        ) : !query.trim() ? (
+                          <div className="space-y-4">
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!query.trim()) return;
+                                (async () => {
+                                  setIsScanning(true);
+                                  setQuery('Resolving geolocation...');
+                                  try {
+                                    const result = await scanGeoLookup(query.trim());
+                                    setResults(makeGeoLookupResults(result));
+                                    saveScanToHistory(makeGeoLookupResults(result));
+                                    setViewingReport(true);
+                                  } catch (err) {
+                                    showToast('Geo lookup failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                })();
+                              }}
+                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                                isLightMode
+                                  ? 'border-slate-200 bg-white shadow-sm focus-within:border-cyan-500'
+                                  : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-cyan-500/80'
+                              }`}
+                            >
+                              <div className="pl-3.5 text-slate-500">
+                                <Search className="w-5 h-5" />
+                              </div>
+                              <input
+                                type="text"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Enter an IP address or domain..."
+                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
+                                  isLightMode ? 'text-slate-900' : 'text-white'
+                                }`}
+                                disabled={isScanning}
+                              />
+                              <button
+                                type="submit"
+                                disabled={!query.trim() || isScanning}
+                                className="px-5 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                              >
+                                Lookup
+                              </button>
+                            </form>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              Enter an IP address or a domain (resolved to its A record) to map city, region, ASN and threat flags.
+                            </p>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (isScanning || !query.trim()) return;
+                              setIsScanning(true);
+                              setQuery('Resolving geolocation...');
+                              try {
+                                const result = await scanGeoLookup(query.trim());
+                                setResults(makeGeoLookupResults(result));
+                                saveScanToHistory(makeGeoLookupResults(result));
+                                setViewingReport(true);
+                              } catch (e) {
+                                showToast('Geo lookup failed. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }}
                             className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white"
                           >
                             <span className="flex items-center gap-2">
-                              <Wifi className="w-4 h-4" /> Scan Wireless Environment
+                              <MapPin className="w-4 h-4" /> Lookup Geolocation
                             </span>
                           </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : activeTab === 'speedtest' ? (
+                    /* Internet Speed Test */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 shrink-0">
+                              <Gauge className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Internet Speed Test</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Dual-source bandwidth · regional latency</p>
+                            </div>
+                          </div>
+                          {results?.speedtest && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Measured
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Measuring bandwidth and latency...</span>
+                          </div>
+                        ) : results?.speedtest ? (
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className={`p-5 rounded-xl border ${isLightMode ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-500/30 bg-emerald-500/10'}`}>
+                                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Cloudflare Edge</div>
+                                <div className="mt-2 flex items-baseline gap-2">
+                                  <span className={`text-3xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.cloudflare.downloadMbps}</span>
+                                  <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
+                                </div>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                  <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{results.speedtest.cloudflare.uploadMbps}</span>
+                                  <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.cloudflare.node}</div>
+                              </div>
+                              <div className={`p-5 rounded-xl border ${isLightMode ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-500/30 bg-emerald-500/10'}`}>
+                                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">M-Lab (MSAK)</div>
+                                <div className="mt-2 flex items-baseline gap-2">
+                                  <span className={`text-3xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.mlab.downloadMbps}</span>
+                                  <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
+                                </div>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                  <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{results.speedtest.mlab.uploadMbps}</span>
+                                  <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
+                                </div>
+                                <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.mlab.node}</div>
+                              </div>
+                            </div>
+
+                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200' : 'border-slate-850'}`}>
+                              <table className="w-full text-left border-collapse font-mono text-[11px]">
+                                <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                  <tr>
+                                    <th className="px-3 py-2 font-bold">Region</th>
+                                    <th className="px-3 py-2 font-bold">Latency</th>
+                                  </tr>
+                                </thead>
+                                <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                  {results.speedtest.latency.map((n, idx) => (
+                                    <tr key={idx}>
+                                      <td className={`px-3 py-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{n.flag} {n.name}</td>
+                                      <td className={`px-3 py-2 ${n.latencyMs > 400 ? 'text-red-400' : n.latencyMs > 300 ? 'text-amber-400' : 'text-emerald-400'}`}>{n.latencyMs} ms</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            <div className={`p-3 rounded-lg border text-[11px] font-mono ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                              <div className="text-slate-500">Outgoing IP: <span className={`font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.outgoingIp}</span> · {results.speedtest.ipVersion}</div>
+                              <p className="text-slate-400 mt-1 leading-relaxed">{results.speedtest.note}</p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (isScanning) return;
+                                setIsScanning(true);
+                                setQuery('Measuring bandwidth and latency...');
+                                try {
+                                  const result = await scanSpeedTest();
+                                  setResults(makeSpeedTestResults(result));
+                                  saveScanToHistory(makeSpeedTestResults(result));
+                                } catch (e) {
+                                  showToast('Speed test failed. Please try again.', 'error');
+                                } finally {
+                                  setIsScanning(false);
+                                }
+                              }}
+                              className="w-full py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                            >
+                              <RefreshCw className="w-4 h-4" /> Run Again
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (isScanning) return;
+                              setIsScanning(true);
+                              setQuery('Measuring bandwidth and latency...');
+                              try {
+                                const result = await scanSpeedTest();
+                                setResults(makeSpeedTestResults(result));
+                                saveScanToHistory(makeSpeedTestResults(result));
+                                setViewingReport(true);
+                              } catch (e) {
+                                showToast('Speed test failed. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            }}
+                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                          >
+                            <span className="flex items-center gap-2">
+                              <Gauge className="w-4 h-4" /> Run Speed Test
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : activeTab === 'myip' ? (
+                    /* What is My IP — auto-detected, no manual search */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
+                              <Network className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>What is My IP</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Your public IP is detected automatically</p>
+                            </div>
+                          </div>
+                          {results?.myip && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Detected
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Detecting your public IP...</span>
+                          </div>
+                        ) : results?.myip ? (
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                { label: 'IP', value: results.myip.ip },
+                                { label: 'Version', value: results.myip.ipVersion },
+                                { label: 'Country', value: results.myip.country },
+                                { label: 'ISP', value: results.myip.isp },
+                              ].map((field, idx) => (
+                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                  <span className={`text-sm font-mono font-bold break-all ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning) return;
+                                  setIsScanning(true);
+                                  try {
+                                    const result = await scanMyIp();
+                                    setResults(makeMyIpResults(result));
+                                    saveScanToHistory(makeMyIpResults(result));
+                                  } catch (e) {
+                                    showToast('Failed to detect IP. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Scan Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="text-center text-xs text-slate-500 font-mono py-6">
+                            Unable to detect your public IP. Check your connection and try again.
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1904,6 +2645,25 @@ export default function App() {
 
           </AnimatePresence>
         </div>
+
+        {/* --- GLOBAL PERSISTENT FOOTER (shown on every screen) --- */}
+        <footer
+          className={`mt-auto shrink-0 border-t px-4 sm:px-6 lg:px-8 py-4 ${
+            isLightMode
+              ? 'border-slate-200 bg-white'
+              : 'border-slate-800 bg-black'
+          }`}
+        >
+          <p className="text-center text-[11px] sm:text-xs font-medium leading-relaxed text-black">
+            Created by <span className="text-red-600 font-bold">Cyberswahili</span>
+            <span className="text-black/50"> : </span>
+            <span className="font-bold text-black">OSINTCS v2.0</span>
+            <span className="text-black/50"> · </span>
+            Browser-Based Security Sandbox Intelligence
+            <span className="text-black/50"> · </span>
+            <span className="text-red-600 font-bold">Zero Telemetry</span>
+          </p>
+        </footer>
       </main>
 
       {/* --- HUD CONSOLE OVERLAY --- */}

@@ -23,7 +23,10 @@ export type TargetType =
   | 'peoplehunter'
   | 'domainfinder'
   | 'vhosts'
-  | 'wifi';
+  | 'ipadvance'
+  | 'techlookup'
+  | 'geolookup'
+  | 'speedtest';
 
 export interface InvestigationTarget {
   value: string;
@@ -195,6 +198,166 @@ export interface MyIpResult {
   language?: string;
 }
 
+export interface RiskSource {
+  name: string;
+  score: number;
+  verdict: string; // e.g. "Mobile network", "clean"
+}
+
+export interface BgpRelation {
+  asn: string;
+  holder: string;
+  role: 'upstream' | 'downstream';
+}
+
+export interface NeighborScan {
+  total: number;
+  flagged: number;
+  vpn: number;
+  abuse: number;
+  tor: number;
+}
+
+export interface FingerprintCheck {
+  label: string;
+  category: 'network' | 'software' | 'hardware';
+  status: 'normal' | 'exposed';
+  detail: string;
+}
+
+export interface IpAdvanceResult {
+  ip: string;
+  ipVersion: 'IPv4' | 'IPv6';
+  queryMode: 'self' | 'target';
+  targetInput?: string;
+
+  // Core geo / network identity
+  country?: string;
+  countryCode?: string;
+  region?: string;
+  city?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  isp?: string;
+  org?: string;
+  asn?: string;
+  hostname?: string;
+  reverseDns?: string;
+
+  // Risk scoring
+  riskScore: number; // 0-100 (higher = purer / safer)
+  riskGrade: string; // e.g. "Extremely pure"
+  ipType?: string; // e.g. "Residential", "Mobile cellular", "Data center"
+  proxyUsersEstimate?: string; // e.g. "1-5"
+  isNativeIp?: boolean;
+  anonymityScore?: number; // 0-100
+
+  // Multi-source validation
+  sources: RiskSource[];
+
+  // BGP / network topology
+  bgp: {
+    announcementPrefix: string;
+    rpki: string; // e.g. "ROA not issued"
+    holders: string[];
+    relations: BgpRelation[];
+  };
+
+  // Neighbor scan (current /24 segment)
+  neighbors: NeighborScan;
+
+  // Browser fingerprint checks
+  fingerprint: FingerprintCheck[];
+
+  // WebRTC / DNS leak
+  webrtcLeak: boolean;
+  webrtcIp?: string;
+  dnsLeak: boolean;
+
+  // Regional availability (reference only)
+  aiServices: Array<{ name: string; supported: boolean }>;
+  streamingZones: Array<{ name: string; supported: boolean }>;
+
+  userAgent?: string;
+  platform?: string;
+  language?: string;
+}
+
+export interface TechItem {
+  label: string;
+  value: string;
+  category: 'server' | 'cms' | 'framework' | 'analytics' | 'security' | 'hosting' | 'misc';
+}
+
+export interface TechLookupResult {
+  domain: string;
+  resolvedIp?: string;
+  tech: TechItem[];
+  cms?: string;
+  server?: string;
+  jsFramework?: string;
+  cdn?: string;
+  waf?: string;
+  hosting?: string;
+  liveHeaders: boolean;
+  summary: string;
+}
+
+export interface GeoLookupResult {
+  target: string;
+  targetType: 'ip' | 'domain';
+  ip?: string;
+  hostname?: string;
+  ipVersion?: 'IPv4' | 'IPv6';
+  country?: string;
+  countryCode?: string;
+  region?: string;
+  city?: string;
+  timezone?: string;
+  latitude?: number;
+  longitude?: number;
+  isp?: string;
+  org?: string;
+  asn?: string;
+  isProxy?: boolean;
+  isVpn?: boolean;
+  isTor?: boolean;
+  isHosting?: boolean;
+  threatLevel?: 'safe' | 'low' | 'medium' | 'high';
+  live: boolean;
+  summary: string;
+}
+
+export interface SpeedNode {
+  name: string;
+  location?: string;
+  flag?: string;
+  latencyMs: number;
+}
+
+export interface SpeedTestResult {
+  // The IP route being measured (proxy exit if using a proxy).
+  outgoingIp: string;
+  ipVersion: 'IPv4' | 'IPv6';
+
+  cloudflare: {
+    downloadMbps: number;
+    uploadMbps: number;
+    node: string;
+  };
+  mlab: {
+    downloadMbps: number;
+    uploadMbps: number;
+    node: string;
+  };
+
+  latency: SpeedNode[];
+
+  note: string;
+  ranAt: string;
+}
+
 export interface UsernamePlatformCheck {
   platform: string;
   url: string;
@@ -314,6 +477,10 @@ export interface ScanResults {
   image?: ImageResult;
   hash?: HashResult;
   myip?: MyIpResult;
+  ipadvance?: IpAdvanceResult;
+  techlookup?: TechLookupResult;
+  geolookup?: GeoLookupResult;
+  speedtest?: SpeedTestResult;
   findings: Finding[];
   recommendations: Recommendation[];
   timeline: TimelineEvent[];

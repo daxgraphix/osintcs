@@ -11,19 +11,21 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 
-  /* Slate/neutral remap — shifted darker for high-contrast light mode */
+  /* Slate/neutral remap — shifted darker for high-contrast light mode.
+     Palette intentionally limited to the black↔white grey ramp so the UI
+     only ever renders red / white / black-family tones. */
   --color-slate-50:  #f8fafc;
   --color-slate-100: #f1f5f9;
-  --color-slate-200: #cbd5e1;   /* clearer borders/surfaces */
-  --color-slate-300: #94a3b8;
-  --color-slate-400: #64748b;   /* was #94a3b8 — readable secondary text */
-  --color-slate-500: #475569;   /* was #64748b — readable body text */
-  --color-slate-600: #334155;   /* was #475569 — strong body/headings */
-  --color-slate-700: #1e293b;   /* was #334155 — near-black */
-  --color-slate-800: #172033;
-  --color-slate-850: #111a2b;
-  --color-slate-900: #0b1220;
-  --color-slate-950: #060a13;
+  --color-slate-200: #c2ccd9;   /* clearer borders/surfaces */
+  --color-slate-300: #7c8798;   /* darker so decorative dividers stay visible */
+  --color-slate-400: #565f6e;   /* readable secondary text (AA on white) */
+  --color-slate-500: #3d4551;   /* readable body text */
+  --color-slate-600: #2a303b;   /* strong body/headings */
+  --color-slate-700: #1a1f27;   /* near-black */
+  --color-slate-800: #141821;
+  --color-slate-850: #0f131a;
+  --color-slate-900: #0a0d12;
+  --color-slate-950: #050709;
 
   /* Accent: Red */
   --color-red-50:  #fff1f2;
@@ -67,10 +69,10 @@
   --border-focus:   rgba(239,68,68,0.50);
 
   /* ── Text — high contrast hierarchy ──────────── */
-  --text-primary:   #0f172a;      /* headings, body — near-black */
-  --text-secondary: #334155;      /* sub-labels, descriptions */
-  --text-muted:     #64748b;      /* placeholders, hints */
-  --text-faint:     #94a3b8;      /* timestamps, decorative */
+  --text-primary:   #0a0d12;      /* headings, body — near-black */
+  --text-secondary: #2a303b;      /* sub-labels, descriptions */
+  --text-muted:     #565f6e;      /* placeholders, hints (AA on white) */
+  --text-faint:     #6b7280;      /* timestamps, decorative — still legible */
   --text-accent:    #dc2626;      /* red highlights */
   --text-on-accent: #ffffff;
 
@@ -634,6 +636,25 @@ button:active:not(:disabled) {
   .text-\[13px\]  { font-size: 15px !important; line-height: 1.55 !important; }
   .text-\[14px\]  { font-size: 16px !important; line-height: 1.6 !important; }
 }
+
+/* ============================================================
+   CONTRAST GUARANTEE — red / white / black palette only
+   The app renders the light branch of every ternary. These rules
+   ensure that the faintest grey text tiers never drop below a
+   readable contrast ratio on the white / near-white surfaces, and
+   that icons inherit a visible tone by default.
+   ============================================================ */
+.text-slate-300 { color: #565f6e !important; }  /* never render near-invisible grey */
+.text-slate-400 { color: #565f6e !important; }  /* readable secondary (>= AA) */
+.text-slate-500 { color: #3d4551 !important; }  /* readable body */
+.text-slate-600 { color: #2a303b !important; }
+.placeholder-slate-400::placeholder,
+.placeholder-slate-500::placeholder,
+.placeholder-slate-600::placeholder { color: #6b7280 !important; opacity: 1; }
+
+/* Decorative SVG icons default to a clearly visible dark tone unless an
+   explicit color utility (red / white / black-family) is applied. */
+svg:not([class*="text-"]) { color: #2a303b; }
 
 /* Comfortable, readable body copy everywhere */
 body {

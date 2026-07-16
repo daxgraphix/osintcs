@@ -15,12 +15,15 @@ OSINT.CS is a fully client-side OSINT platform that performs reconnaissance acro
 
 ## Latest Updates
 
-- **19+ Recon Modules** — Expanded from 5 to 19 integrated modules covering the full reconnaissance lifecycle, including the new Wifi Analyzer.
-- **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, and Google Dorking.
+- **15+ Recon Modules** — Expanded from 5 to 15+ integrated modules covering the full reconnaissance lifecycle.
+- **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, Google Dorking, Technology Lookup, IP Geo Lookup, and Internet Speed Test.
 - **Identity & People OSINT** — Added People Hunter module with breach-exposure simulation and identity correlation.
 - **Live Integrations** — DNS-over-HTTPS caching, live HTTP header probing via CORS proxy, WAF vendor detection from response headers, and real subdomain enumeration via certificate-transparency logs.
 - **Performance** — DoH response caching reduces redundant network calls; deterministic simulation fallbacks preserve offline resilience.
-- **Home Screen Redesign** — Categorized module grid, expanded analysis pipeline (15 steps), updated stats ticker, and refreshed CTAs.
+- **Home Screen Redesign** — Categorized module grid (Infrastructure, Technology & Geo Intelligence, Identity & People, Forensics & Files), dynamic stats ticker, expanded Smart Target Router, and refreshed CTAs.
+- **New Modules Wired End-to-End** — Technology Lookup, IP Geo Lookup, and Internet Speed Test now auto-run from the workspace, surface dedicated Report Dashboard tabs, and are fully integrated into the sidebar, lobby grid, and footer.
+- **IP Advance Enhancements** — Added `ip-api.com` fallback to geo resolution, guaranteed resolvable IP for self-mode, reverse-DNS via DoH for targets, and geo-aware AI/streaming regional-availability logic.
+- **Performance** — Added a short-TTL JSON cache so repeated IP/geo/speed lookups are instant and free public APIs are never hammered.
 - **Report Enhancements** — Generic recon panel renders any module result; export filenames sanitized; findings rules expanded for new modules.
 - **Branding** — Created by Cyberswahili branding applied across app footer, reports, and console.
 
@@ -37,7 +40,7 @@ The landing screen offers a universal input field with intelligent target routin
 ### Report Dashboard
 After any scan, the dashboard replaces the lobby and presents:
 - **Overview** — target summary, risk score, grade, timeline, and at-a-glance metadata.
-- **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking, Wifi Analyzer.
+  - **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, IP Advance, Technology Lookup, IP Geo Lookup, Internet Speed Test, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking.
 - **Evidence** — raw scan payloads and parsed responses.
 - **Findings** — rule-based detections with severity (`pass`, `medium`, `high`), category, and remediation text.
 - **Recommendations** — auto-generated remediation actions derived from findings.
@@ -102,56 +105,76 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - Displays IPv4/IPv6, ASN, ISP, organization, country, region, city, timezone, coordinates, platform, language, and user agent.
 - Generates a privacy finding and remediation recommendation (VPN/proxy guidance).
 
-### 10. Website Scanner
+### 9b. IP Advance
+- Deep multi-source IP intelligence with a 0–100 **risk purity** score (residential/native IPs score highest; datacenter IPs trigger platform risk controls).
+- **Multi-source voting** across 5 data sources (IP-API, Scamalytics, proxycheck, AbuseIPDB, ipapi.is) with consensus verdict and category labels.
+- **ASN / BGP topology** — announcement prefix, RPKI validation, AS holders, and upstream/downstream peer relations.
+- **/24 neighbour scan** — flags how many of the 256 segment neighbours are VPN/abuse/Tor, so a dirty segment cannot implicate you.
+- **Browser fingerprint consistency** — network, software, and hardware profile checks (timezone/IP, language/IP, UA/platform, screen, CPU, memory, WebGL) compared for consistency.
+- **WebRTC & DNS leak detection** — local, no-upload checks that surface real-IP exposure.
+- **Regional availability** — reference-only AI-service (ChatGPT/Claude/Gemini) and streaming-zone (Netflix/YouTube/Spotify/TikTok) support by IP location.
+- Leave the query blank to analyze your own public IP, or enter any IPv4/IPv6 address to investigate a target.
+
+### 10. Technology Lookup
+- Fingerprints the web stack from live HTTP response headers via CORS proxy.
+- Detects **server**, **CMS / platform**, **JS framework**, **CDN / edge**, **WAF**, and **hosting** provider.
+- Returns a breakdown table of detected technologies with category labels and a posture summary.
+- Falls back to deterministic simulation when the proxy is unreachable.
+
+### 11. IP Geo Lookup
+- Resolves the geolocation of an IP address or domain (city, region, country, ASN, ISP, timezone).
+- Performs threat-indicator checks: Tor exit node, VPN, proxy, and hosting-provider flags.
+- Falls back to seeded simulation when the geolocation API is unreachable.
+
+### 12. Internet Speed Test
+- Measures dual-source bandwidth (Cloudflare edge + M-Lab) and round-trip latency to regional cloud vantage points.
+- Only runs on click; results are shown only to you. M-Lab is an open research platform and logs test results server-side.
+- Returns download/upload Mbps per source plus a regional latency table.
+
+### 13. Website Scanner
 - Probes live HTTP response headers via CORS proxy.
 - Detects server technology, CMS, security headers (CSP, HSTS, X-Frame-Options, COOP/COEP, Permissions-Policy), CORS configuration, and cookie flags (Secure, HttpOnly, SameSite).
 - Falls back to deterministic simulation when the proxy is unreachable.
 
-### 11. Subdomain Finder
+### 14. Subdomain Finder
 - Queries **crt.sh** certificate-transparency logs for passive subdomain enumeration.
 - Validates discovered hosts via DNS-over-HTTPS A/AAAA resolution.
 - Falls back to seeded simulation when crt.sh is rate-limited or offline.
 
-### 12. Port Scanner
+### 15. Port Scanner
 - Top-profile sweep (34 common ports: 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 8888, etc.).
 - Deep-profile expansion (additional high-risk ports: 111, 143, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8000, 8009, 8081, 8443, 8888, 9000, 9200, 9300, 10000, 27017, 50000, etc.).
 - Falls back to deterministic simulation preserving open/closed distribution.
 
-### 13. Network Scan
+### 16. Network Scan
 - Broader port coverage with top/deep segmentation.
 - Simulated service fingerprinting and exposure triage.
 
-### 14. URL Fuzzer
+### 17. URL Fuzzer
 - Probes common admin paths, backup files, debug endpoints, and parameter vectors.
 - Severity classification (medium/high) based on endpoint sensitivity.
 
-### 15. WAF Detector
+### 18. WAF Detector
 - Inspects response headers for WAF/CDN vendor fingerprints (Cloudflare, Akamai, AWS WAF, Imperva, Sucuri, etc.).
 - Detects challenge pages and security header configurations.
 - Falls back to heuristic detection when live probing is unavailable.
 
-### 16. People Hunter
+### 19. People Hunter
 - Correlates email addresses, usernames, and domain affiliations.
 - Simulates breach-exposure indicators and entity correlation.
 - Returns exposure count and medium-severity finding when exposure is high.
 
-### 17. Domain Finder
+### 20. Domain Finder
 - Discovers related domains via search-engine dorks and pattern enumeration.
 - Returns discovered domains with confidence scoring.
 
-### 18. Virtual Hosts (VHosts)
+### 21. Virtual Hosts (VHosts)
 - Enumerates virtual hostnames associated with an IP or CDN endpoint.
 - Returns discovered vhost entries with HTTP response validation.
 
-### 19. Google Dorking
+### 22. Google Dorking
 - Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
 - Returns query templates for manual or automated execution.
-
-### 20. Wifi Analyzer
-- Auto-detects the best available wireless interface (deterministic heuristic across 2.4/5/6 GHz bands).
-- Scans nearby wireless networks and captures **SSID**, **BSSID** (MAC), **RSSI** (dBm signal strength), **channel**, **band** (2.4 / 5 / 6 GHz), **security type** (Open / WEP / WPA / WPA2 / WPA3), and **Wifi 6 / 6E** capability.
-- Surfaces channel-interference and open-network exposure with findings and remediation guidance.
-- Note: browsiers cannot perform real 802.11 radio scans, so results are a deterministic, seeded simulation of the local wireless environment.
 
 ---
 

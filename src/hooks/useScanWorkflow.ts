@@ -27,7 +27,10 @@ import {
   huntPeople,
   findDomains,
   findVirtualHosts,
-  scanWifi,
+  scanIpAdvance,
+  scanTechnology,
+  scanGeoLookup,
+  scanSpeedTest,
 } from '../services/osintServices';
 import {
   analyzeDnsRules,
@@ -88,6 +91,10 @@ async function performScan(
   let hashData = undefined;
   let imageData = undefined;
   let myipData = undefined;
+  let ipAdvanceData = undefined;
+  let techLookupData = undefined;
+  let geoLookupData = undefined;
+  let speedTestData = undefined;
   let reconData: Record<string, any> = {};
 
   if (finalTarget.type === 'domain' || finalTarget.type === 'website') {
@@ -141,6 +148,76 @@ async function performScan(
       severity: 'pass',
       category: 'Network Identity',
       remediation: 'Consider using a VPN or proxy if IP exposure is a concern.',
+    });
+  } else if (finalTarget.type === 'ipadvance') {
+    const mode = finalTarget.value && finalTarget.value.trim() ? 'target' : 'self';
+    await log(`IP-ADV: Running multi-source intelligence on ${mode === 'self' ? 'your public IP' : finalTarget.value}...`, 150);
+    ipAdvanceData = await scanIpAdvance(finalTarget.value);
+    await log(`IP-ADV-OK: Risk purity ${ipAdvanceData.riskScore}/100; ${ipAdvanceData.ipType} classification.`, 80);
+    findings.push({
+      id: 'IPADV_SUMMARY',
+      module: 'ipadvance',
+      title: 'IP Advance Intelligence Complete',
+      description: `Analysed ${ipAdvanceData.ip} (${ipAdvanceData.ipVersion}) — ${ipAdvanceData.ipType} IP with ${ipAdvanceData.riskGrade} purity (${ipAdvanceData.riskScore}/100). ${ipAdvanceData.neighbors.flagged} of ${ipAdvanceData.neighbors.total} /24 neighbours flagged.`,
+      severity: ipAdvanceData.riskScore >= 70 ? 'pass' : 'medium',
+      category: 'IP Reputation',
+      remediation: 'Cross-validate across sources. Residential/native IPs are best for low-risk operations; datacenter IPs trigger platform risk controls.',
+    });
+  } else if (finalTarget.type === 'techlookup') {
+    await log('TECH-SCAN: Fingerprinting web server, CMS, and JS framework...', 140);
+    techLookupData = await scanTechnology(finalTarget.value);
+    await log(`TECH-OK: Identified ${techLookupData.cms} on ${techLookupData.server}.`, 80);
+    findings.push({
+      id: 'TECH_SUMMARY',
+      module: 'techlookup',
+      title: 'Technology Stack Identified',
+      description: `Website ${techLookupData.domain} runs ${techLookupData.cms} on ${techLookupData.server} with ${techLookupData.jsFramework}. CDN: ${techLookupData.cdn} · WAF: ${techLookupData.waf}.`,
+      severity: techLookupData.cms === 'WordPress' ? 'medium' : 'info',
+      category: 'Web Stack',
+      remediation: techLookupData.cms === 'WordPress' ? 'Keep CMS, themes, and plugins patched; WordPress is the most targeted web platform.' : 'No action required.',
+    });
+  } else if (finalTarget.type === 'geolookup') {
+    await log('GEO-RESOLVE: Mapping IP/domain to physical location...', 140);
+    geoLookupData = await scanGeoLookup(finalTarget.value);
+    await log(`GEO-OK: ${geoLookupData.city}, ${geoLookupData.country} (${geoLookupData.countryCode}).`, 80);
+    const threats: string[] = [];
+    if (geoLookupData.isTor) threats.push('Tor exit node');
+    if (geoLookupData.isProxy) threats.push('proxy');
+    if (geoLookupData.isVpn) threats.push('VPN');
+    if (geoLookupData.isHosting) threats.push('hosting provider');
+    if (threats.length > 0) {
+      findings.push({
+        id: 'GEO_THREAT',
+        module: 'geolookup',
+        title: 'Anonymity / Threat Indicators Detected',
+        description: `Target ${geoLookupData.target} resolves to ${geoLookupData.city}, ${geoLookupData.country} with flags: ${threats.join(', ')}.`,
+        severity: geoLookupData.isTor || geoLookupData.isProxy ? 'high' : 'medium',
+        category: 'Geo Intelligence',
+        remediation: 'Correlate with other modules before trusting geolocation — proxies and VPNs can misrepresent true location.',
+      });
+    } else {
+      findings.push({
+        id: 'GEO_CLEAN',
+        module: 'geolookup',
+        title: 'Geolocation Resolved',
+        description: `Target ${geoLookupData.target} maps to ${geoLookupData.city}, ${geoLookupData.region}, ${geoLookupData.country} (AS${geoLookupData.asn}). No anonymizing indicators.`,
+        severity: 'pass',
+        category: 'Geo Intelligence',
+        remediation: 'No action required.',
+      });
+    }
+  } else if (finalTarget.type === 'speedtest') {
+    await log('SPEED-PROBE: Measuring dual-source bandwidth and latency...', 200);
+    speedTestData = await scanSpeedTest();
+    await log(`SPEED-OK: Cloudflare ${speedTestData.cloudflare.downloadMbps} Mbps · M-Lab ${speedTestData.mlab.downloadMbps} Mbps.`, 80);
+    findings.push({
+      id: 'SPEED_SUMMARY',
+      module: 'speedtest',
+      title: 'Internet Speed Test Complete',
+      description: `Outgoing route ${speedTestData.outgoingIp}. Cloudflare edge: ${speedTestData.cloudflare.downloadMbps}↓/${speedTestData.cloudflare.uploadMbps}↑ Mbps. M-Lab (MSAK): ${speedTestData.mlab.downloadMbps}↓/${speedTestData.mlab.uploadMbps}↑ Mbps.`,
+      severity: speedTestData.cloudflare.downloadMbps < 10 ? 'medium' : 'pass',
+      category: 'Network Performance',
+      remediation: 'Cross-validate with a native speed test. Use a wired connection and pause background downloads for the most accurate reading.',
     });
   } else if (finalTarget.type === 'username') {
     await log('USER-RECON: Initiating multi-platform search array for profile handles...', 180);
@@ -226,8 +303,7 @@ async function performScan(
     finalTarget.type === 'waf' ||
     finalTarget.type === 'peoplehunter' ||
     finalTarget.type === 'domainfinder' ||
-    finalTarget.type === 'vhosts' ||
-    finalTarget.type === 'wifi'
+    finalTarget.type === 'vhosts'
   ) {
     const mod = finalTarget.type;
     await log(`RECON-${mod.toUpperCase()}: Launching ${mod} reconnaissance pipeline...`, 150);
@@ -243,7 +319,6 @@ async function performScan(
       case 'peoplehunter': reconResult = await huntPeople(finalTarget.value); break;
       case 'domainfinder': reconResult = await findDomains(finalTarget.value); break;
       case 'vhosts': reconResult = await findVirtualHosts(finalTarget.value); break;
-      case 'wifi': reconResult = await scanWifi(finalTarget.value); break;
       default: reconResult = null;
     }
     if (reconResult) {
@@ -273,6 +348,10 @@ async function performScan(
     hash: hashData,
     image: imageData,
     myip: myipData,
+    ipadvance: ipAdvanceData,
+    techlookup: techLookupData,
+    geolookup: geoLookupData,
+    speedtest: speedTestData,
     findings,
     recommendations,
     timeline,

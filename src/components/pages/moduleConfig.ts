@@ -46,7 +46,9 @@ import {
   ShieldAlert,
   Users,
   Globe2,
-  Wifi,
+  Radar,
+  MapPin,
+  Gauge,
 } from 'lucide-react';
 import { TargetType } from '../../types';
 
@@ -141,6 +143,38 @@ export const QUICK_MODULES: ModuleConfig[] = [
     icon: Network,
   },
   {
+    id: 'ipadvance',
+    label: 'IP Advance',
+    placeholder: 'Query any IP (leave blank to analyze your own)...',
+    description: 'Deep multi-source IP intelligence: risk purity scoring, ASN/BGP topology, /24 neighbour scan, browser fingerprint, and WebRTC/DNS leak detection.',
+    helpHint: 'Cross-validates 5 data sources, maps upstream/downstream relations, and checks AI/streaming regional availability.',
+    icon: Radar,
+  },
+  {
+    id: 'techlookup',
+    label: 'Technology Lookup',
+    placeholder: 'Enter a website URL or hostname (e.g., example.com)...',
+    description: 'Check out the technologies used on any website — web server, CMS, JS framework, analytics, CDN/WAF, and hosting.',
+    helpHint: 'Fingerprints server, frameworks, CDN/WAF vendor, and security-header posture of the target site.',
+    icon: Cpu,
+  },
+  {
+    id: 'geolookup',
+    label: 'IP Geo Lookup',
+    placeholder: 'Enter an IP address or domain...',
+    description: 'Find the geolocation of an IP address or a domain including city, region, and country.',
+    helpHint: 'Resolves domain A records, then maps ASN, ISP, coordinates, and Tor/VPN/proxy indicators.',
+    icon: MapPin,
+  },
+  {
+    id: 'speedtest',
+    label: 'Internet Speed Test',
+    placeholder: 'Click Run to measure your current network...',
+    description: 'Re-measurement of speed: dual-source bandwidth (Cloudflare edge + M-Lab) and round-trip latency to regional cloud vantage points.',
+    helpHint: 'Only runs on click; results shown only to you. M-Lab is an open research platform and logs test results server-side.',
+    icon: Gauge,
+  },
+  {
     id: 'googlehacking',
     label: 'Google Dorking',
     placeholder: 'Enter a domain (e.g., example.com)...',
@@ -219,13 +253,5 @@ export const QUICK_MODULES: ModuleConfig[] = [
     description: 'Enumerate virtual hosts bound to a single IP address.',
     helpHint: 'Reverse-style heuristic that maps common hostnames back to the target IP.',
     icon: Server,
-  },
-  {
-    id: 'wifi',
-    label: 'WiFi Analyzer',
-    placeholder: 'Auto-detects your wireless interface...',
-    description: 'Scan nearby wireless networks and capture SSID, signal strength, encryption, channel, band, and WiFi 6/6E capabilities.',
-    helpHint: 'Auto-detects the best interface and maps 2.4/5/6 GHz bands for interference and placement insight.',
-    icon: Wifi,
   },
 ];

@@ -50,7 +50,8 @@ import {
   Fingerprint,
   Image,
   Database,
-  Wifi,
+  Radar,
+  Gauge,
 } from 'lucide-react';
 import { ScanResults, Finding, Recommendation, TimelineEvent } from '../types';
 import { calculateRiskScore, generateReportDocument } from '../engines/osintEngines';
@@ -71,6 +72,10 @@ type TabType =
   | 'ssl'
   | 'headers'
   | 'myip'
+  | 'ipadvance'
+  | 'techlookup'
+  | 'geolookup'
+  | 'speedtest'
   | 'timeline'
   | 'recommendations'
   | 'export';
@@ -84,6 +89,7 @@ export default function ReportDashboard({
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     if (results.image?.authenticity) return 'image_verify';
     if (results.myip) return 'myip';
+    if (results.ipadvance) return 'ipadvance';
     return 'overview';
   });
   const [copiedText, setCopiedText] = useState<string | null>(null);
@@ -421,7 +427,10 @@ export default function ReportDashboard({
             target.type === 'website' ? { id: 'headers', label: 'Headers', icon: Server } : null,
             target.type === 'ip' ? { id: 'ip', label: 'IP Lookup', icon: Database } : null,
             target.type === 'myip' ? { id: 'myip', label: 'My IP', icon: Network } : null,
-            results.recon?.wifi ? { id: 'wifi', label: 'WiFi', icon: Wifi } : null,
+            results.ipadvance ? { id: 'ipadvance', label: 'IP Advance', icon: Radar } : null,
+            results.techlookup ? { id: 'techlookup', label: 'Technology', icon: Cpu } : null,
+            results.geolookup ? { id: 'geolookup', label: 'Geo Lookup', icon: MapPin } : null,
+            results.speedtest ? { id: 'speedtest', label: 'Speed Test', icon: Gauge } : null,
             target.type === 'email' ? { id: 'email', label: 'Email Audit', icon: Mail } : null,
             target.type === 'username' ? { id: 'username', label: 'Username Footprint', icon: User } : null,
             target.type === 'hash' ? { id: 'hash', label: 'Hash Intel', icon: Key } : null,
@@ -1926,6 +1935,478 @@ export default function ReportDashboard({
             </div>
           )}
 
+          {/* IP ADVANCE PANEL TAB */}
+          {activeTab === 'ipadvance' && results.ipadvance && (
+            <div id="ipadvance_panel" className="space-y-6">
+              {/* Hero IP */}
+              <div className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
+                <div className="space-y-1 min-w-0">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">
+                    {results.ipadvance.queryMode === 'self' ? 'Your Public IP Address' : 'Analyzed IP Address'}
+                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl sm:text-3xl font-black font-mono text-slate-900 break-all">{results.ipadvance.ip}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                      {results.ipadvance.ipVersion}
+                    </span>
+                  </div>
+                  {results.ipadvance.queryMode === 'target' && results.ipadvance.targetInput && (
+                    <span className="text-[10px] font-mono text-slate-500">queried from: {results.ipadvance.targetInput}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => { navigator.clipboard.writeText(results.ipadvance!.ip); if (showToast) showToast('IP address copied to clipboard', 'success'); }}
+                  className="shrink-0 px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copy
+                </button>
+              </div>
+
+              {/* Risk score hero */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 rounded-2xl p-6 flex flex-col items-center justify-between min-h-[260px] border border-blue-200 bg-white" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.08)' }}>
+                  <div className="w-full text-left">
+                    <h3 className="text-sm font-bold tracking-wider uppercase font-mono" style={{ color: '#475569' }}>RISK PURITY</h3>
+                    <p className="text-xs mt-1" style={{ color: '#64748b' }}>Higher = purer / safer IP</p>
+                  </div>
+                  <div className="relative flex items-center justify-center my-6">
+                    <svg className="w-44 h-44 transform -rotate-90">
+                      <circle cx="88" cy="88" r="74" fill="none" stroke="#e2e8f0" strokeWidth="12" />
+                      <circle
+                        cx="88" cy="88" r="74" fill="none" stroke="#2563eb" strokeWidth="12" strokeLinecap="round"
+                        strokeDasharray={465} strokeDashoffset={465 - (465 * results.ipadvance.riskScore) / 100}
+                      />
+                    </svg>
+                    <div className="absolute text-center">
+                      <div className="text-4xl font-black font-mono text-slate-900">{results.ipadvance.riskScore}</div>
+                      <div className="text-[10px] font-mono text-slate-500">/ 100</div>
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <span className={`text-xs px-3 py-1 rounded-full font-mono font-bold ${results.ipadvance.riskScore >= 70 ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : results.ipadvance.riskScore >= 50 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}`}>
+                      {results.ipadvance.riskGrade}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Identity + risk facts */}
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                    <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">Network &amp; Identity</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { label: 'ISP', value: results.ipadvance.isp },
+                        { label: 'Organization', value: results.ipadvance.org },
+                        { label: 'ASN', value: results.ipadvance.asn },
+                        { label: 'Country', value: `${results.ipadvance.country} (${results.ipadvance.countryCode})` },
+                        { label: 'Region', value: results.ipadvance.region },
+                        { label: 'City', value: results.ipadvance.city },
+                        { label: 'Timezone', value: results.ipadvance.timezone },
+                        { label: 'IP Type', value: results.ipadvance.ipType },
+                      ].map((field, idx) => (
+                        <div key={idx} className="p-4 rounded-lg bg-slate-50/50 border border-slate-200">
+                          <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                          <span className="text-sm font-mono font-bold text-slate-900 break-all">{field.value || 'N/A'}</span>
+                        </div>
+                      ))}
+                      {results.ipadvance.hostname && (
+                        <div className="p-4 rounded-lg bg-slate-50/50 border border-slate-200">
+                          <span className="text-[10px] text-slate-500 block mb-1">Hostname</span>
+                          <span className="text-sm font-mono font-bold text-slate-900 break-all">{results.ipadvance.hostname}</span>
+                        </div>
+                      )}
+                      {results.ipadvance.reverseDns && (
+                        <div className="p-4 rounded-lg bg-slate-50/50 border border-slate-200">
+                          <span className="text-[10px] text-slate-500 block mb-1">Reverse DNS (PTR)</span>
+                          <span className="text-sm font-mono font-bold text-slate-900 break-all">{results.ipadvance.reverseDns}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {[
+                      { label: 'Proxy Users', value: results.ipadvance.proxyUsersEstimate, danger: results.ipadvance.proxyUsersEstimate === '50+' },
+                      { label: 'Native IP', value: results.ipadvance.isNativeIp ? 'Yes' : 'No', danger: !results.ipadvance.isNativeIp },
+                      { label: 'Anonymity', value: `${results.ipadvance.anonymityScore}/100`, danger: results.ipadvance.anonymityScore < 80 },
+                      { label: 'WebRTC Leak', value: results.ipadvance.webrtcLeak ? 'Yes' : 'No', danger: results.ipadvance.webrtcLeak },
+                    ].map((field, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50/50' : 'border-slate-850 bg-slate-900/30'}`}>
+                        <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                        <span className={`text-sm font-mono font-bold ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Multi-source voting */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">Multi-Source Risk Validation (5 Sources)</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse font-mono text-xs">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-3 py-2 font-bold">Data Source</th>
+                        <th className="px-3 py-2 font-bold">Risk Value</th>
+                        <th className="px-3 py-2 font-bold">Verdict</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {results.ipadvance.sources.map((s, idx) => (
+                        <tr key={idx}>
+                          <td className="px-3 py-2 font-semibold text-slate-900">{s.name}</td>
+                          <td className="px-3 py-2 text-slate-700">{s.score}</td>
+                          <td className="px-3 py-2">
+                            <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${s.verdict === 'clean' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : s.verdict === 'Residential' || s.verdict === 'Mobile network' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>
+                              {s.verdict}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
+                  The risk score is a reference rating from multiple data sources and is not an absolute conclusion. Different platforms use different judgment sources, so cross-validation is recommended.
+                </p>
+              </div>
+
+              {/* BGP topology */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">BGP Routing Relationships</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-lg bg-slate-50/50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block mb-1">Announcement Prefix</span>
+                    <span className="text-sm font-mono font-bold text-slate-900 break-all">{results.ipadvance.bgp.announcementPrefix}</span>
+                  </div>
+                  <div className="p-4 rounded-lg bg-slate-50/50 border border-slate-200">
+                    <span className="text-[10px] text-slate-500 block mb-1">RPKI Validation</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.ipadvance.bgp.rpki}</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block mb-2">AS Holders</span>
+                  <div className="flex flex-wrap gap-2">
+                    {results.ipadvance.bgp.holders.map((h, idx) => (
+                      <span key={idx} className="text-[11px] px-2 py-1 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20 font-mono">{h}</span>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-500 block mb-2">Upstream / Downstream Peers</span>
+                  <div className="space-y-1.5">
+                    {results.ipadvance.bgp.relations.map((r, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded bg-slate-50/40 border border-slate-200/60">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${r.role === 'upstream' ? 'bg-violet-500/10 text-violet-600 border border-violet-500/20' : 'bg-slate-500/10 text-slate-600 border border-slate-500/20'}`}>{r.role}</span>
+                          <span className="text-xs font-mono text-slate-900">{r.asn}</span>
+                        </div>
+                        <span className="text-[11px] text-slate-600">{r.holder}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Neighbor scan */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">/24 Neighbour Scan</h4>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Self-built offline database scans 256 neighbours in the same /24 segment in real time. Risk-control features can block entire segments — the dirtier your neighbours, the more likely you are implicated.
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: 'Clean', value: `${results.ipadvance.neighbors.total - results.ipadvance.neighbors.flagged} / ${results.ipadvance.neighbors.total}`, color: 'text-emerald-500' },
+                    { label: 'Flagged', value: results.ipadvance.neighbors.flagged, color: results.ipadvance.neighbors.flagged > 0 ? 'text-red-400' : 'text-emerald-500' },
+                    { label: 'VPN', value: results.ipadvance.neighbors.vpn, color: 'text-amber-500' },
+                    { label: 'Tor', value: results.ipadvance.neighbors.tor, color: 'text-red-400' },
+                  ].map((field, idx) => (
+                    <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50 text-center">
+                      <div className={`text-2xl font-black font-mono ${field.color}`}>{field.value}</div>
+                      <span className="text-[10px] font-mono text-slate-500 uppercase block mt-0.5">{field.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Browser fingerprint */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">Browser Fingerprint Consistency</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {results.ipadvance.fingerprint.map((f, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-2.5 rounded bg-slate-50/40 border border-slate-200/60">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${f.category === 'network' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20' : f.category === 'software' ? 'bg-violet-500/10 text-violet-600 border border-violet-500/20' : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'}`}>{f.category}</span>
+                        <span className="text-xs font-semibold text-slate-900 truncate">{f.label}</span>
+                      </div>
+                      <span className={`text-[10px] font-mono font-bold shrink-0 ${f.status === 'normal' ? 'text-emerald-400' : 'text-red-400'}`}>{f.status === 'normal' ? '✓ Normal' : '⚠ Exposed'}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
+                  Purely local reading, no uploading, no fingerprint tracking. Network, software, and hardware profiles are compared for consistency.
+                </p>
+              </div>
+
+              {/* Leak detection */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-2">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">WebRTC Leak Detection</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">WebRTC may bypass a proxy and directly expose your real IP. The whole process runs locally in your browser.</p>
+                  <div className={`mt-2 text-sm font-mono font-bold ${results.ipadvance.webrtcLeak ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {results.ipadvance.webrtcLeak ? 'Leak Detected' : 'Not Detected'}
+                  </div>
+                </div>
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-2">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">DNS Leak Detection</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">Checks whether DNS queries exit through an unexpected resolver that could reveal your true location.</p>
+                  <div className={`mt-2 text-sm font-mono font-bold ${results.ipadvance.dnsLeak ? 'text-red-400' : 'text-emerald-400'}`}>
+                    {results.ipadvance.dnsLeak ? 'Leak Detected' : 'Not Detected'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Regional availability */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">AI Service Regional Availability</h4>
+                  <div className="space-y-2">
+                    {results.ipadvance.aiServices.map((s, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded bg-slate-50/40 border border-slate-200/60">
+                        <span className="text-xs font-semibold text-slate-900">{s.name}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${s.supported ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{s.supported ? '✓ Supported' : '✗ Blocked'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">Streaming Zone Availability</h4>
+                  <div className="space-y-2">
+                    {results.ipadvance.streamingZones.map((s, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded bg-slate-50/40 border border-slate-200/60">
+                        <span className="text-xs font-semibold text-slate-900">{s.name}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${s.supported ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-red-500/10 text-red-400 border border-red-500/20'}`}>{s.supported ? '✓ Supported' : '✗ Blocked'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-mono">
+                Scan captured at {results.scanTime} · Geolocation fetched against public IP endpoints; risk scoring, source voting, BGP model, neighbour scan, and fingerprint checks are computed locally in your browser.
+              </div>
+            </div>
+          )}
+
+          {/* TECHNOLOGY LOOKUP PANEL TAB */}
+          {activeTab === 'techlookup' && results.techlookup && (
+            <div id="techlookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Tech Quick Details Card */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">WEB STACK</h4>
+                  <div className="space-y-3.5">
+                    <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200">
+                      <span className="text-[10px] text-slate-500 block mb-1">Target Domain</span>
+                      <span className="text-sm font-mono font-bold text-red-400 break-all">{results.techlookup.domain}</span>
+                    </div>
+                    {[
+                      { label: 'Web Server', value: results.techlookup.server },
+                      { label: 'CMS / Platform', value: results.techlookup.cms, danger: results.techlookup.cms === 'WordPress' },
+                      { label: 'JS Framework', value: results.techlookup.jsFramework },
+                      { label: 'CDN / Edge', value: results.techlookup.cdn },
+                      { label: 'WAF', value: results.techlookup.waf },
+                      { label: 'Hosting', value: results.techlookup.hosting },
+                    ].map((field, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-slate-600">{field.label}</span>
+                        <span className={`text-[11px] font-mono font-bold break-all text-right ${field.danger ? 'text-red-400' : 'text-slate-900'}`}>{field.value || 'N/A'}</span>
+                      </div>
+                    ))}
+                    {results.techlookup.resolvedIp && (
+                      <div className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-slate-600">Resolved IP</span>
+                        <span className="text-[11px] font-mono font-bold text-slate-900 break-all text-right">{results.techlookup.resolvedIp}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-mono">
+                  {results.techlookup.liveHeaders ? 'Live response headers captured via CORS proxy.' : 'Deterministic simulation used (proxy unreachable).'}
+                </div>
+              </div>
+
+              {/* Technology breakdown table */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="border border-slate-200 bg-white rounded-xl p-6 space-y-4">
+                  <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">DETECTED TECHNOLOGIES</h3>
+                  <div className="border border-slate-200/80 rounded-lg overflow-hidden">
+                    <table className="w-full text-left border-collapse font-mono text-xs">
+                      <thead className="bg-slate-50 text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 font-bold">Technology</th>
+                          <th className="px-3 py-2 font-bold">Value</th>
+                          <th className="px-3 py-2 font-bold">Category</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {results.techlookup.tech.map((t, idx) => (
+                          <tr key={idx}>
+                            <td className="px-3 py-2 font-semibold text-slate-900">{t.label}</td>
+                            <td className="px-3 py-2 text-slate-700 break-all">{t.value}</td>
+                            <td className="px-3 py-2 text-slate-500">{t.category}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 bg-white rounded-xl p-6 space-y-3">
+                  <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">SUMMARY</h3>
+                  <p className="text-xs text-slate-700 leading-relaxed">{results.techlookup.summary}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* GEO LOOKUP PANEL TAB */}
+          {activeTab === 'geolookup' && results.geolookup && (
+            <div id="geolookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Geo Quick Details Card */}
+              <div className="lg:col-span-1 space-y-6">
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">GEO INTELLIGENCE</h4>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'IP', value: results.geolookup.ip },
+                      { label: 'Country', value: results.geolookup.country ? `${results.geolookup.country} (${results.geolookup.countryCode})` : 'N/A' },
+                      { label: 'Region', value: results.geolookup.region },
+                      { label: 'City', value: results.geolookup.city },
+                      { label: 'ASN', value: results.geolookup.asn },
+                      { label: 'ISP', value: results.geolookup.isp },
+                      { label: 'Timezone', value: results.geolookup.timezone },
+                      { label: 'Threat', value: results.geolookup.threatLevel },
+                    ].map((field, idx) => (
+                      <div key={idx} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-slate-600">{field.label}</span>
+                        <span className="text-[11px] font-mono font-bold text-slate-900 break-all text-right">{field.value || 'N/A'}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {results.geolookup.latitude !== undefined && results.geolookup.longitude !== undefined && (
+                  <div className="border border-slate-200 bg-white rounded-xl p-5">
+                    <span className="text-[10px] text-slate-500 block mb-1 font-mono font-bold uppercase">Coordinates</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.geolookup.latitude.toFixed(4)}, {results.geolookup.longitude.toFixed(4)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Threat indicators + summary */}
+              <div className="lg:col-span-2 space-y-6">
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">THREAT INDICATORS</h4>
+                  <div className="space-y-2">
+                    {[
+                      { label: 'Tor Exit Node', on: results.geolookup.isTor },
+                      { label: 'VPN', on: results.geolookup.isVpn },
+                      { label: 'Proxy', on: results.geolookup.isProxy },
+                      { label: 'Hosting Provider', on: results.geolookup.isHosting },
+                    ].map((t, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2.5 rounded bg-slate-50/40 border border-slate-200/60">
+                        <span className="text-xs font-medium">{t.label}</span>
+                        <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${t.on ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'}`}>
+                          {t.on ? 'DETECTED' : 'NOT DETECTED'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 bg-white rounded-xl p-6 space-y-3">
+                  <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">SUMMARY</h3>
+                  <p className="text-xs text-slate-700 leading-relaxed">{results.geolookup.summary}</p>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    {results.geolookup.live ? 'Resolved live against public geolocation endpoints.' : 'Deterministic simulation used (endpoint unreachable).'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SPEED TEST PANEL TAB */}
+          {activeTab === 'speedtest' && results.speedtest && (
+            <div id="speedtest_panel" className="space-y-6">
+              {/* Hero result */}
+              <div className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
+                <div className="space-y-1 min-w-0">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 block">Outgoing Route</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl sm:text-3xl font-black font-mono text-slate-900 break-all">{results.speedtest.outgoingIp}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold shrink-0 bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      {results.speedtest.ipVersion}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono">Measured at {results.speedtest.ranAt}</div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-5 rounded-xl border border-emerald-200 bg-white">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Cloudflare Edge</div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-3xl font-black font-mono text-slate-900">{results.speedtest.cloudflare.downloadMbps}</span>
+                    <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-sm font-mono font-bold text-slate-700">{results.speedtest.cloudflare.uploadMbps}</span>
+                    <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.cloudflare.node}</div>
+                </div>
+                <div className="p-5 rounded-xl border border-emerald-200 bg-white">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">M-Lab (MSAK)</div>
+                  <div className="mt-2 flex items-baseline gap-2">
+                    <span className="text-3xl font-black font-mono text-slate-900">{results.speedtest.mlab.downloadMbps}</span>
+                    <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
+                  </div>
+                  <div className="mt-1 flex items-baseline gap-2">
+                    <span className="text-sm font-mono font-bold text-slate-700">{results.speedtest.mlab.uploadMbps}</span>
+                    <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
+                  </div>
+                  <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.mlab.node}</div>
+                </div>
+              </div>
+
+              <div className="border rounded-lg overflow-hidden border-slate-200 bg-white">
+                <table className="w-full text-left border-collapse font-mono text-[11px]">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 font-bold">Region</th>
+                      <th className="px-3 py-2 font-bold">Latency</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {results.speedtest.latency.map((n, idx) => (
+                      <tr key={idx}>
+                        <td className="px-3 py-2 text-slate-900">{n.flag} {n.name}</td>
+                        <td className={`px-3 py-2 ${n.latencyMs > 400 ? 'text-red-400' : n.latencyMs > 300 ? 'text-amber-400' : 'text-emerald-400'}`}>{n.latencyMs} ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-mono">
+                {results.speedtest.note}
+              </div>
+            </div>
+          )}
+
           {/* EMAIL AUDIT PANEL TAB */}
           {activeTab === 'email' && results.email && (
             <div id="email_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2270,74 +2751,6 @@ export default function ReportDashboard({
             </div>
           )}
 
-          {/* WIFI ANALYZER TAB */}
-          {activeTab === 'wifi' && results.recon?.wifi && (
-            <div id="wifi_panel" className="space-y-6">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {[
-                  { label: 'Networks Detected', value: results.recon.wifi.extra?.Networks },
-                  { label: 'Best Interface', value: results.recon.wifi.extra?.Interface },
-                  { label: 'Open Networks', value: results.recon.wifi.extra?.Open, danger: Number(results.recon.wifi.extra?.Open) > 0 },
-                  { label: 'Strongest Signal', value: results.recon.wifi.extra?.Strongest },
-                ].map((field, idx) => (
-                  <div key={idx} className={`p-4 rounded-xl border ${isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-[#0e1424]/40'}`}>
-                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase block mb-1">{field.label}</span>
-                    <span className={`text-sm font-mono font-bold break-all ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value || 'N/A'}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {[
-                  { label: '2.4 GHz', value: results.recon.wifi.extra?.['2.4GHz'], color: 'text-amber-500' },
-                  { label: '5 GHz', value: results.recon.wifi.extra?.['5GHz'], color: 'text-cyan-500' },
-                  { label: '6 GHz', value: results.recon.wifi.extra?.['6GHz'], color: 'text-violet-500' },
-                  { label: 'WPA3 (secur)', value: results.recon.wifi.extra?.WPA3, color: 'text-emerald-500' },
-                ].map((field, idx) => (
-                  <div key={idx} className={`p-3 rounded-lg border text-center ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
-                    <div className={`text-2xl font-black font-mono ${field.color}`}>{field.value ?? 0}</div>
-                    <span className="text-[10px] font-mono text-slate-500 uppercase block mt-0.5">{field.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className={`border rounded-xl overflow-hidden ${isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-800 bg-[#0e1424]/20'}`}>
-                <div className={`px-4 py-3 border-b font-mono text-[10px] font-bold flex items-center justify-between ${isLightMode ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-800 bg-[#0c1221] text-slate-400'}`}>
-                  <span>DETECTED WIRELESS NETWORKS ({results.recon.wifi.items.length})</span>
-                  <span>SSID · BSSID · RSSI · CH · BAND · SECURITY · WiFi GEN</span>
-                </div>
-                <div className="divide-y ${isLightMode ? 'divide-slate-200' : 'divide-slate-800/40'}">
-                  {results.recon.wifi.items.map((net: any, idx: number) => {
-                    const parts = (net.detail || '').split('·').map((p: string) => p.trim());
-                    const rssi = parts.find((p: string) => p.includes('dBm')) || '—';
-                    const channel = parts.find((p: string) => p.startsWith('Ch'))?.replace('Ch', '') || '—';
-                    const band = parts.find((p: string) => p.includes('GHz')) || '—';
-                    const security = parts.find((p: string) => /WPA|WEP|Open/.test(p)) || '—';
-                    const gen = parts.find((p: string) => p.startsWith('WiFi')) || '—';
-                    const secColor = security === 'Open' ? 'text-red-400' : security === 'WPA3' ? 'text-emerald-400' : isLightMode ? 'text-slate-700' : 'text-slate-300';
-                    const rssiNum = parseInt(rssi, 10);
-                    const rssiColor = isNaN(rssiNum) ? '' : rssiNum >= -50 ? 'text-emerald-400' : rssiNum >= -67 ? 'text-amber-400' : 'text-red-400';
-                    return (
-                      <div key={idx} className="px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 font-mono text-[11px] hover:bg-cyan-500/5">
-                        <span className={`font-bold w-full sm:w-40 truncate ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{net.label}</span>
-                        <span className={`w-full sm:w-32 truncate ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>{net.value}</span>
-                        <span className={`w-20 ${rssiColor}`}>{rssi}</span>
-                        <span className={`w-10 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{channel}</span>
-                        <span className={`w-16 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{band}</span>
-                        <span className={`w-16 ${secColor}`}>{security}</span>
-                        <span className={`w-16 ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{gen}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
-                Browsers cannot perform real 802.11 radio scans, so this survey is a deterministic simulation of the local wireless environment. Use it to reason about channel overlap, band distribution, and open-network exposure — verify any findings against a native WiFi analyzer before acting.
-              </p>
-            </div>
-          )}
-
           {/* EXPORT WORKSPACE TAB */}
           {activeTab === 'export' && (
             <div id="export_panel" className={`max-w-2xl mx-auto border rounded-xl p-8 space-y-6 ${
@@ -2454,13 +2867,6 @@ export default function ReportDashboard({
               </div>
             </div>
           )}
-
-          {/* Branding Footer */}
-          <div className="border-t border-slate-200 bg-white py-4 px-4 text-center">
-            <p className="text-[11px] text-slate-500 font-mono">
-              Created by <span className="text-red-600 font-bold">Cyberswahili</span> — OSINTCS v2.0 · Browser-Based Security Sandbox Intelligence · Zero Telemetry
-            </p>
-          </div>
         </motion.div>
       </div>
     </div>
