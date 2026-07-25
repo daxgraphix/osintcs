@@ -956,8 +956,8 @@ export function analyzePopoScanResult(result: any): Finding[] {
     }
   }
   
-  // Resource type analysis
-  const resourceTypes = result.summary?.resourceTypes || {};
+  // Resource type analysis — use statistics.resources.byType (not summary)
+  const resourceTypes = result.statistics?.resources?.byType || {};
   const scriptCount = resourceTypes.script || 0;
   const iframeCount = resourceTypes.iframe || 0;
   
@@ -989,14 +989,67 @@ export function analyzePopoScanResult(result: any): Finding[] {
     );
   }
   
+  // Check for advertising/ad-network domains
+  const adDomains = thirdPartyDomains.filter((d: any) =>
+    /doubleclick|googlesyndication|googleadservices|amazon-adsystem|adsystem|adnxs|rubicon|pubmatic|openx|criteo|adroll|appnexus|bluekai|exelate|lotame|prebid|33across|adhigh|adblade|mgid|revcontent|moatads|casalemedia|rlcdn|demdex|advertising\.com|ad\.com/i.test(d.domain)
+  );
+  if (adDomains.length > 0) {
+    findings.push(
+      createFinding(
+        'POPO_ADVERTISING_DOMAINS',
+        'poplenscan',
+        'Ad Network Domains Detected',
+        `Found ${adDomains.length} ad network domain(s): ${adDomains.slice(0, 5).map((d: any) => d.domain).join(', ')}${adDomains.length > 5 ? ` (+${adDomains.length - 5} more)` : ''}. These can serve targeted ads and track users across sites.`,
+        'medium',
+        'Privacy Exposure',
+        'Consider implementing an ad-blocker CSP policy. Disclose ad network usage in your privacy policy.'
+      )
+    );
+  }
+
+  // Check for social media tracking pixels
+  const socialPixels = thirdPartyDomains.filter((d: any) =>
+    /connect\.facebook\.net|fbcdn|graph\.facebook|platform\.twitter|t\.co|analytics\.twitter|linkedin\.com\/px|snap\.licdn|sc-static\.net|static\.ads-twitter|platform\.linkedin|ads\.tiktok|business\.snapchat/i.test(d.domain)
+  );
+  if (socialPixels.length > 0) {
+    findings.push(
+      createFinding(
+        'POPO_SOCIAL_PIXELS',
+        'poplenscan',
+        'Social Media Tracking Pixels Detected',
+        `Found ${socialPixels.length} social media tracking pixel(s): ${socialPixels.map((d: any) => d.domain).join(', ')}. These track conversions and user behavior across the web.`,
+        'low',
+        'Privacy Exposure',
+        'Disclose social pixel usage in your privacy policy. Implement a cookie consent banner for GDPR compliance.'
+      )
+    );
+  }
+
+  // Check for no HTTPS on landing page
+  if (result.targetUrl && result.targetUrl.startsWith('http://') &&
+      (!result.redirectChain || !result.redirectChain.some((r: any) => r.to && r.to.startsWith('https://')))) {
+    findings.push(
+      createFinding(
+        'POPO_NO_HTTPS',
+        'poplenscan',
+        'Landing Page Not Served Over HTTPS',
+        'The target URL uses HTTP without redirecting to HTTPS. This exposes all page content and user data to eavesdropping and man-in-the-middle attacks.',
+        'high',
+        'Transport Security',
+        'Obtain an SSL/TLS certificate and configure your web server to redirect all HTTP traffic to HTTPS with a 301 permanent redirect. Enable HSTS.'
+      )
+    );
+  }
+
   // Overall pass if no significant issues
-  if (findings.length === 0) {
+  const significantFindings = findings.filter(f => f.severity !== 'info' && f.severity !== 'pass');
+  if (significantFindings.length === 0) {
     findings.push(
       createFinding(
         'POPO_CLEAN',
         'poplenscan',
         'PopoScan Completed - No Significant Issues',
-        `Analyzed ${result.summary?.totalRequests || 0} requests across ${result.summary?.totalDomains || 0} domains with ${thirdPartyDomains.length} third-party connections.`,
+        `Analyzed ${result.statistics?.requests?.total || 0} requests across ${result.statistics?.domains?.total || 0} domains with ${thirdPartyDomains.length} third-party connections.`,
         'pass',
         'Web Forensics',
         'No action required.'

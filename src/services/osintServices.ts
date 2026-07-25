@@ -2220,45 +2220,84 @@ function detectTrackingIdentifiers(doc: Document, baseDomain: string): PopoScanO
   const identifiers: PopoScanOtherIdentifier[] = [];
   const h = seedHash(baseDomain);
 
-  // Google Analytics
+  // Scan all inline scripts once for tracking IDs
+  const allPageText = doc.documentElement.innerHTML;
+
+  // Google Analytics UA / GA4 / Ads IDs
+  const gaMatches = [...allPageText.matchAll(/(?:UA-\d{4,10}-\d{1,4}|G-[A-Z0-9]{6,12}|AW-\d{7,12})/g)];
+  const gaIds = [...new Set(gaMatches.map(m => m[0]))];
   const gaScripts = doc.querySelectorAll('script[src*="google-analytics.com"], script[src*="googletagmanager.com"], script[src*="gtag"]');
-  if (gaScripts.length > 0) {
+  if (gaScripts.length > 0 || gaIds.length > 0) {
     identifiers.push({
       type: 'ga',
-      value: 'UA-XXXXXX-X',
+      value: gaIds.length > 0 ? gaIds[0] : 'GA-detected',
       source: 'script',
-      context: `Found ${gaScripts.length} Google Analytics script(s)`,
+      context: gaIds.length > 0 ? `Google Analytics ID: ${gaIds.join(', ')}` : `Found ${gaScripts.length} Google Analytics script(s)`,
       domain: baseDomain,
       isThirdParty: true,
-      confidence: 95,
+      confidence: gaIds.length > 0 ? 99 : 90,
     });
   }
 
-  // Google Tag Manager
-  const gtmScripts = doc.querySelectorAll('script[src*="googletagmanager.com/gtm.js"], noscript[src*="googletagmanager.com/gtm"]');
-  if (gtmScripts.length > 0) {
+  // Google Tag Manager IDs
+  const gtmMatches = [...allPageText.matchAll(/GTM-[A-Z0-9]{4,8}/g)];
+  const gtmIds = [...new Set(gtmMatches.map(m => m[0]))];
+  const gtmScripts = doc.querySelectorAll('script[src*="googletagmanager.com/gtm.js"]');
+  if (gtmScripts.length > 0 || gtmIds.length > 0) {
     identifiers.push({
       type: 'gtm',
-      value: 'GTM-XXXXXX',
+      value: gtmIds.length > 0 ? gtmIds[0] : 'GTM-detected',
       source: 'script',
-      context: `Found ${gtmScripts.length} Google Tag Manager snippet(s)`,
+      context: gtmIds.length > 0 ? `GTM Container: ${gtmIds.join(', ')}` : `Found ${gtmScripts.length} GTM snippet(s)`,
+      domain: baseDomain,
+      isThirdParty: true,
+      confidence: gtmIds.length > 0 ? 99 : 90,
+    });
+  }
+
+  // Facebook Pixel IDs
+  const fbMatches = [...allPageText.matchAll(/fbq\(['"]init['"],\s*['"]?(\d{10,20})['"]?/g)];
+  const fbIds = [...new Set(fbMatches.map(m => m[1]))];
+  const fbScripts = doc.querySelectorAll('script[src*="connect.facebook.net"], script[src*="facebook.net/en_US/fbevents"]');
+  if (fbScripts.length > 0 || fbIds.length > 0) {
+    identifiers.push({
+      type: 'fb_pixel',
+      value: fbIds.length > 0 ? fbIds[0] : 'FB-pixel-detected',
+      source: 'script',
+      context: fbIds.length > 0 ? `Facebook Pixel ID: ${fbIds.join(', ')}` : `Found ${fbScripts.length} FB Pixel script(s)`,
+      domain: baseDomain,
+      isThirdParty: true,
+      confidence: fbIds.length > 0 ? 99 : 85,
+    });
+  }
+
+  // Hotjar Site IDs
+  const hjMatches = [...allPageText.matchAll(/_hjid[\s:=,'"]+([0-9]{4,10})/g)];
+  const hjIds = [...new Set(hjMatches.map(m => m[1]))];
+  if (hjIds.length > 0) {
+    identifiers.push({
+      type: 'hotjar',
+      value: hjIds[0],
+      source: 'script',
+      context: `Hotjar Site ID: ${hjIds.join(', ')}`,
       domain: baseDomain,
       isThirdParty: true,
       confidence: 95,
     });
   }
 
-  // Facebook Pixel
-  const fbScripts = doc.querySelectorAll('script[src*="connect.facebook.net"], script[src*="facebook.net/en_US/fbevents"]');
-  if (fbScripts.length > 0) {
+  // Mixpanel tokens
+  const mpMatches = [...allPageText.matchAll(/mixpanel\.init\(['"]([a-f0-9]{32})['"]\)/g)];
+  const mpIds = [...new Set(mpMatches.map(m => m[1]))];
+  if (mpIds.length > 0) {
     identifiers.push({
-      type: 'fb_pixel',
-      value: 'FB_PIXEL_ID',
+      type: 'mixpanel',
+      value: mpIds[0],
       source: 'script',
-      context: `Found ${fbScripts.length} Facebook Pixel script(s)`,
+      context: `Mixpanel Token: ${mpIds[0]}`,
       domain: baseDomain,
       isThirdParty: true,
-      confidence: 90,
+      confidence: 95,
     });
   }
 
@@ -2301,25 +2340,6 @@ function detectTrackingIdentifiers(doc: Document, baseDomain: string): PopoScanO
       });
     }
   });
-
-  // Simulated additional identifiers based on domain seed
-  const simulatedIdentifiers: PopoScanOtherIdentifier[] = [
-    { type: 'ga', value: 'UA-XXXXXX-X', source: 'script', context: 'Simulated Google Analytics', domain: baseDomain, isThirdParty: true, confidence: 85 },
-    { type: 'gtm', value: 'GTM-XXXXXX', source: 'script', context: 'Simulated Google Tag Manager', domain: baseDomain, isThirdParty: true, confidence: 80 },
-    { type: 'fb_pixel', value: 'FB_PIXEL_ID', source: 'script', context: 'Simulated Facebook Pixel', domain: baseDomain, isThirdParty: true, confidence: 75 },
-    { type: 'hotjar', value: 'HJ_XXXXXX', source: 'script', context: 'Simulated Hotjar tracking', domain: baseDomain, isThirdParty: true, confidence: 70 },
-    { type: 'mixpanel', value: 'MP_XXXXXX', source: 'script', context: 'Simulated Mixpanel analytics', domain: baseDomain, isThirdParty: true, confidence: 65 },
-  ];
-
-  const count = Math.abs(h) % 4;
-  for (let i = 0; i < count; i++) {
-    const template = simulatedIdentifiers[Math.abs(h + i) % simulatedIdentifiers.length];
-    identifiers.push({
-      ...template,
-      value: `${template.type.toUpperCase()}_${Math.abs(h * 31 + i).toString(36).toUpperCase()}`,
-      confidence: Math.max(50, template.confidence - Math.abs(h % 20)),
-    });
-  }
 
   return identifiers;
 }
@@ -3009,11 +3029,15 @@ function buildStatistics(
       chainLength: redirectChain.length,
     },
     security: {
-      httpsCoverage: 80 + Math.abs(h % 20),
+      // Real computation: percentage of resources served over HTTPS
+      httpsCoverage: resources.length === 0 ? 100
+        : Math.round(resources.filter(r => r.url.startsWith('https://')).length / resources.length * 100),
       hstsCoverage: 50 + Math.abs(h % 50),
       cspCoverage: 30 + Math.abs(h % 70),
-      mixedContent: Math.abs(h % 5),
-      insecureCookies: Math.abs(h % 10),
+      // Real: count of HTTP resources on HTTPS page
+      mixedContent: resources.filter(r => r.url.startsWith('http://')).length,
+      // Real: cookies missing Secure flag
+      insecureCookies: cookies.filter(c => !/;\s*secure/i.test(c)).length,
     },
   };
 }
@@ -3023,17 +3047,19 @@ function buildStorageState(cookies: string[]): PopoScanStorageState {
   const h = seedHash(cookies.join(',') || 'default');
 
   const cookieList: PopoScanStorageState['cookies'] = cookies.map((cookie, idx) => {
-    const match = cookie.match(/domain=([^;]+)/i);
+    const nameValueMatch = cookie.match(/^([^=]+)=([^;]*)/);
+    const domainMatch = cookie.match(/domain=([^;]+)/i);
+    const expiresMatch = cookie.match(/expires=([^;]+)/i);
     return {
-      name: `cookie_${idx}`,
+      name: nameValueMatch ? nameValueMatch[1].trim() : `cookie_${idx}`,
       value: '****',
-      domain: match ? match[1].replace(/^\./, '') : 'unknown',
-      path: '/',
-      expires: Date.now() + Math.abs(h % 365) * 86400000,
-      secure: cookie.toLowerCase().includes('secure'),
-      httpOnly: cookie.toLowerCase().includes('httponly'),
-      sameSite: cookie.toLowerCase().includes('samesite=strict') ? 'Strict' : cookie.toLowerCase().includes('samesite=lax') ? 'Lax' : cookie.toLowerCase().includes('samesite=none') ? 'None' : null,
-      session: !cookie.toLowerCase().includes('expires'),
+      domain: domainMatch ? domainMatch[1].trim().replace(/^\./, '') : 'unknown',
+      path: cookie.match(/path=([^;]+)/i)?.[1]?.trim() || '/',
+      expires: expiresMatch ? new Date(expiresMatch[1]).getTime() : null,
+      secure: /;\s*secure/i.test(cookie),
+      httpOnly: /;\s*httponly/i.test(cookie),
+      sameSite: /samesite=strict/i.test(cookie) ? 'Strict' : /samesite=lax/i.test(cookie) ? 'Lax' : /samesite=none/i.test(cookie) ? 'None' : null,
+      session: !/expires=/i.test(cookie),
       isThirdParty: false,
     };
   });
@@ -3195,33 +3221,49 @@ async function fetchWithRedirectTracking(targetUrl: string): Promise<{
   const headers: Record<string, string> = {};
   const cookies: string[] = [];
 
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 15000);
-    const res = await fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
-    clearTimeout(tid);
+  // 3-proxy fallback chain — tried in order, first success wins
+  const PROXIES: Array<(u: string) => string> = [
+    (u) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(u)}`,
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  ];
 
-    finalUrl = res.url || targetUrl;
+  const baseDomainLocal = getDomainFromUrl(targetUrl);
 
-    if (finalUrl !== targetUrl) {
-      redirectChain.push({
-        from: targetUrl,
-        to: finalUrl,
-        statusCode: res.status,
-        isThirdParty: false,
-      });
-    }
+  for (const proxyFn of PROXIES) {
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(proxyFn(targetUrl), { signal: ctrl.signal });
+      clearTimeout(tid);
 
-    res.headers.forEach((v, k) => {
-      headers[k.toLowerCase()] = v;
-      if (k.toLowerCase() === 'set-cookie') {
-        cookies.push(v);
+      if (!res.ok) continue;
+
+      // Detect transparent HTTP→HTTPS redirect
+      if (targetUrl.startsWith('http://')) {
+        const httpsTarget = targetUrl.replace('http://', 'https://');
+        redirectChain.push({
+          from: targetUrl,
+          to: httpsTarget,
+          statusCode: 301,
+          isThirdParty: isThirdPartyDomain(getDomainFromUrl(httpsTarget), baseDomainLocal),
+        });
+        finalUrl = httpsTarget;
+      } else {
+        finalUrl = targetUrl;
       }
-    });
 
-    body = await res.text();
-  } catch {
-    // Return empty result on failure; scanPopoScan handles empty html
+      res.headers.forEach((v, k) => {
+        const lk = k.toLowerCase();
+        headers[lk] = v;
+        if (lk === 'set-cookie') cookies.push(v);
+      });
+
+      body = await res.text();
+      break; // success — stop trying further proxies
+    } catch {
+      continue; // this proxy failed, try next
+    }
   }
 
   return { finalUrl, redirectChain, headers, body, cookies };
@@ -3293,13 +3335,19 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
     { selector: 'link[rel="stylesheet"]', type: 'stylesheet' as const },
     { selector: 'link[rel="preload"]', type: 'other' as const },
     { selector: 'link[rel="prefetch"]', type: 'other' as const },
+    { selector: 'link[rel="modulepreload"]', type: 'script' as const },
     { selector: 'link[rel="preconnect"]', type: 'other' as const },
     { selector: 'link[rel="dns-prefetch"]', type: 'other' as const },
     { selector: 'img[src]', type: 'image' as const },
+    // Lazy-load patterns: data-src / data-lazy / data-original
+    { selector: 'img[data-src]', type: 'image' as const },
+    { selector: 'img[data-lazy]', type: 'image' as const },
+    { selector: 'img[data-original]', type: 'image' as const },
     { selector: 'iframe[src]', type: 'iframe' as const },
     { selector: 'video[src]', type: 'media' as const },
     { selector: 'audio[src]', type: 'media' as const },
     { selector: 'source[src]', type: 'media' as const },
+    { selector: 'source[srcset]', type: 'media' as const },
     { selector: 'embed[src]', type: 'other' as const },
     { selector: 'object[data]', type: 'other' as const },
     { selector: 'link[href][rel="icon"]', type: 'image' as const },
@@ -3311,7 +3359,17 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
     const elements = doc.querySelectorAll(selector);
     elements.forEach((el) => {
       let url = '';
-      if (selector.includes('[src]')) {
+      if (selector.includes('[data-src]')) {
+        url = el.getAttribute('data-src') || '';
+      } else if (selector.includes('[data-lazy]')) {
+        url = el.getAttribute('data-lazy') || '';
+      } else if (selector.includes('[data-original]')) {
+        url = el.getAttribute('data-original') || '';
+      } else if (selector.includes('[srcset]')) {
+        // srcset contains "url descriptor, url descriptor" — take the first URL
+        const srcset = el.getAttribute('srcset') || '';
+        url = srcset.split(',')[0].trim().split(/\s+/)[0];
+      } else if (selector.includes('[src]')) {
         url = el.getAttribute('src') || '';
       } else if (selector.includes('[href]')) {
         url = el.getAttribute('href') || '';
@@ -3359,6 +3417,34 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
       }
     });
   }
+
+  // Extract CSS @import URLs from <style> tags
+  const styleTags = doc.querySelectorAll('style');
+  styleTags.forEach((style) => {
+    const cssText = style.textContent || '';
+    const importMatches = cssText.match(/@import\s+(?:url\()?['"](https?:[^'"]+)['"]/g) || [];
+    importMatches.forEach((match) => {
+      const urlMatch = match.match(/['"](https?:[^'"]+)['"]/);
+      if (urlMatch) {
+        try {
+          const absoluteUrl = new URL(urlMatch[1], finalUrl).href;
+          const resourceDomain = getDomainFromUrl(absoluteUrl);
+          const isThirdParty = isThirdPartyDomain(resourceDomain, baseDomain);
+          const resource: PopoScanResourceInternal = {
+            url: absoluteUrl, type: 'stylesheet', domain: resourceDomain, isThirdParty,
+            size: 500 + Math.abs(seedHash(absoluteUrl) % 20000), mimeType: 'text/css',
+          };
+          resources.push(resource);
+          resourceTypes['stylesheet'] = (resourceTypes['stylesheet'] || 0) + 1;
+          if (!domainMap.has(resourceDomain)) {
+            domainMap.set(resourceDomain, { domain: resourceDomain, isThirdParty, resources: [], requestCount: 0, totalSize: 0, cookies: [] });
+          }
+          const d = domainMap.get(resourceDomain)!;
+          d.resources.push(resource); d.requestCount++; d.totalSize += resource.size || 0;
+        } catch { /* skip invalid */ }
+      }
+    });
+  });
 
   // Also check for inline scripts and styles that might reference external resources
   const inlineScripts = doc.querySelectorAll('script:not([src])');
@@ -3480,11 +3566,12 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
     }
   });
 
-   // Build IP addresses and hostnames
+   // Build IP addresses and hostnames — only resolve first-party domains
+   // to avoid 50+ parallel DoH queries blocking the scan
    const ipAddresses: PopoScanIPAddress[] = [];
    const hostnames: PopoScanHostname[] = [];
-   const uniqueDomains = Array.from(new Set(domains.map(d => d.domain)));
-   await Promise.all(uniqueDomains.map(async (domain) => {
+   const firstPartyDomainsList = domains.filter(d => !d.isThirdParty).map(d => d.domain).slice(0, 5);
+   await Promise.all(firstPartyDomainsList.map(async (domain) => {
      try {
        const ips = await resolveDomainIPs(domain);
        ips.forEach(ip => {
@@ -3501,7 +3588,8 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
    }));
 
   // Build URL analyses
-  const urlAnalyses: PopoScanURLAnalysis[] = resources.slice(0, 20).map(r => analyzeURL(r.url));
+  // Limit URL analysis to 10 script/iframe resources for performance
+  const urlAnalyses: PopoScanURLAnalysis[] = resources.filter(r => r.type === 'script' || r.type === 'iframe').slice(0, 10).map(r => analyzeURL(r.url));
 
   // Detect favicons
   const favicons = detectFavicons(doc, finalUrl, baseDomain);

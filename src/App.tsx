@@ -2472,19 +2472,9 @@ export default function App() {
                             <div className="flex flex-col sm:flex-row gap-3">
                               <button
                                 type="button"
-                                onClick={async () => {
-                                  if (isScanning || !query.trim()) return;
-                                  setIsScanning(true);
-                                  setQuery('Capturing webpage resources and mapping connections...');
-                                  try {
-                                    const result = await scanPopoScan(query.trim());
-                                    setResults(makePopoScanResults(result));
-                                    saveScanToHistory(makePopoScanResults(result));
-                                  } catch (e) {
-                                    showToast('PopoScan failed. Please try again.', 'error');
-                                  } finally {
-                                    setIsScanning(false);
-                                  }
+                                onClick={() => {
+                                  setResults(null);
+                                  setQuery('');
                                 }}
                                 className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white"
                               >

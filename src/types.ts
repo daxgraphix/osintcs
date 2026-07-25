@@ -744,6 +744,35 @@ export interface PopoScanOtherIdentifier {
   confidence: number;
 }
 
+// ── Flat Resource (used in legacy domains array & internal processing) ───
+export interface PopoScanResource {
+  url: string;
+  type: 'script' | 'stylesheet' | 'image' | 'iframe' | 'media' | 'xhr' | 'other';
+  domain: string;
+  isThirdParty: boolean;
+  statusCode?: number;
+  size?: number;
+  mimeType?: string;
+}
+
+// ── Flat Domain (used in legacy domains array) ───────────────────────────
+export interface PopoScanDomain {
+  domain: string;
+  isThirdParty: boolean;
+  resources: PopoScanResource[];
+  requestCount: number;
+  totalSize: number;
+  cookies: string[];
+}
+
+// ── Redirect hop ─────────────────────────────────────────────────────────
+export interface PopoScanRedirect {
+  from: string;
+  to: string;
+  statusCode: number;
+  isThirdParty: boolean;
+}
+
 // ── Main Result ─────────────────────────────────────────────────────────
 export interface PopoScanResult {
   // Capture metadata
