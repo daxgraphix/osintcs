@@ -751,6 +751,265 @@ export function analyzeReconResult(result: any): Finding[] {
 
   return findings;
 }
+
+/**
+ * PopoScan Rules Engine
+ * Analyzes webpage resource mapping results for security findings.
+ */
+export function analyzePopoScanResult(result: any): Finding[] {
+  const findings: Finding[] = [];
+  
+  if (!result?.domains || !Array.isArray(result.domains)) {
+    return findings;
+  }
+  
+  const thirdPartyDomains = result.domains.filter((d: any) => d.isThirdParty);
+  const totalThirdPartyRequests = thirdPartyDomains.reduce((sum: number, d: any) => sum + (d.requestCount || 0), 0);
+  const redirectChain = result.redirectChain || [];
+  
+  // High number of third-party connections
+  if (thirdPartyDomains.length > 10) {
+    findings.push(
+      createFinding(
+        'POPO_THIRD_PARTY_HIGH',
+        'poplenscan',
+        'High Number of Third-Party Connections',
+        `The page loads resources from ${thirdPartyDomains.length} third-party domains (${totalThirdPartyRequests} requests). This increases attack surface and tracking exposure.`,
+        'medium',
+        'Third-Party Exposure',
+        'Review and minimize third-party dependencies. Implement CSP to restrict unauthorized domains.'
+      )
+    );
+  } else if (thirdPartyDomains.length > 5) {
+    findings.push(
+      createFinding(
+        'POPO_THIRD_PARTY_MEDIUM',
+        'poplenscan',
+        'Moderate Third-Party Connections',
+        `The page loads resources from ${thirdPartyDomains.length} third-party domains (${totalThirdPartyRequests} requests).`,
+        'low',
+        'Third-Party Exposure',
+        'Audit third-party domains for necessity and security posture.'
+      )
+    );
+  } else {
+    findings.push(
+      createFinding(
+        'POPO_THIRD_PARTY_LOW',
+        'poplenscan',
+        'Limited Third-Party Connections',
+        `The page loads resources from only ${thirdPartyDomains.length} third-party domains.`,
+        'pass',
+        'Third-Party Exposure',
+        'Good - minimal third-party attack surface.'
+      )
+    );
+  }
+  
+  // Redirect chain analysis
+  if (redirectChain.length > 3) {
+    findings.push(
+      createFinding(
+        'POPO_REDIRECT_CHAIN_LONG',
+        'poplenscan',
+        'Long Redirect Chain Detected',
+        `The page follows ${redirectChain.length} redirects before reaching the final destination. Long chains can hide malicious destinations and degrade performance.`,
+        'medium',
+        'Redirect Security',
+        'Minimize redirect chains. Ensure all redirects are intentional and point to trusted destinations.'
+      )
+    );
+  } else if (redirectChain.length > 0) {
+    // Check for cross-domain redirects
+    const crossDomainRedirects = redirectChain.filter((r: any) => r.isThirdParty);
+    if (crossDomainRedirects.length > 0) {
+      findings.push(
+        createFinding(
+          'POPO_CROSS_DOMAIN_REDIRECT',
+          'poplenscan',
+          'Cross-Domain Redirects Detected',
+          `${crossDomainRedirects.length} redirect(s) point to external domains. This can be used for tracking or phishing.`,
+          'medium',
+          'Redirect Security',
+          'Verify all cross-domain redirects are intentional and necessary.'
+        )
+      );
+    }
+  }
+  
+  // Check for suspicious third-party domains
+  const suspiciousTlds = ['.tk', '.ml', '.ga', '.cf', '.xyz', '.top', '.club', '.online', '.site', '.info'];
+  const suspiciousDomains = thirdPartyDomains.filter((d: any) => 
+    suspiciousTlds.some(tld => d.domain.endsWith(tld))
+  );
+  
+  if (suspiciousDomains.length > 0) {
+    findings.push(
+      createFinding(
+        'POPO_SUSPICIOUS_TLDS',
+        'poplenscan',
+        'Resources from Suspicious TLDs',
+        `Found ${suspiciousDomains.length} third-party domain(s) using TLDs commonly associated with abuse: ${suspiciousDomains.map((d: any) => d.domain).join(', ')}.`,
+        'high',
+        'Threat Intelligence',
+        'Investigate these domains. Consider blocking resources from suspicious TLDs via CSP.'
+      )
+    );
+  }
+  
+  // Check for tracking/analytics domains
+  const trackingDomains = thirdPartyDomains.filter((d: any) => 
+    /google-analytics|googletagmanager|facebook\.net|doubleclick|scorecardresearch|quantserve|mixpanel|segment|hotjar|newrelic|datadog|sentry|logrocket|fullstory|mouseflow|inspectlet|clicky|statcounter|addthis|sharethis|disqus|outbrain|taboola|adnxs|rubicon|pubmatic|openx|criteo|adroll|appnexus|bluekai|exelate|lotame|neustar|turn|media6degrees|33across|adhigh|adblade|content\.ad|revcontent|mgid|advertising|analytics|tracking|beacon|pixel|collector|telemetry/i.test(d.domain)
+  );
+  
+  if (trackingDomains.length > 0) {
+    findings.push(
+      createFinding(
+        'POPO_TRACKING_DOMAINS',
+        'poplenscan',
+        'Tracking and Analytics Domains Detected',
+        `Found ${trackingDomains.length} tracking/analytics domain(s): ${trackingDomains.map((d: any) => d.domain).join(', ')}. These collect user behavior data.`,
+        'info',
+        'Privacy Exposure',
+        'Review privacy policy compliance. Consider implementing consent management and allowing users to opt-out.'
+      )
+    );
+  }
+  
+  // Check for CDN domains
+  const cdnDomains = thirdPartyDomains.filter((d: any) => 
+    /cloudflare|cloudfront|akamai|fastly|maxcdn|bootstrapcdn|jsdelivr|cdnjs|unpkg|netdna|edgecast|stackpath|keycdn|cdn\.jsdelivr|cdn\.cdnjs|cdn\.bootstrap|cdn\.google|ajax\.googleapis|code\.jquery|cdnjs\.cloudflare/i.test(d.domain)
+  );
+  
+  if (cdnDomains.length > 0) {
+    findings.push(
+      createFinding(
+        'POPO_CDN_DOMAINS',
+        'poplenscan',
+        'CDN Resources Detected',
+        `Found ${cdnDomains.length} CDN domain(s): ${cdnDomains.map((d: any) => d.domain).join(', ')}. CDNs improve performance but should be verified for integrity.`,
+        'info',
+        'Infrastructure',
+        'Verify CDN domains use Subresource Integrity (SRI) for critical resources.'
+      )
+    );
+  }
+  
+  // Check for cookies
+  if (result.cookies && result.cookies.length > 0) {
+    const thirdPartyCookies = result.cookies.filter((c: any) => {
+      try {
+        return !result.finalUrl.includes(c.domain.replace(/^\./, ''));
+      } catch {
+        return true;
+      }
+    });
+    
+    if (thirdPartyCookies.length > 0) {
+      findings.push(
+        createFinding(
+          'POPO_THIRD_PARTY_COOKIES',
+          'poplenscan',
+          'Third-Party Cookies Detected',
+          `Found ${thirdPartyCookies.length} third-party cookie(s) that may track users across sites.`,
+          'medium',
+          'Privacy Exposure',
+          'Review cookie purposes. Set SameSite=Lax/Strict and Secure flags. Implement consent management for tracking cookies.'
+        )
+      );
+    }
+    
+    const insecureCookies = result.cookies.filter((c: any) => !c.secure || !c.httpOnly);
+    if (insecureCookies.length > 0) {
+      findings.push(
+        createFinding(
+          'POPO_INSECURE_COOKIES',
+          'poplenscan',
+          'Insecure Cookie Flags',
+          `Found ${insecureCookies.length} cookie(s) missing Secure and/or HttpOnly flags.`,
+          'high',
+          'Session Security',
+          'Set Secure and HttpOnly flags on all session cookies. Use SameSite=Lax or Strict.'
+        )
+      );
+    }
+  }
+  
+  // Check for mixed content (HTTP resources on HTTPS page)
+  if (result.finalUrl.startsWith('https://')) {
+    const httpResources = result.domains.flatMap((d: any) => 
+      d.resources?.filter((r: any) => r.url.startsWith('http://')) || []
+    );
+    
+    if (httpResources.length > 0) {
+      findings.push(
+        createFinding(
+          'POPO_MIXED_CONTENT',
+          'poplenscan',
+          'Mixed Content Detected',
+          `Found ${httpResources.length} HTTP resource(s) loaded on HTTPS page. This breaks encryption guarantees.`,
+          'high',
+          'Transport Security',
+          'Migrate all resources to HTTPS. Use CSP upgrade-insecure-requests directive.'
+        )
+      );
+    }
+  }
+  
+  // Resource type analysis
+  const resourceTypes = result.summary?.resourceTypes || {};
+  const scriptCount = resourceTypes.script || 0;
+  const iframeCount = resourceTypes.iframe || 0;
+  
+  if (iframeCount > 5) {
+    findings.push(
+      createFinding(
+        'POPO_MANY_IFRAMES',
+        'poplenscan',
+        'High Number of Iframes',
+        `The page embeds ${iframeCount} iframes. Iframes can be used for clickjacking, tracking, or malicious content injection.`,
+        'medium',
+        'Content Security',
+        'Minimize iframe usage. Use sandbox attribute and CSP frame-ancestors directive.'
+      )
+    );
+  }
+  
+  if (scriptCount > 30) {
+    findings.push(
+      createFinding(
+        'POPO_HIGH_SCRIPT_COUNT',
+        'poplenscan',
+        'High JavaScript Resource Count',
+        `The page loads ${scriptCount} external scripts. Large script counts increase attack surface and performance overhead.`,
+        'low',
+        'Performance & Security',
+        'Audit scripts for necessity. Consider bundling, defer/async loading, and removing unused scripts.'
+      )
+    );
+  }
+  
+  // Overall pass if no significant issues
+  if (findings.length === 0) {
+    findings.push(
+      createFinding(
+        'POPO_CLEAN',
+        'poplenscan',
+        'PopoScan Completed - No Significant Issues',
+        `Analyzed ${result.summary?.totalRequests || 0} requests across ${result.summary?.totalDomains || 0} domains with ${thirdPartyDomains.length} third-party connections.`,
+        'pass',
+        'Web Forensics',
+        'No action required.'
+      )
+    );
+  }
+  
+  return findings;
+}
+
+/**
+ * Hash Rules Engine
+ */
 export function analyzeHashRules(hash: any): Finding[] {
   const findings: Finding[] = [];
 

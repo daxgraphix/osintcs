@@ -53,7 +53,7 @@ import {
   Radar,
   Gauge,
 } from 'lucide-react';
-import { ScanResults, Finding, Recommendation, TimelineEvent } from '../types';
+import { ScanResults, Finding, Recommendation, TimelineEvent, PopoScanResult } from '../types';
 import { calculateRiskScore, generateReportDocument } from '../engines/osintEngines';
 
 interface ReportDashboardProps {
@@ -2272,6 +2272,611 @@ export default function ReportDashboard({
             </div>
           )}
 
+          {/* POPOSCAN PANEL TAB */}
+          {activeTab === 'poplenscan' && results.poplenscan && (
+            <div id="poplenscan_panel" className="space-y-6">
+              {/* Summary Hero Card */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="border border-slate-200 bg-white rounded-xl p-5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1">Total Requests</div>
+                  <div className="text-2xl font-black font-mono text-slate-900">{results.poplenscan.statistics.requests.total}</div>
+                </div>
+                <div className="border border-slate-200 bg-white rounded-xl p-5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1">Total Domains</div>
+                  <div className="text-2xl font-black font-mono text-slate-900">{results.poplenscan.statistics.domains.total}</div>
+                </div>
+                <div className="border border-slate-200 bg-white rounded-xl p-5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1">Third-Party Domains</div>
+                  <div className="text-2xl font-black font-mono text-red-400">{results.poplenscan.statistics.domains.thirdParty}</div>
+                </div>
+                <div className="border border-slate-200 bg-white rounded-xl p-5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1">Redirects</div>
+                  <div className="text-2xl font-black font-mono text-amber-400">{results.poplenscan.statistics.redirects.total}</div>
+                </div>
+              </div>
+
+              {/* Redirect Chain */}
+              {results.poplenscan.redirectChain.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">REDIRECT CHAIN</h4>
+                  <div className="space-y-2">
+                    {results.poplenscan.redirectChain.map((r, idx) => (
+                      <div key={idx} className="flex items-center gap-2 p-3 rounded bg-slate-50/40 border border-slate-200/60">
+                        <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-violet-500/10 text-violet-600 border border-violet-500/20">{r.statusCode}</span>
+                        <span className="text-xs font-medium text-slate-900 flex-1 truncate">{r.from}</span>
+                        <span className="text-[10px] text-slate-400">→</span>
+                        <span className="text-xs font-medium text-slate-900 flex-1 truncate text-right">{r.to}</span>
+                        {r.isThirdParty && (
+                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">Third-Party</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Domain Tree - Third Party */}
+              {results.poplenscan.statistics.domains.thirdParty > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">THIRD-PARTY DOMAINS ({results.poplenscan.statistics.domains.thirdParty})</h4>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {results.poplenscan.domains.filter(d => d.isThirdParty).map((domain, idx) => (
+                      <div key={idx} className="border border-slate-200/60 bg-slate-50/40 rounded-lg p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold font-mono text-slate-900 truncate pr-2">{domain.domain}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">
+                              {domain.requestCount} req
+                            </span>
+                            <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">
+                              {domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {domain.resources.slice(0, 10).map((r, ri) => (
+                            <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-700 font-mono">
+                              {r.type}: {r.url.length > 60 ? r.url.substring(0, 60) + '…' : r.url}
+                            </span>
+                          ))}
+                          {domain.resources.length > 10 && (
+                            <span className="text-[9px] text-slate-500">+{domain.resources.length - 10} more</span>
+                          )}
+                        </div>
+                        {domain.cookies.length > 0 && (
+                          <div className="text-[9px] text-slate-500 font-mono">
+                            Cookies: {domain.cookies.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* First Party Domains */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">FIRST-PARTY DOMAINS ({results.poplenscan.statistics.domains.firstParty})</h4>
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {results.poplenscan.domains.filter(d => !d.isThirdParty).map((domain, idx) => (
+                    <div key={idx} className="border border-slate-200/60 bg-slate-50/40 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold font-mono text-slate-900 truncate pr-2">{domain.domain}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                            {domain.requestCount} req
+                          </span>
+                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">
+                            {domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {domain.resources.slice(0, 10).map((r, ri) => (
+                          <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-mono">
+                            {r.type}: {r.url.length > 60 ? r.url.substring(0, 60) + '…' : r.url}
+                          </span>
+                        ))}
+                        {domain.resources.length > 10 && (
+                          <span className="text-[9px] text-slate-500">+{domain.resources.length - 10} more</span>
+                        )}
+                      </div>
+                      {domain.cookies.length > 0 && (
+                        <div className="text-[9px] text-slate-500 font-mono">
+                          Cookies: {domain.cookies.join(', ')}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Resource Type Breakdown */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">RESOURCE TYPE BREAKDOWN</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+                  {Object.entries(results.poplenscan.statistics.resources.byType).map(([type, count]) => (
+                    <div key={type} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 text-center">
+                      <div className="text-xl font-black font-mono text-slate-900">{count}</div>
+                      <div className="text-[10px] font-mono uppercase text-slate-500 capitalize">{type}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Cookies */}
+              {results.poplenscan.statistics.cookies.total > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">COOKIES ({results.poplenscan.statistics.cookies.total})</h4>
+                  <div className="border border-slate-200/80 rounded-lg overflow-hidden">
+                    <table className="w-full text-left border-collapse font-mono text-xs">
+                      <thead className="bg-slate-50 text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 font-bold">Name</th>
+                          <th className="px-3 py-2 font-bold">Domain</th>
+                          <th className="px-3 py-2 font-bold">Secure</th>
+                          <th className="px-3 py-2 font-bold">HttpOnly</th>
+                          <th className="px-3 py-2 font-bold">SameSite</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {results.poplenscan.cookies.map((cookie, idx) => (
+                          <tr key={idx}>
+                            <td className="px-3 py-2 font-semibold text-slate-900">{cookie.name}</td>
+                            <td className="px-3 py-2 text-slate-700">{cookie.domain}</td>
+                            <td className="px-3 py-2 text-center">{cookie.secure ? '✓' : '✗'}</td>
+                            <td className="px-3 py-2 text-center">{cookie.httpOnly ? '✓' : '✗'}</td>
+                            <td className="px-3 py-2 text-center">{cookie.sameSite || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Risk Score & Capture Details & Statistics */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Risk Score Card */}
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">RISK ASSESSMENT</h4>
+                  <div className="flex flex-col items-center">
+                    <div className="relative flex items-center justify-center">
+                      <svg className="w-32 h-32 transform -rotate-90">
+                        <circle cx="64" cy="64" r="54" className="stroke-slate-800 fill-none" strokeWidth="8" />
+                        <circle
+                          cx="64"
+                          cy="64"
+                          r="54"
+                          className={`fill-none transition-all duration-1000 ${
+                            results.poplenscan.overallRiskScore >= 60 ? 'stroke-red-500' : results.poplenscan.overallRiskScore >= 40 ? 'stroke-amber-500' : 'stroke-emerald-500'
+                          }`}
+                          strokeWidth="8"
+                          strokeDasharray={339}
+                          strokeDashoffset={339 - (339 * results.poplenscan.overallRiskScore) / 100}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute text-center">
+                        <span className="text-3xl font-black text-slate-900 font-mono tracking-tighter">
+                          {results.poplenscan.overallRiskScore}
+                        </span>
+                        <span className="block font-mono text-[10px] font-bold mt-0.5 text-slate-500">RISK SCORE</span>
+                      </div>
+                    </div>
+                    <div className={`mt-3 text-xs px-3 py-1 rounded-full font-mono font-bold ${
+                      results.poplenscan.riskLevel === 'critical' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                      results.poplenscan.riskLevel === 'high' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                      results.poplenscan.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+                      results.poplenscan.riskLevel === 'low' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20' :
+                      'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                    }`}>
+                      {results.poplenscan.riskLevel.toUpperCase()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Capture Details */}
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">CAPTURE DETAILS</h4>
+                  <div className="space-y-2.5 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Capture ID</span>
+                      <span className="text-slate-700 truncate max-w-[150px]">{results.poplenscan.captureDetails.captureId}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Duration</span>
+                      <span className="text-slate-700">{results.poplenscan.captureDetails.captureDuration}ms</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Device</span>
+                      <span className="text-slate-700">{results.poplenscan.captureDetails.viewport.width}x{results.poplenscan.captureDetails.viewport.height}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Storage</span>
+                      <span className="text-slate-700">{results.poplenscan.captureDetails.storageState}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Cookies</span>
+                      <span className="text-slate-700">{results.poplenscan.captureDetails.cookiesStored}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">LocalStorage</span>
+                      <span className="text-slate-700">{results.poplenscan.captureDetails.localStorageKeys} keys</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statistics Summary */}
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">STATISTICS</h4>
+                  <div className="space-y-2.5 text-xs font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Total Requests</span>
+                      <span className="text-slate-700 font-bold">{results.poplenscan.statistics.requests.total}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Successful</span>
+                      <span className="text-emerald-600 font-bold">{results.poplenscan.statistics.requests.successful}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Failed</span>
+                      <span className="text-red-600 font-bold">{results.poplenscan.statistics.requests.failed}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Total Size</span>
+                      <span className="text-slate-700 font-bold">{(results.poplenscan.statistics.transfers.totalBytes / 1024).toFixed(1)} KB</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">HTTPS Coverage</span>
+                      <span className="text-slate-700 font-bold">{results.poplenscan.statistics.security.httpsCoverage}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">Mixed Content</span>
+                      <span className={results.poplenscan.statistics.security.mixedContent > 0 ? 'text-red-600 font-bold' : 'text-emerald-600 font-bold'}>
+                        {results.poplenscan.statistics.security.mixedContent}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Risk Factors */}
+              {results.poplenscan.riskFactors.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">RISK FACTORS</h4>
+                  <div className="space-y-2.5">
+                    {results.poplenscan.riskFactors.map((factor, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border ${
+                        factor.severity === 'critical' ? 'border-red-200 bg-red-50' :
+                        factor.severity === 'high' ? 'border-red-200 bg-red-50' :
+                        factor.severity === 'medium' ? 'border-amber-200 bg-amber-50' :
+                        'border-slate-200 bg-slate-50'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-slate-900">{factor.factor}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${
+                            factor.severity === 'critical' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                            factor.severity === 'high' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                            factor.severity === 'medium' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+                            'bg-slate-500/10 text-slate-600 border border-slate-500/20'
+                          }`}>{factor.severity}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-1">{factor.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Domain Tree Visualization */}
+              <div className="border border-slate-200 bg-white rounded-xl p-6">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">DOMAIN TREE</h4>
+                <div className="font-mono text-xs">
+                  <DomainTreeView node={results.poplenscan.domainTree} level={0} />
+                </div>
+              </div>
+
+              {/* Resource Tree Visualization */}
+              <div className="border border-slate-200 bg-white rounded-xl p-6">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">RESOURCE TREE</h4>
+                <div className="font-mono text-xs">
+                  <ResourceTreeView node={results.poplenscan.resourceTree} level={0} />
+                </div>
+              </div>
+
+              {/* Redirect Tree Visualization */}
+              {results.poplenscan.redirectTree.children && results.poplenscan.redirectTree.children.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">REDIRECT TREE</h4>
+                  <div className="font-mono text-xs">
+                    <RedirectTreeView node={results.poplenscan.redirectTree} level={0} />
+                  </div>
+                </div>
+              )}
+
+              {/* Third-Party Reports */}
+              {results.poplenscan.thirdPartyReports.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">THIRD-PARTY REPORTS</h4>
+                  <div className="space-y-3">
+                    {results.poplenscan.thirdPartyReports.map((report, idx) => (
+                      <div key={idx} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-slate-900">{report.domain}</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${
+                            report.category === 'malicious' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                            report.category === 'suspicious' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+                            'bg-slate-500/10 text-slate-600 border border-slate-500/20'
+                          }`}>{report.category}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] font-mono text-slate-600">
+                          <div>Requests: {report.requestCount}</div>
+                          <div>Reputation: {report.reputation.score}/100</div>
+                          <div>Malicious: {report.reputation.malicious ? 'YES' : 'NO'}</div>
+                        </div>
+                        {report.riskIndicators.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {report.riskIndicators.map((indicator, i) => (
+                              <div key={i} className={`text-[10px] px-2 py-1 rounded ${
+                                indicator.severity === 'critical' ? 'bg-red-50 text-red-700' :
+                                indicator.severity === 'high' ? 'bg-red-50 text-red-700' :
+                                indicator.severity === 'medium' ? 'bg-amber-50 text-amber-700' :
+                                'bg-slate-50 text-slate-600'
+                              }`}>
+                                {indicator.type}: {indicator.description}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Historical Lookups */}
+              {results.poplenscan.historicalLookups.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">HISTORICAL LOOKUPS</h4>
+                  <div className="space-y-3">
+                    {results.poplenscan.historicalLookups.map((lookup, idx) => (
+                      <div key={idx} className="border border-slate-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-bold text-slate-900">{lookup.domain}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">First seen: {lookup.firstSeen}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-[10px] font-mono text-slate-600 mb-2">
+                          <div>Last seen: {lookup.lastSeen}</div>
+                          <div>Total scans: {lookup.totalScans}</div>
+                          <div>Changes: {lookup.changes.length}</div>
+                        </div>
+                        {lookup.snapshots.length > 0 && (
+                          <div className="mt-2">
+                            <span className="text-[10px] font-mono text-slate-500 uppercase font-bold">Snapshots</span>
+                            <div className="mt-1 space-y-1">
+                              {lookup.snapshots.map((snap, s) => (
+                                <div key={s} className="flex items-center gap-2 text-[10px] font-mono text-slate-600">
+                                  <span className="text-slate-500">{snap.date}</span>
+                                  <span>{snap.resourceCount} resources</span>
+                                  <span>{snap.domainCount} domains</span>
+                                  <span>Risk: {snap.riskScore}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* IP Addresses & Hostnames */}
+              {(results.poplenscan.ipAddresses.length > 0 || results.poplenscan.hostnames.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {results.poplenscan.ipAddresses.length > 0 && (
+                    <div className="border border-slate-200 bg-white rounded-xl p-6">
+                      <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">IP ADDRESSES</h4>
+                      <div className="space-y-2.5">
+                        {results.poplenscan.ipAddresses.map((ip, idx) => (
+                          <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-slate-900 font-mono">{ip.ip}</span>
+                              <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${
+                                ip.version === 'IPv6' ? 'bg-blue-500/10 text-blue-600 border border-blue-500/20' : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                              }`}>{ip.version}</span>
+                            </div>
+                            {ip.asn && (
+                              <div className="text-[10px] text-slate-600 font-mono">ASN: {ip.asn.number} - {ip.asn.name}</div>
+                            )}
+                            {ip.geo && (
+                              <div className="text-[10px] text-slate-600 font-mono">
+                                {ip.geo.city}, {ip.geo.country}
+                              </div>
+                            )}
+                            <div className="text-[10px] text-slate-500 font-mono">Reputation: {ip.reputation.score}/100</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {results.poplenscan.hostnames.length > 0 && (
+                    <div className="border border-slate-200 bg-white rounded-xl p-6">
+                      <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">HOSTNAMES</h4>
+                      <div className="space-y-2.5">
+                        {results.poplenscan.hostnames.map((host, idx) => (
+                          <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-slate-900 font-mono">{host.hostname}</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                {host.fqdn ? 'FQDN' : 'Relative'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-600 font-mono">
+                              IPs: {host.ipAddresses.length > 0 ? host.ipAddresses.join(', ') : 'N/A'}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono">Reputation: {host.reputation.score}/100</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* URL Analyses */}
+              {results.poplenscan.urlAnalyses.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">URL ANALYSES</h4>
+                  <div className="space-y-2.5">
+                    {results.poplenscan.urlAnalyses.slice(0, 10).map((analysis, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-900 font-mono truncate max-w-[300px]">{analysis.url}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{analysis.parsed.protocol}</span>
+                        </div>
+                        {analysis.riskIndicators.length > 0 && (
+                          <div className="mt-1 space-y-1">
+                            {analysis.riskIndicators.map((indicator, i) => (
+                              <div key={i} className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                                {indicator.type}: {indicator.description}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {analysis.parameters.filter(p => p.suspicious).length > 0 && (
+                          <div className="mt-1 text-[10px] text-red-700 bg-red-50 px-2 py-1 rounded">
+                            Suspicious parameters: {analysis.parameters.filter(p => p.suspicious).map(p => p.name).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Favicons */}
+              {results.poplenscan.favicons.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">FAVICONS</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {results.poplenscan.favicons.map((favicon, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-slate-900 truncate">{favicon.type}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{favicon.size} bytes</span>
+                        </div>
+                        <div className="text-[10px] text-slate-600 font-mono truncate">{favicon.url}</div>
+                        <div className="text-[10px] text-slate-500 font-mono mt-1">
+                          {favicon.isThirdParty ? 'Third-party' : 'First-party'}
+                        </div>
+                        {favicon.matches.length > 0 && (
+                          <div className="mt-1 text-[10px] text-slate-600">
+                            Match: {favicon.matches[0].product} ({favicon.matches[0].confidence}%)
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Hashlookup Hits */}
+              {results.poplenscan.hashlookupHits.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">HASHLOOKUP HITS</h4>
+                  <div className="space-y-2.5">
+                    {results.poplenscan.hashlookupHits.slice(0, 10).map((hit, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border border-red-200 bg-red-50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-bold text-red-900 font-mono truncate max-w-[300px]">{hit.hash}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">
+                            {hit.hashType}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-600 font-mono mb-1">{hit.resourceUrl}</div>
+                        {hit.matches.map((match, m) => (
+                          <div key={m} className="text-[10px] text-slate-700">
+                            <span className="font-bold">{match.source}:</span> {match.family} (Confidence: {match.confidence}%)
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Fuzzy Hashes */}
+              {results.poplenscan.fuzzyHashes.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">FUZZY HASHES</h4>
+                  <div className="space-y-2.5">
+                    {results.poplenscan.fuzzyHashes.slice(0, 10).map((fh, idx) => (
+                      <div key={idx} className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] text-slate-500 font-mono uppercase">{fh.hashType}</span>
+                          <span className="text-[10px] text-slate-500 font-mono">{fh.fileSize} bytes</span>
+                        </div>
+                        <div className="text-xs font-mono text-slate-700 break-all">{fh.hash}</div>
+                        {fh.matches.length > 0 && (
+                          <div className="mt-1 text-[10px] text-slate-600">
+                            Similarity: {fh.matches[0].similarity}% with {fh.matches[0].source}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Other Identifiers */}
+              {results.poplenscan.otherIdentifiers.length > 0 && (
+                <div className="border border-slate-200 bg-white rounded-xl p-6">
+                  <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">TRACKING IDENTIFIERS</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {results.poplenscan.otherIdentifiers.map((id, idx) => (
+                      <span key={idx} className={`text-[10px] px-2 py-1 rounded font-mono font-bold border ${
+                        id.isThirdParty ? 'bg-red-50 text-red-700 border-red-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      }`}>
+                        {id.type.toUpperCase()}: {id.value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Storage State */}
+              <div className="border border-slate-200 bg-white rounded-xl p-6">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase mb-4">STORAGE STATE</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <span className="text-[10px] text-slate-500 block mb-1">Cookies</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.poplenscan.storageState.cookies.length}</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <span className="text-[10px] text-slate-500 block mb-1">LocalStorage</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.poplenscan.storageState.localStorage.length}</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <span className="text-[10px] text-slate-500 block mb-1">SessionStorage</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.poplenscan.storageState.sessionStorage.length}</span>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200 bg-slate-50/50">
+                    <span className="text-[10px] text-slate-500 block mb-1">IndexedDB</span>
+                    <span className="text-sm font-mono font-bold text-slate-900">{results.poplenscan.storageState.indexedDB.length}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Scan Info */}
+              <div className="p-3 rounded-lg border border-slate-200 bg-slate-50 text-[11px] text-slate-500 font-mono">
+                Scan captured at {results.poplenscan.scanTime} · Webpage fetched via CORS proxy; resource extraction via DOM parsing; redirects tracked; third-party classification by domain comparison.
+              </div>
+            </div>
+          )}
+
           {/* GEO LOOKUP PANEL TAB */}
           {activeTab === 'geolookup' && results.geolookup && (
             <div id="geolookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -2872,3 +3477,96 @@ export default function ReportDashboard({
     </div>
   );
 }
+
+/* ─────────────────────────────────────────────────────────
+   POPO SCAN TREE VIEW COMPONENTS
+   ───────────────────────────────────────────────────────── */
+
+function DomainTreeView({ node, level }: { node: any; level: number }) {
+  const indent = level * 20;
+  const color = node.type === 'root' ? 'text-slate-900 font-bold' :
+                node.isThirdParty ? 'text-red-700' : 'text-emerald-700';
+
+  return (
+    <div style={{ marginLeft: `${indent}px` }} className="py-1">
+      <div className="flex items-center gap-2">
+        <span className={`${color} text-xs`}>{node.name}</span>
+        {node.riskLevel && node.riskLevel !== 'none' && (
+          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold ${
+            node.riskLevel === 'critical' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+            node.riskLevel === 'high' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+            node.riskLevel === 'medium' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' :
+            'bg-blue-500/10 text-blue-600 border border-blue-500/20'
+          }`}>{node.riskLevel}</span>
+        )}
+        {node.tags && node.tags.length > 0 && (
+          <span className="text-[9px] text-slate-500 font-mono">[{node.tags.join(', ')}]</span>
+        )}
+      </div>
+      {node.children && node.children.length > 0 && (
+        <div className="mt-1">
+          {node.children.map((child: any, idx: number) => (
+            <DomainTreeView key={idx} node={child} level={level + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResourceTreeView({ node, level }: { node: any; level: number }) {
+  const indent = level * 20;
+  const color = node.type === 'root' ? 'text-slate-900 font-bold' :
+                node.isThirdParty ? 'text-red-700' : 'text-emerald-700';
+
+  return (
+    <div style={{ marginLeft: `${indent}px` }} className="py-1">
+      <div className="flex items-center gap-2">
+        <span className={`${color} text-xs`}>{node.name}</span>
+        {node.resourceType && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">
+            {node.resourceType}
+          </span>
+        )}
+        {node.metadata?.count && (
+          <span className="text-[9px] text-slate-500 font-mono">({node.metadata.count})</span>
+        )}
+      </div>
+      {node.children && node.children.length > 0 && (
+        <div className="mt-1">
+          {node.children.map((child: any, idx: number) => (
+            <ResourceTreeView key={idx} node={child} level={level + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RedirectTreeView({ node, level }: { node: any; level: number }) {
+  const indent = level * 20;
+
+  return (
+    <div style={{ marginLeft: `${indent}px` }} className="py-1">
+      <div className="flex items-center gap-2">
+        <span className="text-slate-900 text-xs font-mono">{node.name}</span>
+        {node.statusCode && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-violet-500/10 text-violet-600 border border-violet-500/20">
+            {node.statusCode}
+          </span>
+        )}
+        {node.isThirdParty && (
+          <span className="text-[9px] px-1.5 py-0.5 rounded font-mono font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">Third-Party</span>
+        )}
+      </div>
+      {node.children && node.children.length > 0 && (
+        <div className="mt-1">
+          {node.children.map((child: any, idx: number) => (
+            <RedirectTreeView key={idx} node={child} level={level + 1} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+

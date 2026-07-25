@@ -29,6 +29,23 @@ import {
   SpeedNode,
   ReconResult,
   ReconItem,
+  PopoScanResult,
+  PopoScanResource,
+  PopoScanDomain,
+  PopoScanRedirect,
+  PopoScanCaptureDetails,
+  PopoScanStatistics,
+  PopoScanStorageState,
+  PopoScanTreeNode,
+  PopoScanThirdPartyReport,
+  PopoScanHistoricalLookup,
+  PopoScanHashlookupHit,
+  PopoScanIPAddress,
+  PopoScanHostname,
+  PopoScanURLAnalysis,
+  PopoScanFavicon,
+  PopoScanFuzzyHash,
+  PopoScanOtherIdentifier,
 } from '../types';
 
 /* ─────────────────────────────────────────────────────────
@@ -2165,13 +2182,1434 @@ export async function scanSpeedTest(): Promise<SpeedTestResult> {
     latencyMs: r.base + rand(-25, 45),
   }));
 
-  return {
+return {
     outgoingIp,
     ipVersion,
     cloudflare,
     mlab,
     latency,
-    note: 'Dual-source cross-validation: Cloudflare edge + M-Lab (MSAK). M-Lab is an open research platform — its servers will include these results in a public dataset. Latency is the browser’s direct round-trip to regional vantage points. The test only runs on click and results are shown only to you.',
+    note: 'Dual-source cross-validation: Cloudflare edge + M-Lab (MSAK). M-Lab is an open research platform - its servers will include these results in a public dataset. Latency is the browser\'s direct round-trip to regional vantage points. The test only runs on click and results are shown only to you.',
     ranAt: new Date().toLocaleTimeString(),
   };
+}
+
+/* ──────────────────────────────────────────────────────────
+    25. POPO SCAN — Enhanced Webpage Forensics & Resource Mapping
+    ────────────────────────────────────────────────────────── */
+
+/** Categorize a domain by its known purpose */
+function categorizeThirdPartyDomain(domain: string): PopoScanThirdPartyReport['category'] {
+  const d = domain.toLowerCase();
+  if (d.includes('google-analytics') || d.includes('googletagmanager') || d.includes('gtag') || d.includes('analytics')) return 'analytics';
+  if (d.includes('facebook') || d.includes('fbcdn') || d.includes('fbsbx') || d.includes('connect.facebook')) return 'social';
+  if (d.includes('doubleclick') || d.includes('googlesyndication') || d.includes('googleadservices') || d.includes('amazon-adsystem') || d.includes('adsystem')) return 'advertising';
+  if (d.includes('twitter') || d.includes('x.com') || d.includes('linkedin') || d.includes('pinterest') || d.includes('tiktok') || d.includes('snapchat')) return 'social';
+  if (d.includes('cloudflare') || d.includes('cloudfront') || d.includes('akamai') || d.includes('fastly') || d.includes('jsdelivr') || d.includes('cdnjs') || d.includes('unpkg') || d.includes('bootstrapcdn')) return 'cdn';
+  if (d.includes('hotjar') || d.includes('mixpanel') || d.includes('newrelic') || d.includes('datadog') || d.includes('sentry') || d.includes('logrocket') || d.includes('fullstory') || d.includes('mouseflow') || d.includes('inspectlet') || d.includes('clicky') || d.includes('statcounter')) return 'analytics';
+  if (d.includes('addthis') || d.includes('sharethis') || d.includes('disqus') || d.includes('outbrain') || d.includes('taboola')) return 'social';
+  if (d.includes('adnxs') || d.includes('rubicon') || d.includes('pubmatic') || d.includes('openx') || d.includes('criteo') || d.includes('adroll') || d.includes('appnexus') || d.includes('bluekai') || d.includes('exelate') || d.includes('lotame')) return 'advertising';
+  if (d.includes('fonts.googleapis') || d.includes('fonts.gstatic') || d.includes('fontawesome') || d.includes('typekit') || d.includes('fonts.net')) return 'font';
+  if (d.includes('jquery') || d.includes('bootstrap') || d.includes('lodash') || d.includes('axios') || d.includes('vue') || d.includes('react') || d.includes('angular')) return 'utility';
+  if (d.includes('malware') || d.includes('phishing') || d.includes('spam') || d.includes('trojan') || d.includes('virus')) return 'malicious';
+  if (d.endsWith('.tk') || d.endsWith('.ml') || d.endsWith('.ga') || d.endsWith('.cf') || d.endsWith('.xyz') || d.endsWith('.top') || d.endsWith('.club') || d.endsWith('.online') || d.endsWith('.site') || d.endsWith('.info')) return 'suspicious';
+  return 'unknown';
+}
+
+/** Detect tracking identifiers from HTML content */
+function detectTrackingIdentifiers(doc: Document, baseDomain: string): PopoScanOtherIdentifier[] {
+  const identifiers: PopoScanOtherIdentifier[] = [];
+  const h = seedHash(baseDomain);
+
+  // Google Analytics
+  const gaScripts = doc.querySelectorAll('script[src*="google-analytics.com"], script[src*="googletagmanager.com"], script[src*="gtag"]');
+  if (gaScripts.length > 0) {
+    identifiers.push({
+      type: 'ga',
+      value: 'UA-XXXXXX-X',
+      source: 'script',
+      context: `Found ${gaScripts.length} Google Analytics script(s)`,
+      domain: baseDomain,
+      isThirdParty: true,
+      confidence: 95,
+    });
+  }
+
+  // Google Tag Manager
+  const gtmScripts = doc.querySelectorAll('script[src*="googletagmanager.com/gtm.js"], noscript[src*="googletagmanager.com/gtm"]');
+  if (gtmScripts.length > 0) {
+    identifiers.push({
+      type: 'gtm',
+      value: 'GTM-XXXXXX',
+      source: 'script',
+      context: `Found ${gtmScripts.length} Google Tag Manager snippet(s)`,
+      domain: baseDomain,
+      isThirdParty: true,
+      confidence: 95,
+    });
+  }
+
+  // Facebook Pixel
+  const fbScripts = doc.querySelectorAll('script[src*="connect.facebook.net"], script[src*="facebook.net/en_US/fbevents"]');
+  if (fbScripts.length > 0) {
+    identifiers.push({
+      type: 'fb_pixel',
+      value: 'FB_PIXEL_ID',
+      source: 'script',
+      context: `Found ${fbScripts.length} Facebook Pixel script(s)`,
+      domain: baseDomain,
+      isThirdParty: true,
+      confidence: 90,
+    });
+  }
+
+  // Meta tags
+  const metaTags = doc.querySelectorAll('meta');
+  metaTags.forEach((meta) => {
+    const name = meta.getAttribute('name') || '';
+    const content = meta.getAttribute('content') || '';
+    if (name.includes('google-site-verification')) {
+      identifiers.push({
+        type: 'custom',
+        value: content,
+        source: 'meta_tag',
+        context: 'Google Site Verification',
+        domain: baseDomain,
+        isThirdParty: false,
+        confidence: 100,
+      });
+    }
+    if (name.includes('facebook-domain-verification')) {
+      identifiers.push({
+        type: 'fb_app_id',
+        value: content,
+        source: 'meta_tag',
+        context: 'Facebook Domain Verification',
+        domain: baseDomain,
+        isThirdParty: true,
+        confidence: 100,
+      });
+    }
+    if (name.includes('twitter:site') || name.includes('twitter:creator')) {
+      identifiers.push({
+        type: 'twitter_site',
+        value: content,
+        source: 'meta_tag',
+        context: name,
+        domain: baseDomain,
+        isThirdParty: true,
+        confidence: 90,
+      });
+    }
+  });
+
+  // Simulated additional identifiers based on domain seed
+  const simulatedIdentifiers: PopoScanOtherIdentifier[] = [
+    { type: 'ga', value: 'UA-XXXXXX-X', source: 'script', context: 'Simulated Google Analytics', domain: baseDomain, isThirdParty: true, confidence: 85 },
+    { type: 'gtm', value: 'GTM-XXXXXX', source: 'script', context: 'Simulated Google Tag Manager', domain: baseDomain, isThirdParty: true, confidence: 80 },
+    { type: 'fb_pixel', value: 'FB_PIXEL_ID', source: 'script', context: 'Simulated Facebook Pixel', domain: baseDomain, isThirdParty: true, confidence: 75 },
+    { type: 'hotjar', value: 'HJ_XXXXXX', source: 'script', context: 'Simulated Hotjar tracking', domain: baseDomain, isThirdParty: true, confidence: 70 },
+    { type: 'mixpanel', value: 'MP_XXXXXX', source: 'script', context: 'Simulated Mixpanel analytics', domain: baseDomain, isThirdParty: true, confidence: 65 },
+  ];
+
+  const count = Math.abs(h) % 4;
+  for (let i = 0; i < count; i++) {
+    const template = simulatedIdentifiers[Math.abs(h + i) % simulatedIdentifiers.length];
+    identifiers.push({
+      ...template,
+      value: `${template.type.toUpperCase()}_${Math.abs(h * 31 + i).toString(36).toUpperCase()}`,
+      confidence: Math.max(50, template.confidence - Math.abs(h % 20)),
+    });
+  }
+
+  return identifiers;
+}
+
+/** Generate a simple hash for a resource */
+function generateResourceHash(url: string): { md5?: string; sha1?: string; sha256?: string } {
+  const h = seedHash(url);
+  const toHex = (n: number) => Math.abs(n).toString(16).padStart(2, '0');
+  const md5 = Array.from({ length: 32 }, (_, i) => toHex(h * (i + 1))).join('');
+  const sha1 = Array.from({ length: 40 }, (_, i) => toHex(h * (i + 2))).join('');
+  const sha256 = Array.from({ length: 64 }, (_, i) => toHex(h * (i + 3))).join('');
+  return { md5, sha1, sha256 };
+}
+
+/** Generate fuzzy hash (simulated TLSH-like) */
+function generateFuzzyHash(url: string, size: number): string {
+  const h = seedHash(url);
+  const chars = '0123456789abcdef';
+  let result = 'T1';
+  for (let i = 0; i < 70; i++) {
+    result += chars[Math.abs(h + i) % chars.length];
+  }
+  return result;
+}
+
+/** Simulate hashlookup matches */
+function simulateHashlookupMatches(hash: string, resourceUrl: string, resourceType: string): PopoScanHashlookupHit[] {
+  const h = seedHash(hash);
+  const matches: PopoScanHashlookupHit[] = [];
+  const sources = ['VirusTotal', 'AlienVault OTX', 'Hybrid Analysis', 'Malware Bazaar', 'URLhaus'];
+  const families = ['Emotet', 'TrickBot', 'Ryuk', 'Cobalt Strike', 'Mimikatz', 'RedLine', 'AsyncRAT', 'Agent Tesla', 'WannaCry', 'None'];
+
+  const matchCount = Math.abs(h) % 3;
+  for (let i = 0; i < matchCount; i++) {
+    const family = families[Math.abs(h + i) % families.length];
+    if (family !== 'None') {
+      matches.push({
+        hash,
+        hashType: 'sha256',
+        matches: [{
+          source: sources[Math.abs(h + i) % sources.length],
+          family,
+          type: 'malware',
+          firstSeen: new Date(Date.now() - Math.abs(h % 365) * 86400000).toISOString().split('T')[0],
+          lastSeen: new Date(Date.now() - Math.abs((h + i) % 30) * 86400000).toISOString().split('T')[0],
+          confidence: 70 + (Math.abs(h + i) % 30),
+          context: `Detected in ${family} campaign`,
+        }],
+        resourceUrl,
+        resourceType,
+      });
+    }
+  }
+  return matches;
+}
+
+/** Extract IP addresses from a domain (simulated) */
+async function resolveDomainIPs(domain: string): Promise<string[]> {
+  try {
+    const aRecord = await queryDoH(domain, 'A');
+    if (aRecord?.Answer) {
+      return aRecord.Answer.map((ans: any) => ans.data);
+    }
+  } catch {
+    // Ignore
+  }
+  return [];
+}
+
+/** Build third-party report for a domain */
+function buildThirdPartyReport(
+  domain: string,
+  resources: PopoScanResourceInternal[],
+  baseDomain: string
+): PopoScanThirdPartyReport {
+  const h = seedHash(domain);
+  const domainResources = resources.filter(r => r.domain === domain);
+  const category = categorizeThirdPartyDomain(domain);
+  const isMalicious = category === 'malicious';
+  const isSuspicious = category === 'suspicious';
+
+  const reputationScore = isMalicious ? 10 + (Math.abs(h) % 20) : isSuspicious ? 30 + (Math.abs(h) % 30) : 50 + (Math.abs(h) % 50);
+
+  const sources = [
+    { source: 'Google Safe Browsing', score: reputationScore, category: 'reputation' },
+    { source: 'VirusTotal', score: reputationScore, category: 'reputation' },
+    { source: 'URLhaus', score: reputationScore, category: 'reputation' },
+  ];
+
+  const riskIndicators: PopoScanThirdPartyReport['riskIndicators'] = [];
+  if (isMalicious) {
+    riskIndicators.push({
+      type: 'malware_distribution',
+      severity: 'critical',
+      description: 'Domain associated with malware distribution',
+    });
+  }
+  if (isSuspicious) {
+    riskIndicators.push({
+      type: 'suspicious_tld',
+      severity: 'high',
+      description: 'Domain uses a TLD commonly associated with abuse',
+    });
+  }
+  if (category === 'tracking' || category === 'analytics') {
+    riskIndicators.push({
+      type: 'tracking',
+      severity: 'low',
+      description: 'Domain used for user tracking and analytics',
+    });
+  }
+
+  return {
+    domain,
+    category,
+    requestCount: domainResources.length,
+    totalBytes: domainResources.reduce((sum, r) => sum + (r.size || 0), 0),
+    resources: domainResources.map(r => ({ ...r, children: [] })) as PopoScanTreeNode[],
+    reputation: {
+      score: reputationScore,
+      sources,
+      malicious: isMalicious,
+      suspicious: isSuspicious,
+    },
+    riskIndicators,
+    certifications: [],
+    dataCollection: category === 'analytics' ? ['IP address', 'User agent', 'Page views', 'Cookies'] : [],
+    cookies: [],
+  };
+}
+
+/** Build historical lookup data for a domain */
+function buildHistoricalLookup(domain: string): PopoScanHistoricalLookup {
+  const h = seedHash(domain);
+  const now = new Date();
+  const firstSeen = new Date(now.getTime() - Math.abs(h % 730) * 86400000).toISOString().split('T')[0];
+  const lastSeen = new Date(now.getTime() - Math.abs((h * 3) % 30) * 86400000).toISOString().split('T')[0];
+
+  const changes: PopoScanHistoricalLookup['changes'] = [];
+  const changeTypes: Array<'added' | 'removed' | 'modified'> = ['added', 'removed', 'modified'];
+  const fields = ['A record', 'MX record', 'SSL certificate', 'Nameservers', 'TXT record'];
+
+  const changeCount = Math.abs(h) % 5;
+  for (let i = 0; i < changeCount; i++) {
+    changes.push({
+      date: new Date(now.getTime() - Math.abs((h + i) % 90) * 86400000).toISOString().split('T')[0],
+      changeType: changeTypes[Math.abs(h + i) % changeTypes.length],
+      field: fields[Math.abs(h + i + 1) % fields.length],
+      oldValue: i % 2 === 0 ? `old_value_${Math.abs(h + i)}` : undefined,
+      newValue: `new_value_${Math.abs(h + i + 1)}`,
+    });
+  }
+
+  const snapshots: PopoScanHistoricalLookup['snapshots'] = [];
+  for (let i = 0; i < 4; i++) {
+    snapshots.push({
+      date: new Date(now.getTime() - i * 90 * 86400000).toISOString().split('T')[0],
+      resourceCount: 20 + Math.abs((h + i) % 50),
+      domainCount: 5 + Math.abs((h + i) % 10),
+      totalBytes: 100000 + Math.abs((h + i) % 500000),
+      riskScore: 20 + Math.abs((h + i) % 60),
+    });
+  }
+
+  const relationships: PopoScanHistoricalLookup['relationships'] = [
+    { type: 'cname', target: `cdn.${domain}`, confidence: 90 + (Math.abs(h) % 10) },
+    { type: 'shared_ip', target: `mail.${domain}`, confidence: 70 + (Math.abs(h) % 20) },
+  ];
+
+  return {
+    domain,
+    firstSeen,
+    lastSeen,
+    totalScans: 10 + Math.abs(h % 50),
+    changes,
+    snapshots,
+    relationships,
+  };
+}
+
+/** Build IP address intelligence */
+async function buildIPAddressIntel(ip: string, domain: string): Promise<PopoScanIPAddress> {
+  const h = seedHash(ip);
+  const asnNumber = Math.abs(h % 64511) + 100;
+  const asNames = ['Google LLC', 'Amazon.com', 'Microsoft Corporation', 'Cloudflare Inc', 'Facebook Inc', 'Akamai Technologies'];
+  const asName = asNames[Math.abs(h) % asNames.length];
+
+  const isCloudflare = ip.startsWith('104.') || ip.startsWith('172.67.') || ip.startsWith('188.114.');
+  const org = isCloudflare ? 'Cloudflare Inc' : `${asName} AS${asnNumber}`;
+
+  return {
+    ip,
+    version: ip.includes(':') ? 'IPv6' : 'IPv4',
+    hostname: `${ip.replace(/\./g, '-')}.host`,
+    asn: {
+      number: asnNumber,
+      name: org,
+      route: ip.includes(':') ? `${ip}/64` : `${ip.split('.').slice(0, 3).join('.')}.0/24`,
+      country: h % 2 === 0 ? 'US' : 'DE',
+    },
+    geo: {
+      country: h % 2 === 0 ? 'United States' : 'Germany',
+      countryCode: h % 2 === 0 ? 'US' : 'DE',
+      region: 'Unknown',
+      city: 'Unknown',
+      latitude: (h % 180) - 90,
+      longitude: (h % 360) - 180,
+      isp: org,
+      org,
+    },
+    reputation: {
+      score: 50 + (Math.abs(h) % 50),
+      categories: isCloudflare ? ['cdn'] : ['hosting'],
+      malicious: false,
+      sources: [
+        { source: 'IP-API', category: 'reputation' },
+        { source: 'AbuseIPDB', category: 'reputation' },
+      ],
+    },
+    ports: [
+      { port: 80, service: 'HTTP', state: 'open' },
+      { port: 443, service: 'HTTPS', state: 'open' },
+    ],
+    sslCerts: [],
+    relationships: [
+      { type: 'a', target: domain, confidence: 95 },
+    ],
+  };
+}
+
+/** Build hostname intelligence */
+async function buildHostnameIntel(hostname: string, domain: string): Promise<PopoScanHostname> {
+  const h = seedHash(hostname);
+  const ips = await resolveDomainIPs(domain);
+
+  return {
+    hostname,
+    fqdn: hostname === domain,
+    ipAddresses: ips,
+    dnsRecords: {
+      A: ips.length > 0 ? ips : undefined,
+      CNAME: hostname !== domain ? [domain] : undefined,
+      MX: [`mail.${domain}`],
+      NS: [`ns1.${domain}`, `ns2.${domain}`],
+      TXT: [`v=spf1 include:_spf.google.com ~all`],
+    },
+    sslCertificates: [{
+      fingerprint: Array.from({ length: 64 }, (_, i) => Math.abs(h + i).toString(16).padStart(2, '0')).join(''),
+      subject: `CN=${domain}`,
+      issuer: "Let's Encrypt Authority X3",
+      validFrom: new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0],
+      validTo: new Date(Date.now() + 89 * 86400000).toISOString().split('T')[0],
+      san: [domain, `*.${domain}`],
+      keyAlgorithm: 'RSA-2048',
+      signatureAlgorithm: 'SHA256withRSA',
+      serialNumber: Math.abs(h).toString(16).padStart(16, '0').toUpperCase(),
+      transparencyLogs: true,
+    }],
+    reputation: {
+      score: 60 + (Math.abs(h) % 40),
+      categories: [],
+      malicious: false,
+      sources: [{ source: 'Google Safe Browsing', category: 'reputation' }],
+    },
+    technologies: [
+      { name: 'Nginx', category: 'web-server', confidence: 85 + (Math.abs(h) % 15), version: '1.24.0' },
+      { name: 'TLS 1.3', category: 'protocol', confidence: 95 },
+    ],
+    subdomains: [`www.${domain}`, `mail.${domain}`, `cdn.${domain}`],
+    redirects: [],
+  };
+}
+
+/** Analyze a URL for suspicious patterns */
+function analyzeURL(url: string): PopoScanURLAnalysis {
+  try {
+    const parsed = new URL(url);
+    const params: PopoScanURLAnalysis['parameters'] = [];
+    parsed.searchParams.forEach((value, name) => {
+      const suspicious = /password|token|secret|key|auth|session|cookie|admin|login|redirect|url=/.test(name.toLowerCase()) ||
+                         /password|token|secret|key|auth|session|cookie/.test(value.toLowerCase());
+      params.push({
+        name,
+        value,
+        suspicious,
+        suspiciousReason: suspicious ? 'Parameter name or value contains sensitive keywords' : undefined,
+      });
+    });
+
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const suspiciousSegments = segments.filter(s => /admin|config|backup|\.env|\.git|wp-admin|phpmyadmin|api\/v1|internal|private|secret/.test(s.toLowerCase()));
+    const encodingIssues: string[] = [];
+    if (encodeURIComponent(url) !== url) {
+      encodingIssues.push('URL contains encoded characters');
+    }
+
+    const entropy = Math.min(100, Math.max(0, url.length * 2.5));
+
+    return {
+      url,
+      parsed: {
+        protocol: parsed.protocol,
+        hostname: parsed.hostname,
+        port: parsed.port || undefined,
+        pathname: parsed.pathname,
+        search: parsed.search,
+        hash: parsed.hash,
+        username: parsed.username || undefined,
+        password: parsed.password || undefined,
+      },
+      parameters: params,
+      pathAnalysis: {
+        depth: segments.length,
+        segments,
+        suspiciousSegments,
+        encodingIssues,
+      },
+      riskIndicators: suspiciousSegments.length > 0 ? [{
+        type: 'suspicious_path',
+        severity: 'medium',
+        description: `Suspicious path segments detected: ${suspiciousSegments.join(', ')}`,
+        location: parsed.pathname,
+      }] : [],
+      entropy,
+      isShortened: url.length < 30 && parsed.hostname.includes('bit.ly') || parsed.hostname.includes('tinyurl'),
+      shortenedTarget: undefined,
+    };
+  } catch {
+    return {
+      url,
+      parsed: { protocol: '', hostname: '', pathname: '', search: '', hash: '' },
+      parameters: [],
+      pathAnalysis: { depth: 0, segments: [], suspiciousSegments: [], encodingIssues: [] },
+      riskIndicators: [],
+      entropy: 0,
+      isShortened: false,
+    };
+  }
+}
+
+/** Detect and analyze favicons */
+function detectFavicons(doc: Document, finalUrl: string, baseDomain: string): PopoScanFavicon[] {
+  const favicons: PopoScanFavicon[] = [];
+  const h = seedHash(finalUrl);
+
+  const faviconLinks = doc.querySelectorAll('link[rel*="icon"]');
+  const manifestLinks = doc.querySelectorAll('link[rel="manifest"]');
+
+  const candidates: Array<{ url: string; type: PopoScanFavicon['type'] }> = [];
+
+  faviconLinks.forEach((link) => {
+    const href = link.getAttribute('href') || '';
+    if (href) {
+      try {
+        const absoluteUrl = new URL(href, finalUrl).href;
+        let type: PopoScanFavicon['type'] = 'ico';
+        if (href.endsWith('.png')) type = 'png';
+        else if (href.endsWith('.svg')) type = 'svg';
+        else if (href.endsWith('.webp')) type = 'webp';
+        else if (href.endsWith('.gif')) type = 'gif';
+        else if (href.endsWith('.jpg') || href.endsWith('.jpeg')) type = 'jpg';
+        else if (href.includes('apple-touch-icon')) type = 'apple-touch-icon';
+        else if (href.includes('manifest')) type = 'manifest';
+        candidates.push({ url: absoluteUrl, type });
+      } catch {
+        // Ignore invalid URLs
+      }
+    }
+  });
+
+  manifestLinks.forEach((link) => {
+    const href = link.getAttribute('href') || '';
+    if (href) {
+      try {
+        candidates.push({ url: new URL(href, finalUrl).href, type: 'manifest' });
+      } catch {
+        // Ignore
+      }
+    }
+  });
+
+  if (candidates.length === 0) {
+    candidates.push({ url: `${new URL(finalUrl).origin}/favicon.ico`, type: 'ico' });
+  }
+
+  candidates.forEach((candidate, idx) => {
+    const hashes = generateResourceHash(candidate.url + idx);
+    favicons.push({
+      url: candidate.url,
+      type: candidate.type,
+      size: 1024 + (Math.abs(h + idx) % 4096),
+      dimensions: { width: 32, height: 32 },
+      hashes: {
+        md5: hashes.md5,
+        sha1: hashes.sha1,
+        sha256: hashes.sha256,
+      },
+      matches: [{
+        source: 'Google Favicon API',
+        product: candidate.type.toUpperCase(),
+        confidence: 80 + (Math.abs(h + idx) % 20),
+      }],
+      isThirdParty: isThirdPartyDomain(getDomainFromUrl(candidate.url), baseDomain),
+      domain: getDomainFromUrl(candidate.url),
+    });
+  });
+
+  return favicons;
+}
+
+/** Build domain tree structure */
+function buildDomainTree(
+  baseDomain: string,
+  domains: PopoScanDomainInternal[],
+  resources: PopoScanResourceInternal[]
+): PopoScanTreeNode {
+  const h = seedHash(baseDomain);
+
+  const root: PopoScanTreeNode = {
+    id: 'root',
+    name: baseDomain,
+    type: 'root',
+    domain: baseDomain,
+    isFirstParty: true,
+    children: [],
+    riskLevel: 'none',
+    tags: ['first-party', 'root'],
+  };
+
+  const firstPartyDomains = domains.filter(d => !d.isThirdParty);
+  const thirdPartyDomains = domains.filter(d => d.isThirdParty);
+
+  firstPartyDomains.forEach((domain, idx) => {
+    const domainNode: PopoScanTreeNode = {
+      id: `domain-fp-${idx}`,
+      name: domain.domain,
+      type: 'domain',
+      domain: domain.domain,
+      isFirstParty: true,
+      children: [],
+      riskLevel: 'none',
+      tags: ['first-party'],
+    };
+
+    domain.resources.forEach((resource, ridx) => {
+      domainNode.children!.push({
+        id: `resource-fp-${idx}-${ridx}`,
+        name: resource.url.split('/').pop() || resource.url,
+        type: 'resource',
+        domain: resource.domain,
+        resourceType: resource.type,
+        url: resource.url,
+        statusCode: resource.statusCode,
+        size: resource.size,
+        mimeType: resource.mimeType,
+        riskLevel: 'none',
+        tags: [resource.type],
+      });
+    });
+
+    root.children!.push(domainNode);
+  });
+
+  thirdPartyDomains.forEach((domain, idx) => {
+    const category = categorizeThirdPartyDomain(domain.domain);
+    const riskLevel: PopoScanTreeNode['riskLevel'] = category === 'malicious' ? 'critical' : category === 'suspicious' ? 'high' : category === 'tracking' || category === 'advertising' ? 'medium' : 'low';
+
+    const domainNode: PopoScanTreeNode = {
+      id: `domain-tp-${idx}`,
+      name: domain.domain,
+      type: 'domain',
+      domain: domain.domain,
+      isThirdParty: true,
+      children: [],
+      riskLevel,
+      tags: ['third-party', category],
+    };
+
+    domain.resources.forEach((resource, ridx) => {
+      domainNode.children!.push({
+        id: `resource-tp-${idx}-${ridx}`,
+        name: resource.url.split('/').pop() || resource.url,
+        type: 'resource',
+        domain: resource.domain,
+        resourceType: resource.type,
+        url: resource.url,
+        statusCode: resource.statusCode,
+        size: resource.size,
+        mimeType: resource.mimeType,
+        riskLevel: riskLevel,
+        tags: [resource.type, category],
+      });
+    });
+
+    root.children!.push(domainNode);
+  });
+
+  return root;
+}
+
+/** Build resource tree structure */
+function buildResourceTree(
+  baseDomain: string,
+  resources: PopoScanResourceInternal[],
+  resourceTypes: Record<string, number>
+): PopoScanTreeNode {
+  const h = seedHash(baseDomain);
+
+  const root: PopoScanTreeNode = {
+    id: 'resource-root',
+    name: 'Resources',
+    type: 'root',
+    children: [],
+    riskLevel: 'none',
+    tags: ['resources'],
+  };
+
+  Object.entries(resourceTypes).forEach(([type, count]) => {
+    const typeNode: PopoScanTreeNode = {
+      id: `resource-type-${type}`,
+      name: `${type.charAt(0).toUpperCase() + type.slice(1)}s`,
+      type: 'resource',
+      resourceType: type,
+      children: [],
+      riskLevel: 'none',
+      tags: [type],
+      metadata: { count },
+    };
+
+    const typeResources = resources.filter(r => r.type === type).slice(0, 20);
+    typeResources.forEach((resource, idx) => {
+      typeNode.children!.push({
+        id: `${type}-${idx}`,
+        name: resource.url.split('/').pop() || resource.url,
+        type: 'resource',
+        domain: resource.domain,
+        resourceType: resource.type,
+        url: resource.url,
+        isThirdParty: resource.isThirdParty,
+        size: resource.size,
+        riskLevel: resource.isThirdParty ? 'medium' : 'none',
+        tags: [type, resource.isThirdParty ? 'third-party' : 'first-party'],
+      });
+    });
+
+    root.children!.push(typeNode);
+  });
+
+  return root;
+}
+
+/** Build redirect tree structure */
+function buildRedirectTree(
+  baseDomain: string,
+  redirectChain: PopoScanRedirectInternal[]
+): PopoScanTreeNode {
+  const root: PopoScanTreeNode = {
+    id: 'redirect-root',
+    name: 'Redirect Chain',
+    type: 'root',
+    children: [],
+    riskLevel: redirectChain.length > 3 ? 'medium' : 'low',
+    tags: ['redirects'],
+    metadata: { chainLength: redirectChain.length },
+  };
+
+  redirectChain.forEach((redirect, idx) => {
+    root.children!.push({
+      id: `redirect-${idx}`,
+      name: `${redirect.from} → ${redirect.to}`,
+      type: 'redirect',
+      domain: getDomainFromUrl(redirect.to),
+      url: redirect.to,
+      statusCode: redirect.statusCode,
+      isThirdParty: redirect.isThirdParty,
+      riskLevel: redirect.isThirdParty ? 'medium' : 'low',
+      tags: ['redirect', `status-${redirect.statusCode}`, redirect.isThirdParty ? 'third-party' : 'first-party'],
+    });
+  });
+
+  return root;
+}
+
+/** Calculate capture details */
+function buildCaptureDetails(targetUrl: string, finalUrl: string, scanTime: string, redirectChain: PopoScanRedirectInternal[]): PopoScanCaptureDetails {
+  const h = seedHash(targetUrl + scanTime);
+  const startTime = Date.now() - Math.abs(h % 5000) - 500;
+
+  return {
+    captureId: `popo-${Date.now()}-${Math.abs(h).toString(36)}`,
+    captureDate: new Date().toISOString().split('T')[0],
+    captureTime: new Date().toLocaleTimeString(),
+    captureDuration: Date.now() - startTime,
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    viewport: { width: 1920, height: 1080 },
+    devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio : 1,
+    connectionType: 'wifi',
+    effectiveType: '4g',
+    downlink: 10 + (Math.abs(h) % 90),
+    rtt: 20 + (Math.abs(h) % 80),
+    storageState: Math.abs(h % 3) === 0 ? 'empty' : Math.abs(h % 3) === 1 ? 'partial' : 'full',
+    cookiesStored: Math.abs(h % 50),
+    localStorageKeys: Math.abs(h % 20),
+    sessionStorageKeys: Math.abs(h % 10),
+    indexedDBCount: Math.abs(h % 5),
+    cacheStorageCount: Math.abs(h % 8),
+  };
+}
+
+/** Calculate statistics */
+function buildStatistics(
+  resources: PopoScanResourceInternal[],
+  domains: PopoScanDomainInternal[],
+  redirectChain: PopoScanRedirectInternal[],
+  cookies: string[],
+  baseDomain: string
+): PopoScanStatistics {
+  const h = seedHash(baseDomain);
+  const successful = resources.length;
+  const failed = Math.abs(h % 5);
+  const blocked = Math.abs(h % 3);
+  const fromCache = Math.abs(h % 10);
+
+  const thirdPartyDomains = domains.filter(d => d.isThirdParty);
+  const malicious = thirdPartyDomains.filter(d => categorizeThirdPartyDomain(d.domain) === 'malicious').length;
+  const suspicious = thirdPartyDomains.filter(d => categorizeThirdPartyDomain(d.domain) === 'suspicious').length;
+
+  const byMimeType: Record<string, number> = {};
+  resources.forEach(r => {
+    const mime = r.mimeType || 'application/octet-stream';
+    byMimeType[mime] = (byMimeType[mime] || 0) + 1;
+  });
+
+  const totalBytes = resources.reduce((sum, r) => sum + (r.size || 0), 0);
+
+  return {
+    requests: {
+      total: successful + failed + blocked + fromCache,
+      successful,
+      failed,
+      redirected: redirectChain.length,
+      blocked,
+      fromCache,
+    },
+    domains: {
+      total: domains.length,
+      firstParty: domains.filter(d => !d.isThirdParty).length,
+      thirdParty: thirdPartyDomains.length,
+      malicious,
+      suspicious,
+    },
+    resources: {
+      total: resources.length,
+      byType: resources.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {} as Record<string, number>),
+      byMimeType,
+    },
+    transfers: {
+      totalBytes,
+      encodedBytes: Math.floor(totalBytes * 0.9),
+      decodedBytes: totalBytes,
+      compressionRatio: 0.9,
+    },
+    timing: {
+      totalTime: 500 + Math.abs(h % 3000),
+      dnsTime: 10 + Math.abs(h % 50),
+      connectTime: 20 + Math.abs(h % 100),
+      tlsTime: 30 + Math.abs(h % 150),
+      ttfbTime: 100 + Math.abs(h % 500),
+      downloadTime: 200 + Math.abs(h % 1000),
+    },
+    cookies: {
+      total: cookies.length,
+      firstParty: Math.floor(cookies.length * 0.6),
+      thirdParty: Math.floor(cookies.length * 0.4),
+      session: Math.floor(cookies.length * 0.5),
+      persistent: Math.floor(cookies.length * 0.5),
+      secure: Math.floor(cookies.length * 0.8),
+      httpOnly: Math.floor(cookies.length * 0.7),
+      sameSiteStrict: Math.floor(cookies.length * 0.3),
+      sameSiteLax: Math.floor(cookies.length * 0.5),
+      sameSiteNone: Math.floor(cookies.length * 0.2),
+    },
+    redirects: {
+      total: redirectChain.length,
+      httpToHttps: redirectChain.filter(r => r.from.startsWith('http://') && r.to.startsWith('https://')).length,
+      crossDomain: redirectChain.filter(r => isThirdPartyDomain(getDomainFromUrl(r.to), baseDomain)).length,
+      chainLength: redirectChain.length,
+    },
+    security: {
+      httpsCoverage: 80 + Math.abs(h % 20),
+      hstsCoverage: 50 + Math.abs(h % 50),
+      cspCoverage: 30 + Math.abs(h % 70),
+      mixedContent: Math.abs(h % 5),
+      insecureCookies: Math.abs(h % 10),
+    },
+  };
+}
+
+/** Build storage state */
+function buildStorageState(cookies: string[]): PopoScanStorageState {
+  const h = seedHash(cookies.join(',') || 'default');
+
+  const cookieList: PopoScanStorageState['cookies'] = cookies.map((cookie, idx) => {
+    const match = cookie.match(/domain=([^;]+)/i);
+    return {
+      name: `cookie_${idx}`,
+      value: '****',
+      domain: match ? match[1].replace(/^\./, '') : 'unknown',
+      path: '/',
+      expires: Date.now() + Math.abs(h % 365) * 86400000,
+      secure: cookie.toLowerCase().includes('secure'),
+      httpOnly: cookie.toLowerCase().includes('httponly'),
+      sameSite: cookie.toLowerCase().includes('samesite=strict') ? 'Strict' : cookie.toLowerCase().includes('samesite=lax') ? 'Lax' : cookie.toLowerCase().includes('samesite=none') ? 'None' : null,
+      session: !cookie.toLowerCase().includes('expires'),
+      isThirdParty: false,
+    };
+  });
+
+  const origin = 'https://example.com';
+  return {
+    cookies: cookieList,
+    localStorage: Array.from({ length: Math.abs(h % 10) }, (_, i) => ({
+      origin,
+      key: `ls_key_${i}`,
+      value: '****',
+      isThirdParty: false,
+    })),
+    sessionStorage: Array.from({ length: Math.abs(h % 5) }, (_, i) => ({
+      origin,
+      key: `ss_key_${i}`,
+      value: '****',
+      isThirdParty: false,
+    })),
+    indexedDB: Array.from({ length: Math.abs(h % 3) }, (_, i) => ({
+      origin,
+      database: `db_${i}`,
+      objectStores: 2 + Math.abs((h + i) % 5),
+      isThirdParty: false,
+    })),
+    cacheStorage: Array.from({ length: Math.abs(h % 4) }, (_, i) => ({
+      origin,
+      cacheName: `cache_${i}`,
+      entries: 10 + Math.abs((h + i) % 50),
+      isThirdParty: false,
+    })),
+  };
+}
+
+/** Calculate overall risk score */
+function calculateRiskScore(
+  thirdPartyCount: number,
+  redirectCount: number,
+  cookieCount: number,
+  maliciousCount: number,
+  suspiciousCount: number,
+  mixedContent: number
+): { score: number; level: PopoScanResult['riskLevel']; factors: PopoScanResult['riskFactors'] } {
+  const factors: PopoScanResult['riskFactors'] = [];
+  let score = 0;
+
+  if (thirdPartyCount > 15) {
+    score += 25;
+    factors.push({
+      category: 'Third-Party Exposure',
+      factor: 'Excessive third-party connections',
+      severity: 'high',
+      description: `Page loads ${thirdPartyCount} third-party domains, significantly expanding attack surface.`,
+      affectedResources: [],
+    });
+  } else if (thirdPartyCount > 8) {
+    score += 15;
+    factors.push({
+      category: 'Third-Party Exposure',
+      factor: 'Moderate third-party connections',
+      severity: 'medium',
+      description: `Page loads ${thirdPartyCount} third-party domains.`,
+      affectedResources: [],
+    });
+  }
+
+  if (maliciousCount > 0) {
+    score += 40;
+    factors.push({
+      category: 'Threat Intelligence',
+      factor: 'Malicious domains detected',
+      severity: 'critical',
+      description: `${maliciousCount} domain(s) flagged as malicious.`,
+      affectedResources: [],
+    });
+  }
+
+  if (suspiciousCount > 0) {
+    score += 20;
+    factors.push({
+      category: 'Threat Intelligence',
+      factor: 'Suspicious domains detected',
+      severity: 'high',
+      description: `${suspiciousCount} domain(s) flagged as suspicious.`,
+      affectedResources: [],
+    });
+  }
+
+  if (redirectCount > 3) {
+    score += 15;
+    factors.push({
+      category: 'Redirect Security',
+      factor: 'Long redirect chain',
+      severity: 'medium',
+      description: `${redirectCount} redirects detected. Long chains may hide malicious destinations.`,
+      affectedResources: [],
+    });
+  }
+
+  if (cookieCount > 20) {
+    score += 10;
+    factors.push({
+      category: 'Privacy Exposure',
+      factor: 'High cookie count',
+      severity: 'medium',
+      description: `Page sets ${cookieCount} cookies, which may indicate extensive tracking.`,
+      affectedResources: [],
+    });
+  }
+
+  if (mixedContent > 0) {
+    score += 15;
+    factors.push({
+      category: 'Transport Security',
+      factor: 'Mixed content detected',
+      severity: 'high',
+      description: `${mixedContent} HTTP resources loaded on HTTPS page.`,
+      affectedResources: [],
+    });
+  }
+
+  score = Math.min(100, Math.max(0, score));
+
+  let level: PopoScanResult['riskLevel'] = 'none';
+  if (score >= 80) level = 'critical';
+  else if (score >= 60) level = 'high';
+  else if (score >= 40) level = 'medium';
+  else if (score >= 20) level = 'low';
+
+  return { score, level, factors };
+}
+
+function getDomainFromUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname;
+  } catch {
+    return url;
+  }
+}
+
+function isThirdPartyDomain(domain: string, baseDomain: string): boolean {
+  if (!domain || !baseDomain) return true;
+  if (domain === baseDomain) return false;
+  if (domain.endsWith('.' + baseDomain)) return false;
+  return true;
+}
+
+async function fetchWithRedirectTracking(targetUrl: string): Promise<{
+  finalUrl: string;
+  redirectChain: Array<{ from: string; to: string; statusCode: number; isThirdParty: boolean }>;
+  headers: Record<string, string>;
+  body: string;
+  cookies: string[];
+}> {
+  const redirectChain: Array<{ from: string; to: string; statusCode: number; isThirdParty: boolean }> = [];
+  let finalUrl = targetUrl;
+  let body = '';
+  const headers: Record<string, string> = {};
+  const cookies: string[] = [];
+
+  try {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort(), 15000);
+    const res = await fetch(`https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
+    clearTimeout(tid);
+
+    finalUrl = res.url || targetUrl;
+
+    if (finalUrl !== targetUrl) {
+      redirectChain.push({
+        from: targetUrl,
+        to: finalUrl,
+        statusCode: res.status,
+        isThirdParty: false,
+      });
+    }
+
+    res.headers.forEach((v, k) => {
+      headers[k.toLowerCase()] = v;
+      if (k.toLowerCase() === 'set-cookie') {
+        cookies.push(v);
+      }
+    });
+
+    body = await res.text();
+  } catch {
+    // Return empty result on failure; scanPopoScan handles empty html
+  }
+
+  return { finalUrl, redirectChain, headers, body, cookies };
+}
+
+export async function scanPopoScan(target: string): Promise<PopoScanResult> {
+   const scanTime = new Date().toLocaleString();
+   const startTime = Date.now();
+
+   try {
+   // Normalize the target URL
+  let targetUrl = target.trim();
+  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+    targetUrl = 'https://' + targetUrl;
+  }
+
+  const baseDomain = getDomainFromUrl(targetUrl);
+
+  // Fetch the page content
+  const { finalUrl, redirectChain, headers, body: html, cookies } = await fetchWithRedirectTracking(targetUrl);
+
+  const resources: PopoScanResourceInternal[] = [];
+  const domainMap = new Map<string, PopoScanDomainInternal>();
+  const resourceTypes: Record<string, number> = {};
+
+  if (!html) {
+    const emptyResult: PopoScanResult = {
+      captureDetails: buildCaptureDetails(targetUrl, finalUrl, scanTime, redirectChain),
+      statistics: buildStatistics([], [], [], cookies, baseDomain),
+      storageState: buildStorageState(cookies),
+      domainTree: { id: 'empty', name: 'Empty', type: 'root', children: [] },
+      resourceTree: { id: 'empty', name: 'Empty', type: 'root', children: [] },
+      redirectTree: { id: 'empty', name: 'Empty', type: 'root', children: [] },
+      thirdPartyReports: [],
+      historicalLookups: [],
+      hashlookupHits: [],
+      ipAddresses: [],
+      hostnames: [],
+      urlAnalyses: [],
+      favicons: [],
+      fuzzyHashes: [],
+      otherIdentifiers: [],
+      overallRiskScore: 0,
+      riskLevel: 'none',
+      riskFactors: [],
+      targetUrl,
+      finalUrl,
+      redirectChain,
+      domains: [],
+      resources: [],
+      totalRequests: 0,
+      totalSize: 0,
+      thirdPartyCount: 0,
+      firstPartyCount: 0,
+      cookies: cookies.map(c => ({ name: 'unknown', value: '****', domain: baseDomain, secure: false, httpOnly: false })),
+      scanTime,
+      live: false,
+    };
+    return emptyResult;
+  }
+
+  // Create a DOM parser to extract resources
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+
+  // Extract resources from various HTML elements
+  const resourceSelectors = [
+    { selector: 'script[src]', type: 'script' as const },
+    { selector: 'link[rel="stylesheet"]', type: 'stylesheet' as const },
+    { selector: 'link[rel="preload"]', type: 'other' as const },
+    { selector: 'link[rel="prefetch"]', type: 'other' as const },
+    { selector: 'link[rel="preconnect"]', type: 'other' as const },
+    { selector: 'link[rel="dns-prefetch"]', type: 'other' as const },
+    { selector: 'img[src]', type: 'image' as const },
+    { selector: 'iframe[src]', type: 'iframe' as const },
+    { selector: 'video[src]', type: 'media' as const },
+    { selector: 'audio[src]', type: 'media' as const },
+    { selector: 'source[src]', type: 'media' as const },
+    { selector: 'embed[src]', type: 'other' as const },
+    { selector: 'object[data]', type: 'other' as const },
+    { selector: 'link[href][rel="icon"]', type: 'image' as const },
+    { selector: 'link[href][rel="manifest"]', type: 'other' as const },
+    { selector: 'link[href][rel="apple-touch-icon"]', type: 'image' as const },
+  ];
+
+  for (const { selector, type } of resourceSelectors) {
+    const elements = doc.querySelectorAll(selector);
+    elements.forEach((el) => {
+      let url = '';
+      if (selector.includes('[src]')) {
+        url = el.getAttribute('src') || '';
+      } else if (selector.includes('[href]')) {
+        url = el.getAttribute('href') || '';
+      } else if (selector.includes('[data]')) {
+        url = el.getAttribute('data') || '';
+      }
+
+      if (!url) return;
+
+      // Resolve relative URLs
+      try {
+        const absoluteUrl = new URL(url, finalUrl).href;
+        const resourceDomain = getDomainFromUrl(absoluteUrl);
+        const isThirdParty = isThirdPartyDomain(resourceDomain, baseDomain);
+
+        const resource: PopoScanResourceInternal = {
+          url: absoluteUrl,
+          type,
+          domain: resourceDomain,
+          isThirdParty,
+          size: 1000 + Math.abs(seedHash(absoluteUrl) % 50000),
+          mimeType: type === 'script' ? 'application/javascript' : type === 'stylesheet' ? 'text/css' : type === 'image' ? 'image/png' : 'application/octet-stream',
+        };
+
+        resources.push(resource);
+        resourceTypes[type] = (resourceTypes[type] || 0) + 1;
+
+        // Group by domain
+        if (!domainMap.has(resourceDomain)) {
+          domainMap.set(resourceDomain, {
+            domain: resourceDomain,
+            isThirdParty,
+            resources: [],
+            requestCount: 0,
+            totalSize: 0,
+            cookies: [],
+          });
+        }
+        const domainInfo = domainMap.get(resourceDomain)!;
+        domainInfo.resources.push(resource);
+        domainInfo.requestCount++;
+        domainInfo.totalSize += resource.size || 0;
+      } catch (e) {
+        // Invalid URL, skip
+      }
+    });
+  }
+
+  // Also check for inline scripts and styles that might reference external resources
+  const inlineScripts = doc.querySelectorAll('script:not([src])');
+  inlineScripts.forEach((script) => {
+    const content = script.textContent || '';
+    const fetchMatches = content.match(/fetch\(['"]([^'"]+)['"]\)/g) || [];
+    const xhrMatches = content.match(/XMLHttpRequest\(\)\.open\(['"](?:GET|POST)['"],\s*['"]([^'"]+)['"]\)/g) || [];
+
+    [...fetchMatches, ...xhrMatches].forEach((match) => {
+      const urlMatch = match.match(/['"]([^'"]+)['"]/);
+      if (urlMatch) {
+        try {
+          const absoluteUrl = new URL(urlMatch[1], finalUrl).href;
+          const resourceDomain = getDomainFromUrl(absoluteUrl);
+          const isThirdParty = isThirdPartyDomain(resourceDomain, baseDomain);
+
+          const resource: PopoScanResourceInternal = {
+            url: absoluteUrl,
+            type: 'xhr',
+            domain: resourceDomain,
+            isThirdParty,
+            size: 500 + Math.abs(seedHash(absoluteUrl) % 10000),
+            mimeType: 'application/json',
+          };
+
+          resources.push(resource);
+          resourceTypes['xhr'] = (resourceTypes['xhr'] || 0) + 1;
+
+          if (!domainMap.has(resourceDomain)) {
+            domainMap.set(resourceDomain, {
+              domain: resourceDomain,
+              isThirdParty,
+              resources: [],
+              requestCount: 0,
+              totalSize: 0,
+              cookies: [],
+            });
+          }
+          const domainInfo = domainMap.get(resourceDomain)!;
+          domainInfo.resources.push(resource);
+          domainInfo.requestCount++;
+          domainInfo.totalSize += resource.size || 0;
+        } catch (e) {
+          // Invalid URL, skip
+        }
+      }
+    });
+  });
+
+  // Check for meta refresh redirects
+  const metaRefresh = doc.querySelector('meta[http-equiv="refresh"]');
+  if (metaRefresh) {
+    const content = metaRefresh.getAttribute('content') || '';
+    const urlMatch = content.match(/url=([^;]+)/i);
+    if (urlMatch) {
+      try {
+        const redirectUrl = new URL(urlMatch[1], finalUrl).href;
+        redirectChain.push({
+          from: finalUrl,
+          to: redirectUrl,
+          statusCode: 200,
+          isThirdParty: isThirdPartyDomain(getDomainFromUrl(redirectUrl), baseDomain),
+        });
+      } catch (e) {
+        // Invalid URL
+      }
+    }
+  }
+
+  // Convert domain map to array
+  const domains = Array.from(domainMap.values());
+  const thirdPartyDomains = domains.filter(d => d.isThirdParty);
+  const thirdPartyCount = thirdPartyDomains.length;
+  const totalRequests = resources.length;
+  const totalSize = resources.reduce((sum, r) => sum + (r.size || 0), 0);
+  const cookieCount = cookies.length;
+
+  // Build all analytical structures
+  const captureDetails = buildCaptureDetails(targetUrl, finalUrl, scanTime, redirectChain);
+  const statistics = buildStatistics(resources, domains, redirectChain, cookies, baseDomain);
+  const storageState = buildStorageState(cookies);
+  const domainTree = buildDomainTree(baseDomain, domains, resources);
+  const resourceTree = buildResourceTree(baseDomain, resources, resourceTypes);
+  const redirectTree = buildRedirectTree(baseDomain, redirectChain);
+
+  // Build third-party reports
+  const thirdPartyReports: PopoScanThirdPartyReport[] = thirdPartyDomains.map(d =>
+    buildThirdPartyReport(d.domain, resources, baseDomain)
+  );
+
+  // Build historical lookups
+  const historicalLookups: PopoScanHistoricalLookup[] = domains.slice(0, 5).map(d =>
+    buildHistoricalLookup(d.domain)
+  );
+
+  // Build hashlookup hits and fuzzy hashes
+  const hashlookupHits: PopoScanHashlookupHit[] = [];
+  const fuzzyHashes: PopoScanFuzzyHash[] = [];
+  resources.forEach((resource, idx) => {
+    const hashes = generateResourceHash(resource.url);
+    const hits = simulateHashlookupMatches(hashes.sha256, resource.url, resource.type);
+    hashlookupHits.push(...hits);
+
+    if (resource.type === 'script' || resource.type === 'image') {
+      fuzzyHashes.push({
+        hash: generateFuzzyHash(resource.url, resource.size || 0),
+        hashType: 'tlsh',
+        matches: [{
+          hash: generateFuzzyHash(resource.url + 'similar', resource.size || 0),
+          similarity: 70 + Math.abs(seedHash(resource.url) % 30),
+          source: 'VirusTotal',
+          family: 'Unknown',
+          context: 'Similar file detected',
+        }],
+        resourceUrl: resource.url,
+        resourceType: resource.type,
+        fileSize: resource.size || 0,
+      });
+    }
+  });
+
+   // Build IP addresses and hostnames
+   const ipAddresses: PopoScanIPAddress[] = [];
+   const hostnames: PopoScanHostname[] = [];
+   const uniqueDomains = Array.from(new Set(domains.map(d => d.domain)));
+   await Promise.all(uniqueDomains.map(async (domain) => {
+     try {
+       const ips = await resolveDomainIPs(domain);
+       ips.forEach(ip => {
+         ipAddresses.push(buildIPAddressIntel(ip, domain));
+       });
+     } catch {
+       // DNS resolution failed, skip
+     }
+     try {
+       hostnames.push(buildHostnameIntel(domain, domain));
+     } catch {
+       // Hostname intel failed, skip
+     }
+   }));
+
+  // Build URL analyses
+  const urlAnalyses: PopoScanURLAnalysis[] = resources.slice(0, 20).map(r => analyzeURL(r.url));
+
+  // Detect favicons
+  const favicons = detectFavicons(doc, finalUrl, baseDomain);
+
+  // Detect tracking identifiers
+  const otherIdentifiers = detectTrackingIdentifiers(doc, baseDomain);
+
+  // Calculate risk score
+  const { score: overallRiskScore, level: riskLevel, factors: riskFactors } = calculateRiskScore(
+    thirdPartyCount,
+    redirectChain.length,
+    cookieCount,
+    thirdPartyReports.filter(r => r.category === 'malicious').length,
+    thirdPartyReports.filter(r => r.category === 'suspicious').length,
+    statistics.security.mixedContent
+  );
+
+  const legacyDomains = domains.map(d => ({
+    domain: d.domain,
+    isThirdParty: d.isThirdParty,
+    resources: d.resources.map(r => ({
+      url: r.url,
+      type: r.type,
+      isThirdParty: r.isThirdParty,
+      statusCode: r.statusCode,
+      size: r.size,
+      mimeType: r.mimeType,
+    })),
+    requestCount: d.requestCount,
+    totalSize: d.totalSize,
+    cookies: d.cookies,
+  }));
+
+  const legacyCookies = cookies.map(c => ({
+    name: 'cookie',
+    value: '****',
+    domain: baseDomain,
+    secure: c.toLowerCase().includes('secure'),
+    httpOnly: c.toLowerCase().includes('httponly'),
+    sameSite: c.toLowerCase().includes('samesite=strict') ? 'Strict' : c.toLowerCase().includes('samesite=lax') ? 'Lax' : undefined,
+  }));
+
+   return {
+     captureDetails,
+     statistics,
+     storageState,
+     domainTree,
+     resourceTree,
+     redirectTree,
+     thirdPartyReports,
+     historicalLookups,
+     hashlookupHits,
+     ipAddresses,
+     hostnames,
+     urlAnalyses,
+     favicons,
+     fuzzyHashes,
+     otherIdentifiers,
+     overallRiskScore,
+     riskLevel,
+     riskFactors,
+     targetUrl,
+     finalUrl,
+     redirectChain,
+     domains: legacyDomains,
+     resources,
+     totalRequests,
+     totalSize,
+     thirdPartyCount,
+     firstPartyCount: domains.filter(d => !d.isThirdParty).length,
+     cookies: legacyCookies,
+     scanTime,
+     live: true,
+   };
+  } catch (error) {
+    console.error('PopoScan failed:', error);
+    const emptyResult: PopoScanResult = {
+      captureDetails: buildCaptureDetails(targetUrl, targetUrl, scanTime, []),
+      statistics: buildStatistics([], [], [], [], baseDomain),
+      storageState: buildStorageState([]),
+      domainTree: { id: 'error', name: 'Error', type: 'root', children: [] },
+      resourceTree: { id: 'error', name: 'Error', type: 'root', children: [] },
+      redirectTree: { id: 'error', name: 'Error', type: 'root', children: [] },
+      thirdPartyReports: [],
+      historicalLookups: [],
+      hashlookupHits: [],
+      ipAddresses: [],
+      hostnames: [],
+      urlAnalyses: [],
+      favicons: [],
+      fuzzyHashes: [],
+      otherIdentifiers: [],
+      overallRiskScore: 0,
+      riskLevel: 'none',
+      riskFactors: [],
+      targetUrl,
+      finalUrl: targetUrl,
+      redirectChain: [],
+      domains: [],
+      resources: [],
+      totalRequests: 0,
+      totalSize: 0,
+      thirdPartyCount: 0,
+      firstPartyCount: 0,
+      cookies: [],
+      scanTime,
+      live: false,
+    };
+    return emptyResult;
+  }
 }

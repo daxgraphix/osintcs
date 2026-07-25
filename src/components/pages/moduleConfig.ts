@@ -254,4 +254,12 @@ export const QUICK_MODULES: ModuleConfig[] = [
     helpHint: 'Reverse-style heuristic that maps common hostnames back to the target IP.',
     icon: Server,
   },
+  {
+    id: 'poplenscan',
+    label: 'PopoScan',
+    placeholder: 'Enter a website URL (e.g., https://example.com)...',
+    description: 'Capture a webpage and map every domain, resource, redirect, and third-party connection involved in loading it.',
+    helpHint: 'Visualizes request waterfalls, domain trees, redirect chains, cookies, and external dependencies for forensic analysis.',
+    icon: Layers,
+  },
 ];

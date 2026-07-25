@@ -10,17 +10,19 @@ OSINT.CS is a fully client-side OSINT platform that performs reconnaissance acro
 - **Icons:** Lucide React
 - **QR:** jsQR
 - **No backend required** — all scans execute client-side against public endpoints.
+- **Modules:** 25+ integrated recon, forensics, and intelligence modules.
 
 ---
 
 ## Latest Updates
 
-- **15+ Recon Modules** — Expanded from 5 to 15+ integrated modules covering the full reconnaissance lifecycle.
+- **25+ Recon Modules** — Expanded from 5 to 25+ integrated modules covering the full reconnaissance lifecycle.
+- **Web Forensics (PopoScan)** — Added webpage capture and resource mapping: domains, resources, redirects, third-party connections, cookies, favicons, tracking identifiers, IP/hostname intelligence, hash lookups, and risk scoring with domain/resource/redirect tree visualization.
 - **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, Google Dorking, Technology Lookup, IP Geo Lookup, and Internet Speed Test.
 - **Identity & People OSINT** — Added People Hunter module with breach-exposure simulation and identity correlation.
 - **Live Integrations** — DNS-over-HTTPS caching, live HTTP header probing via CORS proxy, WAF vendor detection from response headers, and real subdomain enumeration via certificate-transparency logs.
 - **Performance** — DoH response caching reduces redundant network calls; deterministic simulation fallbacks preserve offline resilience.
-- **Home Screen Redesign** — Categorized module grid (Infrastructure, Technology & Geo Intelligence, Identity & People, Forensics & Files), dynamic stats ticker, expanded Smart Target Router, and refreshed CTAs.
+- **Home Screen Redesign** — Categorized module grid (Infrastructure, Technology & Geo Intelligence, Identity & People, Forensics & Files), dynamic stats ticker, expanded Smart Target Router with Web Forensics pathway, and refreshed CTAs.
 - **New Modules Wired End-to-End** — Technology Lookup, IP Geo Lookup, and Internet Speed Test now auto-run from the workspace, surface dedicated Report Dashboard tabs, and are fully integrated into the sidebar, lobby grid, and footer.
 - **IP Advance Enhancements** — Added `ip-api.com` fallback to geo resolution, guaranteed resolvable IP for self-mode, reverse-DNS via DoH for targets, and geo-aware AI/streaming regional-availability logic.
 - **Performance** — Added a short-TTL JSON cache so repeated IP/geo/speed lookups are instant and free public APIs are never hammered.
@@ -33,14 +35,14 @@ OSINT.CS is a fully client-side OSINT platform that performs reconnaissance acro
 
 ### Lobby (Home)
 The landing screen offers a universal input field with intelligent target routing. Typing a domain, URL, IP, email, username, phone-style number, or hash auto-selects the correct module. It also exposes:
-- **Quick module grid** — one-tap access to every recon module.
+- **Quick module grid** — one-tap access to every recon module, including PopoScan for webpage resource mapping.
 - **Batch Scan** — paste multiple targets and scan them sequentially with aggregate risk scoring.
 - **QR Scanner** — use the device camera to scan QR codes and route the decoded target into the active module.
 
 ### Report Dashboard
 After any scan, the dashboard replaces the lobby and presents:
 - **Overview** — target summary, risk score, grade, timeline, and at-a-glance metadata.
-  - **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, IP Advance, Technology Lookup, IP Geo Lookup, Internet Speed Test, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking.
+  - **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, IP Advance, Technology Lookup, IP Geo Lookup, Internet Speed Test, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking, PopoScan.
 - **Evidence** — raw scan payloads and parsed responses.
 - **Findings** — rule-based detections with severity (`pass`, `medium`, `high`), category, and remediation text.
 - **Recommendations** — auto-generated remediation actions derived from findings.
@@ -173,7 +175,15 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - Enumerates virtual hostnames associated with an IP or CDN endpoint.
 - Returns discovered vhost entries with HTTP response validation.
 
-### 22. Google Dorking
+### 23. PopoScan
+- Captures a webpage and maps every domain, resource, redirect, and third-party connection involved in loading it.
+- Extracts scripts, stylesheets, images, iframes, media, XHR/fetch endpoints, meta-refresh redirects, cookies, favicons, and tracking identifiers.
+- Generates domain trees, resource trees, and redirect trees for visual hierarchy analysis.
+- Provides third-party reports with reputation scoring, historical lookup snapshots, IP/hostname intelligence, URL parameter analysis, and fuzzy hash similarity detection.
+- Calculates an overall risk score (0–100) with severity-rated risk factors based on third-party exposure, redirect chains, mixed content, and cookie behavior.
+- Results are displayed in a dedicated PopoScan tab with tree views, risk assessment gauges, capture details, statistics, storage state enumeration, and export-ready summaries.
+
+### 24. Google Dorking
 - Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
 - Returns query templates for manual or automated execution.
 

@@ -35,6 +35,7 @@ const MODULE_ACCENTS: Record<string, { bg: string; border: string; text: string;
   techlookup:     { bg: 'rgba(168,85,247,0.08)', border: 'rgba(168,85,247,0.22)', text: '#7e22ce', icon: '#a855f7' },
   geolookup:     { bg: 'rgba(8,145,178,0.08)',  border: 'rgba(8,145,178,0.22)',  text: '#0e7490',  icon: '#0891b2' },
   speedtest:     { bg: 'rgba(22,163,74,0.08)',  border: 'rgba(22,163,74,0.22)',  text: '#15803d',  icon: '#16a34a' },
+  poplenscan:    { bg: 'rgba(139,92,246,0.08)', border: 'rgba(139,92,246,0.22)', text: '#7c3aed',  icon: '#8b5cf6' },
 };
 
 export default function Sidebar({

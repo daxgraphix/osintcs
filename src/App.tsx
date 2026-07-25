@@ -51,8 +51,8 @@ import {
   Gauge,
 } from 'lucide-react';
 
-import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding } from './types';
-import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest } from './services/osintServices';
+import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult } from './types';
+import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest, scanPopoScan } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
@@ -86,11 +86,20 @@ export default function App() {
   const [scanMode, setScanMode] = useState<'single' | 'batch'>('single');
   const [batchQuery, setBatchQuery] = useState('');
 
-  const handleQueryChange = (value: string) => {
-    setQuery(sanitizeText(value, 500));
-  };
+   const handleQueryChange = (value: string) => {
+     setQuery(sanitizeText(value, 500));
+   };
 
-  const handleBatchQueryChange = (value: string) => {
+   const isValidUrl = (value: string): boolean => {
+     try {
+       const u = new URL(value);
+       return u.protocol === 'http:' || u.protocol === 'https:';
+     } catch {
+       return false;
+     }
+   };
+
+   const handleBatchQueryChange = (value: string) => {
     setBatchQuery(sanitizeText(value, 5000));
   };
 
@@ -402,6 +411,111 @@ export default function App() {
     riskScore: 0,
     timeline: [],
     speedtest: result,
+    recommendations: [],
+  });
+
+  // Build a complete ScanResults object for a PopoScan report.
+  const makePopoScanResults = (result: PopoScanResult): ScanResults => ({
+    target: { value: result.targetUrl, type: 'poplenscan' },
+    scanTime: result.scanTime,
+    findings: (() => {
+      const findings: any[] = [];
+      const thirdPartyCount = result.statistics.domains.thirdParty;
+      const redirectCount = result.statistics.redirects.total;
+      const cookieCount = result.statistics.cookies.total;
+      
+      // Third-party connections finding
+      if (thirdPartyCount > 10) {
+        findings.push({
+          id: 'POPO_THIRD_PARTY_HIGH',
+          module: 'poplenscan',
+          title: 'High Number of Third-Party Connections',
+          description: `The page loads resources from ${thirdPartyCount} third-party domains (${result.statistics.requests.total} total requests). This increases attack surface and tracking exposure.`,
+          severity: 'medium',
+          category: 'Third-Party Exposure',
+          remediation: 'Review and minimize third-party dependencies. Implement CSP to restrict unauthorized domains.',
+        });
+      } else if (thirdPartyCount > 5) {
+        findings.push({
+          id: 'POPO_THIRD_PARTY_MEDIUM',
+          module: 'poplenscan',
+          title: 'Moderate Third-Party Connections',
+          description: `The page loads resources from ${thirdPartyCount} third-party domains (${result.statistics.requests.total} total requests).`,
+          severity: 'low',
+          category: 'Third-Party Exposure',
+          remediation: 'Audit third-party domains for necessity and security posture.',
+        });
+      } else {
+        findings.push({
+          id: 'POPO_THIRD_PARTY_LOW',
+          module: 'poplenscan',
+          title: 'Limited Third-Party Connections',
+          description: `The page loads resources from only ${thirdPartyCount} third-party domains.`,
+          severity: 'pass',
+          category: 'Third-Party Exposure',
+          remediation: 'Good — minimal third-party attack surface.',
+        });
+      }
+      
+      // Redirect chain finding
+      if (redirectCount > 3) {
+        findings.push({
+          id: 'POPO_REDIRECT_CHAIN_LONG',
+          module: 'poplenscan',
+          title: 'Long Redirect Chain Detected',
+          description: `The page follows ${redirectCount} redirects before reaching the final destination. Long chains can hide malicious destinations and degrade performance.`,
+          severity: 'medium',
+          category: 'Redirect Security',
+          remediation: 'Minimize redirect chains. Ensure all redirects are intentional and point to trusted destinations.',
+        });
+      } else if (redirectCount > 0) {
+        findings.push({
+          id: 'POPO_REDIRECT_CHAIN',
+          module: 'poplenscan',
+          title: 'Redirect Chain Detected',
+          description: `The page follows ${redirectCount} redirect(s) before reaching the final destination.`,
+          severity: 'info',
+          category: 'Redirect Security',
+          remediation: 'Verify all redirects are intentional and necessary.',
+        });
+      }
+      
+      // Cookie finding
+      if (cookieCount > 0) {
+        const thirdPartyCookies = result.cookies.filter(c => 
+          !result.finalUrl.includes(c.domain.replace(/^\./, ''))
+        ).length;
+        if (thirdPartyCookies > 0) {
+          findings.push({
+            id: 'POPO_THIRD_PARTY_COOKIES',
+            module: 'poplenscan',
+            title: 'Third-Party Cookies Detected',
+            description: `Found ${thirdPartyCookies} third-party cookie(s) that may track users across sites.`,
+            severity: 'medium',
+            category: 'Privacy Exposure',
+            remediation: 'Review cookie purposes. Set SameSite=Lax/Strict and Secure flags. Implement consent management for tracking cookies.',
+          });
+        }
+      }
+      
+      // Overall pass if no significant issues
+      if (thirdPartyCount <= 5 && redirectCount <= 1) {
+        findings.push({
+          id: 'POPO_CLEAN',
+          module: 'poplenscan',
+          title: 'PopoScan Completed — No Significant Issues',
+          description: `Analyzed ${result.statistics.requests.total} requests across ${result.statistics.domains.total} domains with ${thirdPartyCount} third-party connections and ${redirectCount} redirects.`,
+          severity: 'pass',
+          category: 'Web Forensics',
+          remediation: 'No action required.',
+        });
+      }
+      
+      return findings;
+    })(),
+    riskScore: Math.min(100, result.statistics.domains.thirdParty * 5 + result.statistics.redirects.total * 10 + (result.statistics.cookies.total > 0 ? 15 : 0)),
+    timeline: [],
+    poplenscan: result,
     recommendations: [],
   });
 
@@ -1264,7 +1378,7 @@ export default function App() {
                       {/* Try Chips */}
                       <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
                         <span className="text-slate-500 uppercase font-semibold">QUICK ACCESS:</span>
-                        {['cloudflare.com', 'github.com', 'natro.com', 'turhost.com'].map((chip) => (
+                        {['cloudflare.com', 'github.com', 'natro.com', 'turhost.com', 'example.com'].map((chip) => (
                           <button
                             key={chip}
                             onClick={() => handleTryChip(chip)}
@@ -1337,16 +1451,17 @@ export default function App() {
                           </div>
                         </div>
 
-                        {/* List of Module pathways */}
-                        <div className="grid grid-cols-2 gap-2 pt-2">
- {[
-                             { step: '01', name: 'Domain Intelligence', active: query.trim() && (detectedType === 'domain' || detectedType === 'website') },
-                             { step: '02', name: 'SSL/TLS Analysis', active: query.trim() && detectedType === 'website' },
-                             { step: '03', name: 'Digital Footprinting', active: query.trim() && (detectedType === 'email' || detectedType === 'username') },
-                             { step: '04', name: 'Image Forensics', active: query.trim() && (detectedType === 'image' || detectedType === 'metadata') },
-                             { step: '05', name: 'Tech & Geo Intelligence', active: query.trim() && (detectedType === 'ip' || detectedType === 'domain') },
-                             { step: '06', name: 'IP Risk Purity', active: query.trim() && detectedType === 'ip' },
-                            ].map((m, idx) => (
+                         {/* List of Module pathways */}
+                         <div className="grid grid-cols-2 gap-2 pt-2">
+  {[
+                               { step: '01', name: 'Domain Intelligence', active: query.trim() && (detectedType === 'domain' || detectedType === 'website') },
+                               { step: '02', name: 'SSL/TLS Analysis', active: query.trim() && detectedType === 'website' },
+                               { step: '03', name: 'Digital Footprinting', active: query.trim() && (detectedType === 'email' || detectedType === 'username') },
+                               { step: '04', name: 'Image Forensics', active: query.trim() && (detectedType === 'image' || detectedType === 'metadata') },
+                               { step: '05', name: 'Tech & Geo Intelligence', active: query.trim() && (detectedType === 'ip' || detectedType === 'domain') },
+                               { step: '06', name: 'IP Risk Purity', active: query.trim() && detectedType === 'ip' },
+                               { step: '07', name: 'Web Forensics', active: query.trim() && (detectedType === 'website' || detectedType === 'domain') },
+                             ].map((m, idx) => (
                              <div
                                key={idx}
                                className={`p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
@@ -1423,7 +1538,7 @@ export default function App() {
                      { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','ip','ipadvance'] },
                     { category: 'TECHNOLOGY & GEO INTELLIGENCE', color: 'text-violet-400', modules: ['techlookup','geolookup','speedtest'] },
                     { category: 'IDENTITY & PEOPLE', color: 'text-amber-400', modules: ['email','username','peoplehunter'] },
-                    { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip'] },
+                    { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip','poplenscan'] },
                   ].map((cat) => (
                     <div key={cat.category} className="space-y-4">
                       <h4 className={`text-[10px] font-mono font-bold uppercase tracking-widest ${cat.color}`}>{cat.category}</h4>
@@ -1470,23 +1585,24 @@ export default function App() {
 
                   {/* Numbered Steps list matching the screenshot details */}
                   <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    {[
-                      { num: '01', title: 'DNS Intelligence Mapping', desc: 'Resolve MX, NS, SPF, DMARC, and TXT records for attack surface analysis.' },
-                      { num: '02', title: 'Website Security Scan', desc: 'Live headers, TLS, cookies, CORS, CMS, security header fingerprinting.' },
-                      { num: '03', title: 'Mail Server Audit', desc: 'Audit SMTP, open relays, spoofing vectors, and mailflow posture.' },
-                      { num: '04', title: 'WHOIS / RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
-                      { num: '05', title: 'SSL/TLS Audit', desc: 'Certificates, cipher suites, protocol versions, and chain trust.' },
-                      { num: '06', title: 'BGP / ASN Mapping', desc: 'Trace autonomous networks and physical hosting infrastructure.' },
-                      { num: '07', title: 'Reverse IP / Hostmap', desc: 'Co-hosted servers, shared hosting neighbors, and origin exposure.' },
-                      { num: '08', title: 'Security Headers Review', desc: 'CSP, HSTS, X-Frame, COOP/COEP, and secure transport options.' },
-                      { num: '09', title: 'Subdomain Enumeration', desc: 'Certificate transparency logs and passive recon coverage.' },
-                      { num: '10', title: 'Port & Service Profiling', desc: 'Top and deep port sweeps, service fingerprinting, and exposure triage.' },
-                      { num: '11', title: 'WAF Detection', desc: 'Identify CDN/WAF vendors, challenge pages, and header-based protections.' },
-                      { num: '12', title: 'Identity & People OSINT', desc: 'Email breach exposure, username footprinting, and entity correlation.' },
-                      { num: '13', title: 'Image & Metadata Forensics', desc: 'EXIF, GPS, AI-generation indicators, and ELA compression analysis.' },
-                      { num: '14', title: 'URL & Path Discovery', desc: 'Endpoint fuzzing, common admin paths, and parameter exposure.' },
-                      { num: '15', title: 'Local Execution Mode', desc: 'Zero backend dependency. All scanning runs in-browser with fallback simulation.' },
-                    ].map((step, idx) => (
+                       {[
+                         { num: '01', title: 'DNS Intelligence Mapping', desc: 'Resolve MX, NS, SPF, DMARC, and TXT records for attack surface analysis.' },
+                         { num: '02', title: 'Website Security Scan', desc: 'Live headers, TLS, cookies, CORS, CMS, security header fingerprinting.' },
+                         { num: '03', title: 'Mail Server Audit', desc: 'Audit SMTP, open relays, spoofing vectors, and mailflow posture.' },
+                         { num: '04', title: 'WHOIS / RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
+                         { num: '05', title: 'SSL/TLS Audit', desc: 'Certificates, cipher suites, protocol versions, and chain trust.' },
+                         { num: '06', title: 'BGP / ASN Mapping', desc: 'Trace autonomous networks and physical hosting infrastructure.' },
+                         { num: '07', title: 'Reverse IP / Hostmap', desc: 'Co-hosted servers, shared hosting neighbors, and origin exposure.' },
+                         { num: '08', title: 'Security Headers Review', desc: 'CSP, HSTS, X-Frame, COOP/COEP, and secure transport options.' },
+                         { num: '09', title: 'Subdomain Enumeration', desc: 'Certificate transparency logs and passive recon coverage.' },
+                         { num: '10', title: 'Port & Service Profiling', desc: 'Top and deep port sweeps, service fingerprinting, and exposure triage.' },
+                         { num: '11', title: 'WAF Detection', desc: 'Identify CDN/WAF vendors, challenge pages, and header-based protections.' },
+                         { num: '12', title: 'Identity & People OSINT', desc: 'Email breach exposure, username footprinting, and entity correlation.' },
+                         { num: '13', title: 'Image & Metadata Forensics', desc: 'EXIF, GPS, AI-generation indicators, and ELA compression analysis.' },
+                         { num: '14', title: 'URL & Path Discovery', desc: 'Endpoint fuzzing, common admin paths, and parameter exposure.' },
+                         { num: '15', title: 'Webpage Resource Mapping', desc: 'Capture page load graph: domains, resources, redirects, cookies, third-party exposure, and risk scoring.' },
+                         { num: '16', title: 'Local Execution Mode', desc: 'Zero backend dependency. All scanning runs in-browser with fallback simulation.' },
+                       ].map((step, idx) => (
                       <div key={idx} className={`border p-3 rounded-lg flex items-start gap-3 transition-all hover:border-red-500/20 hover:translate-y-0.5 ${
                         isLightMode ? 'border-slate-100 bg-white/60' : 'border-slate-850 bg-slate-900/10'
                       }`}>
@@ -2160,6 +2276,330 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                  ) : activeTab === 'poplenscan' ? (
+                    /* PopoScan — Webpage Resource Mapping */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-500 shrink-0">
+                              <Layers className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>PopoScan</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Capture webpage · map resources · trace redirects · identify third parties</p>
+                            </div>
+                          </div>
+                          {results?.poplenscan && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Mapped
+                            </span>
+                          )}
+                        </div>
+
+                        {isScanning ? (
+                          <div className="flex items-center justify-center gap-3 py-10">
+                            <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Capturing webpage and mapping connections...</span>
+                          </div>
+                        ) : results?.poplenscan ? (
+                          <div className="space-y-6">
+                            {/* Summary Stats */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                { label: 'Total Requests', value: results.poplenscan.statistics.requests.total, color: 'text-slate-900' },
+                                { label: 'Total Domains', value: results.poplenscan.statistics.domains.total, color: 'text-slate-900' },
+                                { label: 'Third-Party', value: results.poplenscan.statistics.domains.thirdParty, color: 'text-red-400' },
+                                { label: 'Redirects', value: results.poplenscan.statistics.redirects.total, color: 'text-amber-400' },
+                              ].map((field, idx) => (
+                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
+                                  <span className={`text-xl font-black font-mono ${field.color}`}>{field.value}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Redirect Chain */}
+                            {results.poplenscan.redirectChain.length > 0 && (
+                              <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                                <table className="w-full text-left border-collapse font-mono text-[11px]">
+                                  <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                    <tr>
+                                      <th className="px-3 py-2 font-bold">Step</th>
+                                      <th className="px-3 py-2 font-bold">From</th>
+                                      <th className="px-3 py-2 font-bold">To</th>
+                                      <th className="px-3 py-2 font-bold">Status</th>
+                                      <th className="px-3 py-2 font-bold">Type</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                    {results.poplenscan.redirectChain.map((r, idx) => (
+                                      <tr key={idx}>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{idx + 1}</td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.from}</code></td>
+                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.to}</code></td>
+                                        <td className="px-3 py-2">
+                                          <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${r.statusCode >= 300 && r.statusCode < 400 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'}`}>{r.statusCode}</span>
+                                        </td>
+                                        <td className="px-3 py-2">
+                                          {r.isThirdParty && (
+                                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">Third-Party</span>
+                                          )}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            {/* Third-Party Domains */}
+                            {results.poplenscan.statistics.domains.thirdParty > 0 && (
+                              <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                                <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
+                                  Third-Party Domains ({results.poplenscan.statistics.domains.thirdParty})
+                                </div>
+                                <div className="divide-y divide-slate-850">
+                                  {results.poplenscan.domains.filter(d => d.isThirdParty).map((domain, idx) => (
+                                    <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="text-xs font-bold font-mono truncate pr-2 text-violet-400">{domain.domain}</span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">{domain.requestCount} req</span>
+                                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
+                                        </div>
+                                      </div>
+                                      <div className="flex flex-wrap gap-1.5">
+                                        {domain.resources.slice(0, 8).map((r, ri) => (
+                                          <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-700 font-mono">
+                                            {r.type}: {r.url.length > 50 ? r.url.substring(0, 50) + '…' : r.url}
+                                          </span>
+                                        ))}
+                                        {domain.resources.length > 8 && <span className="text-[9px] text-slate-500">+{domain.resources.length - 8} more</span>}
+                                      </div>
+                                      {domain.cookies.length > 0 && (
+                                        <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* First-Party Domains */}
+                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                              <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
+                                First-Party Domains ({results.poplenscan.domains.filter(d => !d.isThirdParty).length})
+                              </div>
+                              <div className="divide-y divide-slate-850">
+                                {results.poplenscan.domains.filter(d => !d.isThirdParty).map((domain, idx) => (
+                                  <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <span className="text-xs font-bold font-mono truncate pr-2 text-emerald-400">{domain.domain}</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">{domain.requestCount} req</span>
+                                        <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {domain.resources.slice(0, 8).map((r, ri) => (
+                                        <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-mono">
+                                          {r.type}: {r.url.length > 50 ? r.url.substring(0, 50) + '…' : r.url}
+                                        </span>
+                                      ))}
+                                      {domain.resources.length > 8 && <span className="text-[9px] text-slate-500">+{domain.resources.length - 8} more</span>}
+                                    </div>
+                                    {domain.cookies.length > 0 && (
+                                      <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Resource Type Breakdown */}
+                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                              <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
+                                Resource Type Breakdown
+                              </div>
+<div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 p-3">
+                                 {Object.entries(results.poplenscan.statistics.resources.byType).map(([type, count]) => (
+                                   <div key={type} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 text-center">
+                                     <div className={`text-xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{count}</div>
+                                     <div className="text-[10px] font-mono uppercase text-slate-500 capitalize">{type}</div>
+                                   </div>
+                                 ))}
+                              </div>
+                            </div>
+
+                            {/* Cookies */}
+                            {results.poplenscan.statistics.cookies.total > 0 && (
+                              <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                                <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
+                                  Cookies ({results.poplenscan.statistics.cookies.total})
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-left border-collapse font-mono text-xs">
+                                    <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                      <tr>
+                                        <th className="px-3 py-2 font-bold">Name</th>
+                                        <th className="px-3 py-2 font-bold">Domain</th>
+                                        <th className="px-3 py-2 font-bold">Secure</th>
+                                        <th className="px-3 py-2 font-bold">HttpOnly</th>
+                                        <th className="px-3 py-2 font-bold">SameSite</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                      {results.poplenscan.cookies.map((cookie, idx) => (
+                                        <tr key={idx}>
+                                          <td className="px-3 py-2 font-semibold text-slate-900">{cookie.name}</td>
+                                          <td className="px-3 py-2 text-slate-700">{cookie.domain}</td>
+                                          <td className="px-3 py-2 text-center">{cookie.secure ? '✓' : '✗'}</td>
+                                          <td className="px-3 py-2 text-center">{cookie.httpOnly ? '✓' : '✗'}</td>
+                                          <td className="px-3 py-2 text-center">{cookie.sameSite || '—'}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className={`p-3 rounded-lg border text-[11px] text-slate-500 font-mono ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                              Scan captured at {results.poplenscan.scanTime} · Webpage fetched via CORS proxy; resource extraction via DOM parsing; redirects tracked; third-party classification by domain comparison.
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning || !query.trim()) return;
+                                  setIsScanning(true);
+                                  setQuery('Capturing webpage resources and mapping connections...');
+                                  try {
+                                    const result = await scanPopoScan(query.trim());
+                                    setResults(makePopoScanResults(result));
+                                    saveScanToHistory(makePopoScanResults(result));
+                                  } catch (e) {
+                                    showToast('PopoScan failed. Please try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Scan Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        ) : !query.trim() || (query.trim() && !isValidUrl(query.trim())) ? (
+                          <div className="space-y-4">
+                            <form
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                const trimmed = query.trim();
+                                if (!trimmed || !isValidUrl(trimmed)) return;
+                                (async () => {
+                                  setIsScanning(true);
+                                  setQuery('Capturing webpage resources and mapping connections...');
+                                  try {
+                                    const result = await scanPopoScan(trimmed);
+                                    setResults(makePopoScanResults(result));
+                                    saveScanToHistory(makePopoScanResults(result));
+                                    setViewingReport(true);
+                                  } catch (err) {
+                                    showToast('PopoScan failed. Please check the URL and try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                })();
+                              }}
+                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                                isLightMode
+                                  ? 'border-slate-200 bg-white shadow-sm focus-within:border-violet-500'
+                                  : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-violet-500/80'
+                              }`}
+                            >
+                              <div className="pl-3.5 text-slate-500">
+                                <Search className="w-5 h-5" />
+                              </div>
+                              <input
+                                type="text"
+                                value={query}
+                                onChange={(e) => setQuery(e.target.value)}
+                                placeholder="Enter a website URL (e.g., https://example.com)..."
+                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
+                                disabled={isScanning}
+                              />
+                              <button
+                                type="submit"
+                                disabled={!query.trim() || isScanning || !isValidUrl(query.trim())}
+                                className="px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                              >
+                                Scan
+                              </button>
+                            </form>
+                            <p className="text-[11px] text-slate-500 font-mono">
+                              Enter a website URL to capture its resources, redirects, third-party connections, and cookies.
+                            </p>
+                            {query.trim() && !isValidUrl(query.trim()) && (
+                              <p className="text-[11px] text-red-400 font-mono">
+                                Please enter a valid URL starting with http:// or https://
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className={`border rounded-xl p-4 space-y-3 ${
+                              isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'
+                            }`}>
+                              <div className="flex items-center gap-2 text-xs font-mono">
+                                <Globe className="w-4 h-4 text-violet-400 shrink-0" />
+                                <span className="text-slate-400">Target:</span>
+                                <span className="text-slate-200 font-semibold truncate">{query.trim()}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (isScanning || !query.trim()) return;
+                                  setIsScanning(true);
+                                  setQuery('Capturing webpage resources and mapping connections...');
+                                  try {
+                                    const result = await scanPopoScan(query.trim());
+                                    setResults(makePopoScanResults(result));
+                                    saveScanToHistory(makePopoScanResults(result));
+                                    setViewingReport(true);
+                                  } catch (e) {
+                                    showToast('PopoScan failed. Please check the URL and try again.', 'error');
+                                  } finally {
+                                    setIsScanning(false);
+                                  }
+                                }}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Start PopoScan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setQuery('')}
+                                className="px-4 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border border-slate-700 bg-slate-900/40 text-slate-400 hover:text-white"
+                              >
+                                Change URL
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ) : activeTab === 'speedtest' ? (
                     /* Internet Speed Test */
                     <div className="space-y-6">
@@ -2686,3 +3126,5 @@ export default function App() {
     </div>
   );
 }
+
+

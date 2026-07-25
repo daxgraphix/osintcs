@@ -26,7 +26,8 @@ export type TargetType =
   | 'ipadvance'
   | 'techlookup'
   | 'geolookup'
-  | 'speedtest';
+  | 'speedtest'
+  | 'poplenscan';
 
 export interface InvestigationTarget {
   value: string;
@@ -358,6 +359,453 @@ export interface SpeedTestResult {
   ranAt: string;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   POPO SCAN — Enhanced Webpage Forensics & Resource Mapping
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// ── Capture Details ─────────────────────────────────────────────────────
+export interface PopoScanCaptureDetails {
+  captureId: string;
+  captureDate: string;
+  captureTime: string;
+  captureDuration: number; // ms
+  userAgent: string;
+  viewport: { width: number; height: number };
+  devicePixelRatio: number;
+  connectionType?: string;
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  storageState: 'empty' | 'partial' | 'full';
+  cookiesStored: number;
+  localStorageKeys: number;
+  sessionStorageKeys: number;
+  indexedDBCount: number;
+  cacheStorageCount: number;
+}
+
+// ── Statistics ──────────────────────────────────────────────────────────
+export interface PopoScanStatistics {
+  requests: {
+    total: number;
+    successful: number;
+    failed: number;
+    redirected: number;
+    blocked: number;
+    fromCache: number;
+  };
+  domains: {
+    total: number;
+    firstParty: number;
+    thirdParty: number;
+    malicious: number;
+    suspicious: number;
+  };
+  resources: {
+    total: number;
+    byType: Record<string, number>;
+    byMimeType: Record<string, number>;
+  };
+  transfers: {
+    totalBytes: number;
+    encodedBytes: number;
+    decodedBytes: number;
+    compressionRatio: number;
+  };
+  timing: {
+    totalTime: number;
+    dnsTime: number;
+    connectTime: number;
+    tlsTime: number;
+    ttfbTime: number;
+    downloadTime: number;
+  };
+  cookies: {
+    total: number;
+    firstParty: number;
+    thirdParty: number;
+    session: number;
+    persistent: number;
+    secure: number;
+    httpOnly: number;
+    sameSiteStrict: number;
+    sameSiteLax: number;
+    sameSiteNone: number;
+  };
+  redirects: {
+    total: number;
+    httpToHttps: number;
+    crossDomain: number;
+    chainLength: number;
+  };
+  security: {
+    httpsCoverage: number;
+    hstsCoverage: number;
+    cspCoverage: number;
+    mixedContent: number;
+    insecureCookies: number;
+  };
+}
+
+// ── Storage State ───────────────────────────────────────────────────────
+export interface PopoScanStorageState {
+  cookies: Array<{
+    name: string;
+    value: string;
+    domain: string;
+    path: string;
+    expires: number | null;
+    secure: boolean;
+    httpOnly: boolean;
+    sameSite: 'Strict' | 'Lax' | 'None' | null;
+    session: boolean;
+    isThirdParty: boolean;
+  }>;
+  localStorage: Array<{ origin: string; key: string; value: string; isThirdParty: boolean }>;
+  sessionStorage: Array<{ origin: string; key: string; value: string; isThirdParty: boolean }>;
+  indexedDB: Array<{ origin: string; database: string; objectStores: number; isThirdParty: boolean }>;
+  cacheStorage: Array<{ origin: string; cacheName: string; entries: number; isThirdParty: boolean }>;
+}
+
+// ── Tree Node for Domain/Resource Hierarchy ─────────────────────────────
+export interface PopoScanTreeNode {
+  id: string;
+  name: string;
+  type: 'root' | 'domain' | 'resource' | 'redirect' | 'cookie' | 'storage';
+  domain?: string;
+  isThirdParty?: boolean;
+  isFirstParty?: boolean;
+  resourceType?: string;
+  url?: string;
+  statusCode?: number;
+  size?: number;
+  mimeType?: string;
+  timing?: {
+    dns?: number;
+    tcp?: number;
+    tls?: number;
+    ttfb?: number;
+    download?: number;
+  };
+  children?: PopoScanTreeNode[];
+  metadata?: Record<string, any>;
+  riskLevel?: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  tags?: string[];
+}
+
+// ── Third Party Report ──────────────────────────────────────────────────
+export interface PopoScanThirdPartyReport {
+  domain: string;
+  category: 'cdn' | 'analytics' | 'advertising' | 'social' | 'tracking' | 'font' | 'cdn' | 'utility' | 'unknown' | 'malicious' | 'suspicious';
+  requestCount: number;
+  totalBytes: number;
+  resources: PopoScanTreeNode[];
+  reputation: {
+    score: number; // 0-100
+    sources: Array<{ source: string; score: number; category: string }>;
+    malicious: boolean;
+    suspicious: boolean;
+  };
+  riskIndicators: Array<{
+    type: string;
+    severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
+    description: string;
+  }>;
+  certifications: string[];
+  privacyPolicy?: string;
+  dataCollection: string[];
+  cookies: Array<{
+    name: string;
+    purpose: string;
+    expiration: string;
+  }>;
+}
+
+// ── Historical Lookup ───────────────────────────────────────────────────
+export interface PopoScanHistoricalLookup {
+  domain: string;
+  firstSeen: string;
+  lastSeen: string;
+  totalScans: number;
+  changes: Array<{
+    date: string;
+    changeType: 'added' | 'removed' | 'modified';
+    field: string;
+    oldValue?: string;
+    newValue?: string;
+  }>;
+  snapshots: Array<{
+    date: string;
+    resourceCount: number;
+    domainCount: number;
+    totalBytes: number;
+    riskScore: number;
+  }>;
+  relationships: Array<{
+    type: 'parent' | 'child' | 'sibling' | 'redirect' | 'cname' | 'shared_ip';
+    target: string;
+    confidence: number;
+  }>;
+}
+
+// ── Hashlookup Hit ──────────────────────────────────────────────────────
+export interface PopoScanHashlookupHit {
+  hash: string;
+  hashType: 'md5' | 'sha1' | 'sha256' | 'tlsh' | 'ssdeep' | 'sdhash' | 'imphash';
+  matches: Array<{
+    source: string;
+    family?: string;
+    type?: string;
+    firstSeen?: string;
+    lastSeen?: string;
+    confidence: number;
+    context?: string;
+  }>;
+  resourceUrl: string;
+  resourceType: string;
+}
+
+// ── IP Address Intelligence ─────────────────────────────────────────────
+export interface PopoScanIPAddress {
+  ip: string;
+  version: 'IPv4' | 'IPv6';
+  hostname?: string;
+  asn?: {
+    number: number;
+    name: string;
+    route?: string;
+    country?: string;
+  };
+  geo?: {
+    country?: string;
+    countryCode?: string;
+    region?: string;
+    city?: string;
+    latitude?: number;
+    longitude?: number;
+    timezone?: string;
+    isp?: string;
+    org?: string;
+  };
+  reputation: {
+    score: number;
+    categories: string[];
+    malicious: boolean;
+    sources: Array<{ source: string; category: string }>;
+  };
+  ports?: Array<{ port: number; service: string; state: string }>;
+  sslCerts?: Array<{
+    fingerprint: string;
+    subject: string;
+    issuer: string;
+    validFrom: string;
+    validTo: string;
+    san: string[];
+  }>;
+  relationships?: Array<{
+    type: 'cname' | 'a' | 'aaaa' | 'ptr' | 'shared_hosting' | 'load_balancer';
+    target: string;
+    confidence: number;
+  }>;
+}
+
+// ── Hostname Intelligence ───────────────────────────────────────────────
+export interface PopoScanHostname {
+  hostname: string;
+  fqdn: boolean;
+  ipAddresses: string[];
+  dnsRecords: {
+    A?: string[];
+    AAAA?: string[];
+    CNAME?: string[];
+    MX?: string[];
+    NS?: string[];
+    TXT?: string[];
+    SOA?: string;
+  };
+  sslCertificates: Array<{
+    fingerprint: string;
+    subject: string;
+    issuer: string;
+    validFrom: string;
+    validTo: string;
+    san: string[];
+    keyAlgorithm: string;
+    signatureAlgorithm: string;
+    serialNumber: string;
+    transparencyLogs: boolean;
+  }>;
+  reputation: {
+    score: number;
+    categories: string[];
+    malicious: boolean;
+    sources: Array<{ source: string; category: string }>;
+  };
+  technologies: Array<{
+    name: string;
+    category: string;
+    confidence: number;
+    version?: string;
+  }>;
+  subdomains?: string[];
+  redirects?: Array<{
+    from: string;
+    to: string;
+    statusCode: number;
+  }>;
+}
+
+// ── URL Analysis ────────────────────────────────────────────────────────
+export interface PopoScanURLAnalysis {
+  url: string;
+  parsed: {
+    protocol: string;
+    hostname: string;
+    port?: string;
+    pathname: string;
+    search: string;
+    hash: string;
+    username?: string;
+    password?: string;
+  };
+  parameters: Array<{
+    name: string;
+    value: string;
+    suspicious: boolean;
+    suspiciousReason?: string;
+  }>;
+  pathAnalysis: {
+    depth: number;
+    segments: string[];
+    suspiciousSegments: string[];
+    encodingIssues: string[];
+  };
+  riskIndicators: Array<{
+    type: string;
+    severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
+    description: string;
+    location: string;
+  }>;
+  entropy: number;
+  isShortened: boolean;
+  shortenedTarget?: string;
+}
+
+// ── Favicon Analysis ────────────────────────────────────────────────────
+export interface PopoScanFavicon {
+  url: string;
+  type: 'ico' | 'png' | 'svg' | 'webp' | 'gif' | 'jpg' | 'manifest' | 'apple-touch-icon';
+  size?: number;
+  dimensions?: { width: number; height: number };
+  hashes: {
+    md5?: string;
+    sha1?: string;
+    sha256?: string;
+    murmur3?: string;
+    mmh3?: string;
+  };
+  matches: Array<{
+    source: string;
+    product?: string;
+    version?: string;
+    confidence: number;
+    url?: string;
+  }>;
+  isThirdParty: boolean;
+  domain: string;
+}
+
+// ── Fuzzy Hash ──────────────────────────────────────────────────────────
+export interface PopoScanFuzzyHash {
+  hash: string;
+  hashType: 'tlsh' | 'ssdeep' | 'sdhash' | 'imphash' | 'vhash' | 'authentihash';
+  matches: Array<{
+    hash: string;
+    similarity: number; // 0-100
+    source: string;
+    family?: string;
+    type?: string;
+    firstSeen?: string;
+    context?: string;
+  }>;
+  resourceUrl: string;
+  resourceType: string;
+  fileSize: number;
+}
+
+// ── Other Identifiers ───────────────────────────────────────────────────
+export interface PopoScanOtherIdentifier {
+  type: 'ga' | 'gtm' | 'fb_pixel' | 'fb_app_id' | 'twitter_site' | 'twitter_creator' | 'amazon_associate' | 'clicky' | 'mixpanel' | 'hotjar' | 'intercom' | 'zendesk' | 'crisp' | 'tawk' | 'olark' | 'drift' | 'hubspot' | 'marketo' | 'pardot' | 'eloqua' | 'adobe_analytics' | 'adobe_target' | 'optimizely' | 'vwo' | 'ab_tasty' | 'kameleoon' | 'convert' | 'google_ads' | 'bing_ads' | 'linkedin_insight' | 'pinterest' | 'snapchat' | 'tiktok' | 'custom';
+  value: string;
+  source: 'meta_tag' | 'script' | 'cookie' | 'localstorage' | 'url_param' | 'header' | 'dom_attribute';
+  context: string;
+  domain: string;
+  isThirdParty: boolean;
+  confidence: number;
+}
+
+// ── Main Result ─────────────────────────────────────────────────────────
+export interface PopoScanResult {
+  // Capture metadata
+  captureDetails: PopoScanCaptureDetails;
+  statistics: PopoScanStatistics;
+  storageState: PopoScanStorageState;
+  
+  // Tree structures
+  domainTree: PopoScanTreeNode;
+  resourceTree: PopoScanTreeNode;
+  redirectTree: PopoScanTreeNode;
+  
+  // Analytical reports
+  thirdPartyReports: PopoScanThirdPartyReport[];
+  historicalLookups: PopoScanHistoricalLookup[];
+  hashlookupHits: PopoScanHashlookupHit[];
+  ipAddresses: PopoScanIPAddress[];
+  hostnames: PopoScanHostname[];
+  urlAnalyses: PopoScanURLAnalysis[];
+  favicons: PopoScanFavicon[];
+  fuzzyHashes: PopoScanFuzzyHash[];
+  otherIdentifiers: PopoScanOtherIdentifier[];
+  
+  // Risk assessment
+  overallRiskScore: number; // 0-100
+  riskLevel: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  riskFactors: Array<{
+    category: string;
+    factor: string;
+    severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
+    description: string;
+    affectedResources: string[];
+  }>;
+  
+  // Legacy compatibility
+  targetUrl: string;
+  finalUrl: string;
+  redirectChain: Array<{ from: string; to: string; statusCode: number; isThirdParty: boolean }>;
+  domains: Array<{
+    domain: string;
+    isThirdParty: boolean;
+    resources: Array<{
+      url: string;
+      type: string;
+      isThirdParty: boolean;
+      statusCode?: number;
+      size?: number;
+      mimeType?: string;
+    }>;
+    requestCount: number;
+    totalSize: number;
+    cookies: string[];
+  }>;
+  totalRequests: number;
+  totalSize: number;
+  thirdPartyCount: number;
+  firstPartyCount: number;
+  cookies: Array<{ name: string; value: string; domain: string; secure: boolean; httpOnly: boolean; sameSite?: string }>;
+  scanTime: string;
+  live: boolean;
+}
+
 export interface UsernamePlatformCheck {
   platform: string;
   url: string;
@@ -481,6 +929,7 @@ export interface ScanResults {
   techlookup?: TechLookupResult;
   geolookup?: GeoLookupResult;
   speedtest?: SpeedTestResult;
+  poplenscan?: PopoScanResult;
   findings: Finding[];
   recommendations: Recommendation[];
   timeline: TimelineEvent[];

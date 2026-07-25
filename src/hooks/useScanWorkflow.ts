@@ -31,6 +31,7 @@ import {
   scanTechnology,
   scanGeoLookup,
   scanSpeedTest,
+  scanPopoScan,
 } from '../services/osintServices';
 import {
   analyzeDnsRules,
@@ -43,6 +44,7 @@ import {
   analyzeMetadataRules,
   analyzeHashRules,
   analyzeReconResult,
+  analyzePopoScanResult,
 } from '../rules/osintRules';
 import {
   calculateRiskScore,
@@ -327,6 +329,12 @@ async function performScan(
       findings.push(...analyzeReconResult(reconResult));
     }
   }
+  else if (finalTarget.type === 'poplenscan') {
+    await log('POPO-SCAN: Capturing webpage resources, redirects, and third-party connections...', 150);
+    const popoData = await scanPopoScan(finalTarget.value);
+    await log(`POPO-OK: Mapped ${popoData.statistics.domains.total} domains (${popoData.statistics.domains.thirdParty} third-party), ${popoData.statistics.requests.total} requests, ${popoData.statistics.redirects.total} redirects.`, 80);
+    findings.push(...analyzePopoScanResult(popoData));
+  }
 
   await log('RISK-CALC: Triggering rule scoring and grade classification algorithms...', 120);
   const metrics = calculateRiskScore(findings);
@@ -352,6 +360,7 @@ async function performScan(
     techlookup: techLookupData,
     geolookup: geoLookupData,
     speedtest: speedTestData,
+    poplenscan: reconData['poplenscan'],
     findings,
     recommendations,
     timeline,
@@ -466,3 +475,4 @@ export function useScanWorkflow({
 
   return { isScanning, setIsScanning, scanLogs, triggerInvestigation, triggerBatchInvestigation };
 }
+
