@@ -516,7 +516,115 @@ export default function App() {
     riskScore: Math.min(100, result.statistics.domains.thirdParty * 5 + result.statistics.redirects.total * 10 + (result.statistics.cookies.total > 0 ? 15 : 0)),
     timeline: [],
     poplenscan: result,
-    recommendations: [],
+    recommendations: (() => {
+      const recs: any[] = [];
+      const thirdPartyCount = result.statistics.domains.thirdParty;
+      const redirectCount = result.statistics.redirects.total;
+      const cookieCount = result.statistics.cookies.total;
+      const httpsCoverage = result.statistics.security.httpsCoverage;
+
+      if (thirdPartyCount > 10) {
+        recs.push({
+          id: 'POPO_REC_TP_HIGH',
+          title: 'Reduce Third-Party Domain Exposure',
+          description: `The page loads resources from ${thirdPartyCount} third-party domains. Each domain increases tracking risk and potential data leakage.`,
+          priority: 'high',
+          category: 'Third-Party Exposure',
+          impact: 'Reduces attack surface and minimizes cross-site tracking vectors.',
+        });
+      } else if (thirdPartyCount > 5) {
+        recs.push({
+          id: 'POPO_REC_TP_MED',
+          title: 'Audit Third-Party Dependencies',
+          description: `The page loads resources from ${thirdPartyCount} third-party domains. Review each for necessity and security posture.`,
+          priority: 'medium',
+          category: 'Third-Party Exposure',
+          impact: 'Identifies unnecessary tracking and reduces external dependency risk.',
+        });
+      }
+
+      if (redirectCount > 3) {
+        recs.push({
+          id: 'POPO_REC_REDIR_LONG',
+          title: 'Shorten Redirect Chains',
+          description: `The page follows ${redirectCount} redirects. Long chains obscure final destinations and increase latency.`,
+          priority: 'medium',
+          category: 'Redirect Security',
+          impact: 'Improves transparency, performance, and reduces malicious-redirect risk.',
+        });
+      } else if (redirectCount > 0) {
+        recs.push({
+          id: 'POPO_REC_REDIR',
+          title: 'Verify Redirect Necessity',
+          description: `The page follows ${redirectCount} redirect(s). Confirm each redirect is intentional and points to a trusted destination.`,
+          priority: 'low',
+          category: 'Redirect Security',
+          impact: 'Ensures no unintended routing to suspicious endpoints.',
+        });
+      }
+
+      if (cookieCount > 0) {
+        const thirdPartyCookies = result.cookies.filter(c =>
+          !result.finalUrl.includes(c.domain.replace(/^\./, ''))
+        ).length;
+        if (thirdPartyCookies > 0) {
+          recs.push({
+            id: 'POPO_REC_COOKIES',
+            title: 'Harden Cookie Security and Consent',
+            description: `Found ${thirdPartyCookies} third-party cookie(s) that may track users across sites.`,
+            priority: 'high',
+            category: 'Privacy Exposure',
+            impact: 'Reduces cross-site tracking and improves compliance with privacy regulations.',
+          });
+        }
+      }
+
+      if (httpsCoverage < 100) {
+        recs.push({
+          id: 'POPO_REC_HTTPS',
+          title: 'Enforce Full HTTPS Coverage',
+          description: `${httpsCoverage}% of resources are loaded over HTTPS. Mixed content exposes data to interception.`,
+          priority: 'high',
+          category: 'Transport Security',
+          impact: 'Eliminates mixed-content downgrade attacks and ensures encrypted delivery.',
+        });
+      }
+
+      if (result.statistics.security.mixedContent > 0) {
+        recs.push({
+          id: 'POPO_REC_MIXED',
+          title: 'Eliminate Mixed Content',
+          description: `${result.statistics.security.mixedContent} mixed-content resource(s) detected.`,
+          priority: 'high',
+          category: 'Transport Security',
+          impact: 'Prevents protocol downgrade and man-in-the-middle risks.',
+        });
+      }
+
+      if (result.statistics.security.insecureCookies > 0) {
+        recs.push({
+          id: 'POPO_REC_INSECURE_COOKIES',
+          title: 'Secure Cookie Attributes',
+          description: `${result.statistics.security.insecureCookies} cookie(s) missing Secure or HttpOnly flags.`,
+          priority: 'medium',
+          category: 'Cookie Security',
+          impact: 'Reduces XSS and network eavesdropping exposure for session cookies.',
+        });
+      }
+
+      if (recs.length === 0) {
+        recs.push({
+          id: 'POPO_REC_CLEAN',
+          title: 'Maintain Current Security Posture',
+          description: 'No significant third-party or redirect risks detected. Continue monitoring for changes.',
+          priority: 'low',
+          category: 'Maintenance',
+          impact: 'Sustains current low-risk footprint.',
+        });
+      }
+
+      return recs;
+    })(),
   });
 
   const [simulateDelay, setSimulateDelay] = useState(true);

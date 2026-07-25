@@ -3482,7 +3482,7 @@ export default function ReportDashboard({
    POPO SCAN TREE VIEW COMPONENTS
    ───────────────────────────────────────────────────────── */
 
-function DomainTreeView({ node, level }: { node: any; level: number }) {
+function DomainTreeView({ node, level, key }: { node: any; level: number; key?: React.Key }) {
   const indent = level * 20;
   const color = node.type === 'root' ? 'text-slate-900 font-bold' :
                 node.isThirdParty ? 'text-red-700' : 'text-emerald-700';
@@ -3514,7 +3514,7 @@ function DomainTreeView({ node, level }: { node: any; level: number }) {
   );
 }
 
-function ResourceTreeView({ node, level }: { node: any; level: number }) {
+function ResourceTreeView({ node, level, key }: { node: any; level: number; key?: React.Key }) {
   const indent = level * 20;
   const color = node.type === 'root' ? 'text-slate-900 font-bold' :
                 node.isThirdParty ? 'text-red-700' : 'text-emerald-700';
@@ -3543,7 +3543,7 @@ function ResourceTreeView({ node, level }: { node: any; level: number }) {
   );
 }
 
-function RedirectTreeView({ node, level }: { node: any; level: number }) {
+function RedirectTreeView({ node, level, key }: { node: any; level: number; key?: React.Key }) {
   const indent = level * 20;
 
   return (

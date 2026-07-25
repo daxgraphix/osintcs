@@ -773,6 +773,12 @@ export interface PopoScanRedirect {
   isThirdParty: boolean;
 }
 
+export type PopoScanRedirectInternal = PopoScanRedirect;
+
+// ── Internal processing aliases ──────────────────────────────────────────
+export type PopoScanResourceInternal = PopoScanResource;
+export type PopoScanDomainInternal = PopoScanDomain;
+
 // ── Main Result ─────────────────────────────────────────────────────────
 export interface PopoScanResult {
   // Capture metadata
@@ -830,6 +836,7 @@ export interface PopoScanResult {
   totalSize: number;
   thirdPartyCount: number;
   firstPartyCount: number;
+  resources: PopoScanResourceInternal[];
   cookies: Array<{ name: string; value: string; domain: string; secure: boolean; httpOnly: boolean; sameSite?: string }>;
   scanTime: string;
   live: boolean;

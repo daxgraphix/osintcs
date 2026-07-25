@@ -33,6 +33,9 @@ import {
   PopoScanResource,
   PopoScanDomain,
   PopoScanRedirect,
+  PopoScanResourceInternal,
+  PopoScanDomainInternal,
+  PopoScanRedirectInternal,
   PopoScanCaptureDetails,
   PopoScanStatistics,
   PopoScanStorageState,
@@ -2457,7 +2460,7 @@ function buildThirdPartyReport(
     category,
     requestCount: domainResources.length,
     totalBytes: domainResources.reduce((sum, r) => sum + (r.size || 0), 0),
-    resources: domainResources.map(r => ({ ...r, children: [] })) as PopoScanTreeNode[],
+    resources: domainResources.map(r => ({ id: r.url, name: r.url, type: 'resource' as const, url: r.url, domain: r.domain, isThirdParty: r.isThirdParty, resourceType: r.type, size: r.size, mimeType: r.mimeType, children: [] })),
     reputation: {
       score: reputationScore,
       sources,
@@ -3273,17 +3276,16 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
    const scanTime = new Date().toLocaleString();
    const startTime = Date.now();
 
+   let targetUrl = target.trim();
+   if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+     targetUrl = 'https://' + targetUrl;
+   }
+
+   const baseDomain = getDomainFromUrl(targetUrl);
+
    try {
-   // Normalize the target URL
-  let targetUrl = target.trim();
-  if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
-    targetUrl = 'https://' + targetUrl;
-  }
-
-  const baseDomain = getDomainFromUrl(targetUrl);
-
-  // Fetch the page content
-  const { finalUrl, redirectChain, headers, body: html, cookies } = await fetchWithRedirectTracking(targetUrl);
+   // Fetch the page content
+   const { finalUrl, redirectChain, headers, body: html, cookies } = await fetchWithRedirectTracking(targetUrl);
 
   const resources: PopoScanResourceInternal[] = [];
   const domainMap = new Map<string, PopoScanDomainInternal>();
@@ -3571,21 +3573,21 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
    const ipAddresses: PopoScanIPAddress[] = [];
    const hostnames: PopoScanHostname[] = [];
    const firstPartyDomainsList = domains.filter(d => !d.isThirdParty).map(d => d.domain).slice(0, 5);
-   await Promise.all(firstPartyDomainsList.map(async (domain) => {
-     try {
-       const ips = await resolveDomainIPs(domain);
-       ips.forEach(ip => {
-         ipAddresses.push(buildIPAddressIntel(ip, domain));
-       });
-     } catch {
-       // DNS resolution failed, skip
-     }
-     try {
-       hostnames.push(buildHostnameIntel(domain, domain));
-     } catch {
-       // Hostname intel failed, skip
-     }
-   }));
+    await Promise.all(firstPartyDomainsList.map(async (domain) => {
+      try {
+        const ips = await resolveDomainIPs(domain);
+        ips.forEach(async (ip) => {
+          ipAddresses.push(await buildIPAddressIntel(ip, domain));
+        });
+      } catch {
+        // DNS resolution failed, skip
+      }
+      try {
+        hostnames.push(await buildHostnameIntel(domain, domain));
+      } catch {
+        // Hostname intel failed, skip
+      }
+    }));
 
   // Build URL analyses
   // Limit URL analysis to 10 script/iframe resources for performance
