@@ -327,6 +327,19 @@ async function performScan(
       await log(`RECON-${mod.toUpperCase()}: Analysis complete (${reconResult.items.length} records).`, 80);
       reconData[mod] = reconResult;
       findings.push(...analyzeReconResult(reconResult));
+      if (mod === 'subdomain' && reconResult.items.length > 0) {
+        const subItems: any[] = reconResult.items.map((it: any) => ({
+          subdomain: it.label,
+          recordType: it.recordTypes?.join(',') || 'A',
+          value: it.value || '',
+          source: it.source || 'wordlist',
+          validated: it.status !== 'wildcard',
+          status: it.status === 'wildcard' ? 'unresolved' : 'verified',
+          sensitivity: it.severity === 'medium' ? 'high' : 'low',
+        }));
+        dnsData = dnsData || { records: {}, subdomains: [] };
+        dnsData.subdomains = [...(dnsData.subdomains || []), ...subItems];
+      }
     }
   }
   else if (finalTarget.type === 'poplenscan') {

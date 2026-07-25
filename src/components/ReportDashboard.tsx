@@ -68,6 +68,7 @@ type TabType =
   | 'evidence'
   | 'image_verify'
   | 'dns'
+  | 'subdomains'
   | 'whois'
   | 'ssl'
   | 'headers'
@@ -417,6 +418,9 @@ export default function ReportDashboard({
             { id: 'evidence', label: `Evidence (${findings.filter((f) => f.severity !== 'pass').length})`, icon: ShieldAlert },
             target.type === 'domain' || target.type === 'website' || target.type === 'email'
               ? { id: 'dns', label: 'DNS', icon: Globe }
+              : null,
+            (target.type === 'domain' || target.type === 'website') && results.dns?.subdomains && results.dns.subdomains.length > 0
+              ? { id: 'subdomains', label: `Subdomains (${results.dns.subdomains.length})`, icon: Network }
               : null,
             target.type === 'domain' || target.type === 'website'
               ? { id: 'whois', label: 'WHOIS', icon: Clock }
@@ -1469,6 +1473,109 @@ export default function ReportDashboard({
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SUBDOMAINS PANEL - IMPROVED SUBDOMAIN FINDER MODULE */}
+          {activeTab === 'subdomains' && results.dns && results.dns.subdomains && (
+            <div id="subdomains_panel" className="space-y-8">
+              {/* Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-600 tracking-wider uppercase font-mono flex items-center gap-2">
+                    <Network className="w-4 h-4 text-red-400" /> Subdomain Discovery
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">Discover hidden, forgotten, or misconfigured subdomains that reveal critical vulnerabilities</p>
+                </div>
+              </div>
+
+              {/* Stats Row */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { label: 'Total Discovered', value: results.dns.subdomains.length, icon: Globe, color: 'text-blue-400' },
+                  { label: 'Verified', value: results.dns.subdomains.filter(s => s.status === 'verified').length, icon: CheckCircle2, color: 'text-emerald-400' },
+                  { label: 'Potentially Sensitive', value: results.dns.subdomains.filter(s => s.sensitivity === 'high').length, icon: AlertTriangle, color: 'text-amber-400' },
+                  { label: 'Unresolved', value: results.dns.subdomains.filter(s => s.status === 'unresolved').length, icon: AlertCircle, color: 'text-red-400' },
+                ].map((stat) => (
+                  <div key={stat.label} className="border border-slate-200 bg-white rounded-xl p-4 flex items-center gap-3">
+                    <stat.icon className={`w-5 h-5 ${stat.color}`} />
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-mono font-bold block">{stat.label}</span>
+                      <span className="text-lg font-black font-mono text-slate-900">{stat.value}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Subdomain List */}
+              <div className="border border-slate-200 bg-white rounded-xl overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/50">
+                  <span className="text-xs font-mono font-bold uppercase text-slate-600">Discovered Subdomains</span>
+                  <span className="text-[10px] font-mono text-slate-500">{results.dns.subdomains.length} results</span>
+                </div>
+                <div className="divide-y divide-slate-200/50 max-h-[600px] overflow-y-auto">
+                  {results.dns.subdomains.map((sub, idx) => (
+                    <div key={idx} className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <Globe className={`w-4 h-4 shrink-0 ${sub.status === 'verified' ? 'text-emerald-400' : sub.status === 'unresolved' ? 'text-red-400' : 'text-slate-400'}`} />
+                        <span className="text-sm font-mono text-slate-700 truncate">{sub.subdomain}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {sub.sensitivity === 'high' && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-bold uppercase">Sensitive</span>
+                        )}
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                          sub.status === 'verified' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          sub.status === 'unresolved' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                          'bg-slate-200 text-slate-600 border border-slate-200'
+                        }`}>
+                          {sub.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                  {results.dns.subdomains.length === 0 && (
+                    <div className="px-4 py-8 text-center text-slate-500 font-mono text-sm">
+                      No subdomains discovered yet. Run a scan to enumerate subdomains.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Discovery Methods */}
+              <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
+                <h4 className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">Discovery Methods</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Network className="w-3.5 h-3.5 text-blue-400" />
+                      <span className="text-xs font-bold text-slate-700">Passive Enumeration</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Certificate Transparency logs, DNS dumpster, and threat intelligence feeds</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Server className="w-3.5 h-3.5 text-purple-400" />
+                      <span className="text-xs font-bold text-slate-700">Active Probing</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">DNS zone transfers, reverse lookups, and WAF fingerprinting</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40">
+                    <div className="flex items-center gap-2 mb-1">
+                      <Shield className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="text-xs font-bold text-slate-700">Validation</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Real-time HTTP verification, TLS handshake checks, and response validation</p>
+                  </div>
+                  <div className="p-3 rounded-lg border border-slate-200/80 bg-slate-50/40">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-bold text-slate-700">Filtering</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">Intelligent deduplication, wildcard filtering, and sensitive-path detection</p>
+                  </div>
                 </div>
               </div>
             </div>

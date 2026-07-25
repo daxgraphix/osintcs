@@ -97,6 +97,17 @@ export interface DNSResult {
   nameservers?: string[];
   soa?: string;
   caa?: string[];
+  subdomains?: SubdomainResult[];
+}
+
+export interface SubdomainResult {
+  subdomain: string;
+  recordType: string;
+  value: string;
+  source: 'crt' | 'wordlist' | 'dns';
+  validated: boolean;
+  status: 'verified' | 'unresolved' | 'wildcard';
+  sensitivity: 'high' | 'low';
 }
 
 export interface WHOISResult {
@@ -929,7 +940,8 @@ export type ReconStatus =
   | 'detected'
   | 'blocked'
   | 'safe'
-  | 'unknown';
+  | 'unknown'
+  | 'wildcard';
 
 export interface ReconItem {
   label: string;

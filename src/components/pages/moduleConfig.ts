@@ -202,8 +202,8 @@ export const QUICK_MODULES: ModuleConfig[] = [
     id: 'subdomain',
     label: 'Subdomain Finder',
     placeholder: 'Enter a domain (e.g., example.com)...',
-    description: 'Discover hidden, forgotten, or misconfigured subdomains that reveal critical vulnerabilities. Uses passive and active methods with real-time validation and intelligent filtering.',
-    helpHint: 'Multi-method enumeration with reverse DNS, WAF detection, and hidden-file discovery — scan at scale for clean, actionable results.',
+    description: 'Discover hidden, forgotten, or misconfigured subdomains that reveal critical vulnerabilities. Multi-source enumeration with certificate transparency logs, expanded DNS wordlist, CNAME/AAAA validation, wildcard filtering, and sensitive-path detection.',
+    helpHint: 'Certificate transparency + 80+ prefix wordlist with CNAME/AAAA validation, wildcard DNS filtering, and sensitive subdomain triage.',
     icon: Boxes,
   },
   {

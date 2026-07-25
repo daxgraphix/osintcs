@@ -134,22 +134,87 @@ export function analyzeDnsRules(dns: any, domain: string): Finding[] {
     );
   }
 
-  // Check MX record presence
-  if (!dns.records.MX || dns.records.MX.length === 0) {
-    findings.push(
-      createFinding(
-        'DNS_MX_MISSING',
-        'dns',
-        'No Mail Exchange (MX) Records Found',
-        'This domain does not publish any MX records, meaning it cannot receive incoming emails directly.',
-        'info',
-        'Mail Configuration',
-        'If this domain is intended to receive email, configure MX records pointing to your email hosting provider.'
-      )
-    );
-  }
+   // Check MX record presence
+   if (!dns.records.MX || dns.records.MX.length === 0) {
+     findings.push(
+       createFinding(
+         'DNS_MX_MISSING',
+         'dns',
+         'No Mail Exchange (MX) Records Found',
+         'This domain does not publish any MX records, meaning it cannot receive incoming emails directly.',
+         'info',
+         'Mail Configuration',
+         'If this domain is intended to receive email, configure MX records pointing to your email hosting provider.'
+       )
+     );
+   }
 
-  return findings;
+   // Subdomain Enumeration Findings
+   const subdomains = dns.subdomains || [];
+   const validatedSubs = subdomains.filter((s) => s.validated);
+   const unvalidatedSubs = subdomains.filter((s) => !s.validated);
+
+   if (subdomains.length > 0) {
+     findings.push(
+       createFinding(
+         'DNS_SUBDOMAIN_DISCOVERED',
+         'dns',
+         `Subdomain Enumeration: ${subdomains.length} Subdomain(s) Discovered`,
+         `Passive certificate transparency logs and active DNS validation discovered ${subdomains.length} subdomain(s) for ${domain}. ${validatedSubs.length} were validated via DNS A records; ${unvalidatedSubs.length} remain unvalidated (DNS response was empty or timed out).`,
+         validatedSubs.length > 10 ? 'medium' : 'low',
+         'Subdomain Discovery',
+         'Review all discovered subdomains for exposure of sensitive services, stale endpoints, or misconfigured DNS records. Validate unvalidated subdomains with direct DNS queries.'
+       )
+     );
+
+     // Flag high-risk subdomains commonly associated with sensitive services
+     const sensitivePrefixes = ['admin', 'dev', 'staging', 'test', 'internal', 'intranet', 'vpn', 'remote', 'portal', 'backup', 'db', 'database', 'api', 'secret', 'private'];
+     const sensitiveSubs = subdomains.filter((s) =>
+       sensitivePrefixes.some((p) => s.subdomain.startsWith(p + '.'))
+     );
+     if (sensitiveSubs.length > 0) {
+       findings.push(
+         createFinding(
+           'DNS_SENSITIVE_SUBDOMAINS',
+           'dns',
+           `Sensitive Subdomains Exposed`,
+           `Found ${sensitiveSubs.length} subdomain(s) with sensitive naming patterns (admin, dev, staging, vpn, db, internal, etc.): ${sensitiveSubs.map((s) => s.subdomain).join(', ')}. These may expose internal infrastructure or development environments to the public internet.`,
+           'high',
+           'Subdomain Discovery',
+           'Audit sensitive subdomains for authentication, authorization, and encryption. Restrict access to internal subdomains via network-level controls and ensure they are not indexed by search engines.'
+         )
+       );
+     }
+
+     // Validate subdomain count — if few subdomains found, note it
+     if (subdomains.length <= 3) {
+       findings.push(
+         createFinding(
+           'DNS_SUBDOMAIN_FEW',
+           'dns',
+           'Limited Subdomain Footprint',
+           `Only ${subdomains.length} subdomain(s) were discovered for ${domain}. This may indicate a small attack surface or that subdomains are not publicly resolvable.`,
+           'info',
+           'Subdomain Discovery',
+           'A limited subdomain footprint reduces the attack surface but does not eliminate risk. Consider using alternate passive sources (e.g., SecurityTrails, SecurityScorecard) for a more complete picture.'
+         )
+       );
+     }
+   } else {
+     findings.push(
+       createFinding(
+         'DNS_SUBDOMAIN_NONE',
+         'dns',
+         'No Subdomains Discovered',
+         `No subdomains were discovered for ${domain} via certificate transparency logs or DNS wordlist validation. A single-wordlist check may not be sufficient for comprehensive discovery.`,
+         'info',
+         'Subdomain Discovery',
+         'Consider using additional passive sources (e.g., crt.sh with wider wildcards, SecurityTrails, SecurityScorecard) or active brute-forcing with a larger wordlist for thorough subdomain enumeration.'
+       )
+     );
+   }
+
+   return findings;
 }
 
 /**

@@ -30,6 +30,7 @@ import {
   ReconResult,
   ReconItem,
   PopoScanResult,
+  SubdomainResult,
   PopoScanResource,
   PopoScanDomain,
   PopoScanRedirect,
@@ -209,6 +210,37 @@ export async function scanDomain(domain: string): Promise<DNSResult> {
     return { priority: parseInt(parts[0], 10), host: parts.slice(1).join(' ') || parts[0] };
   });
 
+  // Discover and add subdomains
+  let subdomains: SubdomainResult[] = [];
+  
+  // Try to discover subdomains using crt.sh
+  try {
+    const crtResponse = await fetchJSON(`https://crt.sh/?q=${encodeURIComponent(cleanDomain)}&output=json`, {}, 8000);
+    if (Array.isArray(crtResponse)) {
+      const allNames = new Set<string>();
+      crtResponse.forEach((cert: any) => {
+        if (cert.name_value) {
+          cert.name_value.split('\n').forEach((n: string) => allNames.add(n.trim()));
+        }
+      });
+      allNames.forEach((name) => {
+        if (name && name !== cleanDomain) {
+          subdomains.push({
+            subdomain: name,
+            recordType: 'CERT',
+            value: '',
+            source: 'crt',
+            validated: false,
+            status: 'verified',
+            sensitivity: 'low',
+          });
+        }
+      });
+    }
+  } catch (e) {
+    console.warn('crt.sh subdomain discovery failed:', e);
+  }
+
   return {
     records: records as any,
     spf: {
@@ -231,8 +263,9 @@ export async function scanDomain(domain: string): Promise<DNSResult> {
     nameservers: records.NS || [],
     soa: records.SOA?.[0],
     caa: (records.CAA?.length ?? 0) > 0 ? records.CAA : undefined,
+    subdomains: subdomains,
   };
-}
+ }
 
 /* ═══════════════════════════════════════════════════════════
    2. WHOIS — Live via rdap.org (IANA-recommended RDAP)
@@ -1434,13 +1467,69 @@ export async function scanNetwork(target: string): Promise<ReconResult> {
 }
 
 /* ══ 4. SUBDOMAIN FINDER ════════════════════════════════ */
+const SENSITIVE_PREFIXES = new Set([
+  'admin', 'dashboard', 'management', 'manager', 'internal', 'intranet',
+  'config', 'private', 'secret', 'vault', 'auth', 'sso', 'ldap', 'radius',
+  'ci', 'cd', 'jenkins', 'gitlab', 'github', 'sonar', 'grafana', 'kibana',
+  'prometheus', 'nagios', 'zabbix', 'vpn', 'firewall', 'ids', 'ips', 'siem',
+  'soc', 'backup', 'old', 'legacy', 'devops', 'sysadmin', 'root', 'sudo',
+  'uat', 'prod', 'staging', 'dev', 'test', 'qa',
+]);
+
+const EXPANDED_WORDLIST = [
+  'www', 'mail', 'ftp', 'smtp', 'pop', 'imap', 'webmail', 'email',
+  'app', 'api', 'dev', 'staging', 'test', 'admin', 'blog', 'shop',
+  'cdn', 'portal', 'remote', 'secure', 'support', 'docs', 'forum',
+  'git', 'ns1', 'ns2', 'ns3', 'dns1', 'dns2', 'm', 'mobile', 'web',
+  'origin', 'edge', 'gateway', 'lb', 'loadbalancer', 'proxy', 'wan', 'lan',
+  'db', 'database', 'sql', 'mongo', 'redis', 'cache', 'backup', 'backup1',
+  'backup2', 'files', 'storage', 's3', 'assets', 'media', 'static', 'img',
+  'images', 'jenkins', 'gitlab', 'github', 'bitbucket', 'jira', 'confluence',
+  'sonar', 'grafana', 'kibana', 'prometheus', 'nagios', 'zabbix',
+  'waf', 'ids', 'ips', 'siem', 'soc', 'auth', 'oauth', 'sso', 'ldap',
+  'radius', 'keycloak', 'vault', 'dashboard', 'management', 'manager',
+  'internal', 'intranet', 'config', 'private', 'secret', 'uat', 'prod',
+  'legacy', 'devops', 'sysadmin', 'ci', 'cd', 'shop', 'store', 'cart',
+  'checkout', 'pay', 'payment', 'billing', 'invoice', 'hr', 'helpdesk',
+  'ticket', 'wiki', 'kb', 'knowledgebase', 'status', 'monitor', 'uptime',
+  'alert', 'log', 'logs', 'metric', 'metrics', 'trace', 'debug',
+  'us', 'uk', 'eu', 'asia', 'africa', 'au', 'ca', 'de', 'fr', 'jp',
+];
+
+const WILDCARD_RANDOM_SUFFIX = 'a7f3x9z1';
+
+function isSensitive(name: string): boolean {
+  const base = name.split('.')[0];
+  return SENSITIVE_PREFIXES.has(base);
+}
+
+async function detectWildcard(domain: string): Promise<string | null> {
+  const probe = `${WILDCARD_RANDOM_SUFFIX}.${domain}`;
+  const r = await queryDoH(probe, 'A');
+  return r?.Answer?.[0]?.data || null;
+}
+
+async function validateSubdomain(sub: string, domain: string, wildcardIp: string | null) {
+  const a = await queryDoH(sub, 'A');
+  const aaaa = await queryDoH(sub, 'AAAA');
+  const cname = await queryDoH(sub, 'CNAME');
+  let ip = a?.Answer?.[0]?.data;
+  let cnameTarget = cname?.Answer?.[0]?.data;
+  if (!ip && aaaa?.Answer?.length) ip = aaaa.Answer[0].data;
+  if (cnameTarget && cnameTarget.endsWith('.')) cnameTarget = cnameTarget.slice(0, -1);
+  const isWildcard = !!(ip && wildcardIp && ip === wildcardIp);
+  return { sub, found: !!ip, ip: ip || null, cname: cnameTarget || null, isWildcard, recordTypes: [
+    ...(a?.Answer?.length ? ['A'] : []),
+    ...(aaaa?.Answer?.length ? ['AAAA'] : []),
+    ...(cname?.Answer?.length ? ['CNAME'] : []),
+  ]};
+}
+
 export async function findSubdomains(target: string): Promise<ReconResult> {
   const domain = cleanHost(target);
-  const prefixes = [
-    'www', 'mail', 'ftp', 'api', 'dev', 'staging', 'test', 'admin', 'blog', 'shop',
-    'cdn', 'app', 'portal', 'vpn', 'remote', 'secure', 'support', 'docs', 'forum',
-    'git', 'ns1', 'ns2', 'm', 'mobile',
-  ];
+  const prefixes = EXPANDED_WORDLIST;
+
+  const wildcardIp = await detectWildcard(domain);
 
   // Passive: certificate transparency logs (real subdomain enumeration via crt.sh)
   let ctSubs: string[] = [];
@@ -1466,34 +1555,35 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
   const wordlistResults = await Promise.all(
     prefixes.map(async (p) => {
       const sub = `${p}.${domain}`;
-      const a = await queryDoH(sub, 'A');
-      return { sub, found: !!(a?.Answer?.length), ip: a?.Answer?.[0]?.data, source: 'wordlist' as const };
+      const v = await validateSubdomain(sub, domain, wildcardIp);
+      return { sub: v.sub, found: v.found && !v.isWildcard, ip: v.ip, source: 'wordlist' as const, cname: v.cname, recordTypes: v.recordTypes, isWildcard: v.isWildcard };
     })
   );
 
-  // Merge passive (CT) + active (wordlist), validate a sample of CT results via DoH
-  const wordlistFound = wordlistResults.filter((r) => r.found).map((r) => r.sub);
-  const merged = new Set([...wordlistFound, ...ctSubs]);
+  const wordlistFound = wordlistResults.filter((r) => r.found);
+  const wordlistSubs = new Set(wordlistFound.map((r) => r.sub));
+
+  const merged = new Set([...wordlistFound.map(r => r.sub), ...ctSubs]);
   const allUnique = Array.from(merged);
-  const ctUnvalidated = ctSubs.filter((s) => !wordlistFound.includes(s)).slice(0, 60);
+  const ctUnvalidated = ctSubs.filter((s) => !wordlistSubs.has(s)).slice(0, 120);
+
   const validated = await Promise.all(
     ctUnvalidated.map(async (sub) => {
-      const a = await queryDoH(sub, 'A');
-      return { sub, found: !!(a?.Answer?.length), ip: a?.Answer?.[0]?.data, source: 'ct' as const };
+      const v = await validateSubdomain(sub, domain, wildcardIp);
+      return { sub: v.sub, found: v.found && !v.isWildcard, ip: v.ip, source: 'ct' as const, cname: v.cname, recordTypes: v.recordTypes, isWildcard: v.isWildcard };
     })
   );
 
-  const totalFound = [
-    ...wordlistResults.filter((r) => r.found),
-    ...validated.filter((r) => r.found),
-  ];
+  const totalFound = [...wordlistFound, ...validated.filter((r) => r.found)];
   const uniqueFound = new Set(totalFound.map((r) => r.sub));
   const items: ReconItem[] = totalFound.map((r) => ({
     label: r.sub,
-    value: r.ip,
-    status: 'found',
-    severity: 'info',
-    detail: r.source === 'ct' ? 'Discovered via Certificate Transparency' : 'Discovered via wordlist (validated)',
+    value: r.ip || (r.cname ? `CNAME → ${r.cname}` : undefined),
+    status: r.isWildcard ? 'wildcard' : 'found',
+    severity: isSensitive(r.sub) ? 'medium' : 'info',
+    detail: r.source === 'ct'
+      ? `Discovered via Certificate Transparency${r.cname ? ` · CNAME → ${r.cname}` : ''}`
+      : `Discovered via wordlist (validated)${r.cname ? ` · CNAME → ${r.cname}` : ''}`,
   }));
 
   return makeRecon(
@@ -1501,7 +1591,14 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
     domain,
     `Discovered ${uniqueFound.size} live subdomain(s) for ${domain} via passive CT logs and active DNS validation (${wordlistFound.length} wordlist + ${validated.filter((r) => r.found).length} CT-validated).`,
     items,
-    { Discovered: uniqueFound.size, CT: ctSubs.length, Wordlist: prefixes.length, Validated: totalFound.length }
+    {
+      Discovered: uniqueFound.size,
+      CT: ctSubs.length,
+      Wordlist: prefixes.length,
+      Validated: totalFound.length,
+      Sensitive: totalFound.filter(r => isSensitive(r.sub)).length,
+      Wildcards: totalFound.filter(r => r.isWildcard).length,
+    }
   );
 }
 

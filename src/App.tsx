@@ -49,10 +49,11 @@ import {
   Radar,
   MapPin,
   Gauge,
+  Boxes,
 } from 'lucide-react';
 
-import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult } from './types';
-import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest, scanPopoScan } from './services/osintServices';
+import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult, ReconResult } from './types';
+import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest, scanPopoScan, findSubdomains } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
@@ -627,6 +628,30 @@ export default function App() {
     })(),
   });
 
+  const makeSubdomainResults = (result: ReconResult): ScanResults => {
+    const sensitiveCount = result.items.filter(i => i.severity === 'medium').length;
+    const verifiedCount = result.items.filter(i => i.status !== 'wildcard').length;
+    return {
+      target: { value: result.target, type: 'subdomain' },
+      scanTime: new Date().toLocaleTimeString(),
+      findings: [{
+        id: 'SUBDOMAIN_SCAN',
+        module: 'subdomain',
+        title: `Subdomain Discovery Complete — ${result.items.length} found`,
+        description: result.summary,
+        severity: sensitiveCount > 0 ? 'medium' : 'pass',
+        category: 'Subdomain Discovery',
+        remediation: sensitiveCount > 0
+          ? 'Review sensitive subdomains for exposure. Ensure internal/admin endpoints are not publicly accessible.'
+          : 'No sensitive subdomains detected. Continue monitoring for new subdomain registrations.',
+      }],
+      riskScore: Math.min(100, sensitiveCount * 10 + Math.max(0, result.items.length - 5) * 2),
+      timeline: [],
+      recon: { subdomain: result },
+      recommendations: [],
+    };
+  };
+
   const [simulateDelay, setSimulateDelay] = useState(true);
   const [strictScans, setStrictScans] = useState(false);
 
@@ -640,6 +665,8 @@ export default function App() {
   });
 
   const [popoScanExpandedDomains, setPopoScanExpandedDomains] = useState<Set<string>>(new Set());
+
+  const [subdomainResult, setSubdomainResult] = useState<ReconResult | null>(null);
 
   const togglePopoScanSection = (section: string) => {
     setPopoScanExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -3094,8 +3121,161 @@ export default function App() {
                         )}
                       </div>
                     </div>
+                   ) : activeTab === 'subdomain' ? (
+                    /* Subdomain Finder — inline results */
+                    <div className="space-y-6">
+                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 shrink-0">
+                              <Boxes className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Subdomain Finder</h3>
+                              <p className="text-[11px] font-mono text-slate-400">Certificate transparency + active DNS validation</p>
+                            </div>
+                          </div>
+                          {subdomainResult && (
+                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Complete
+                            </span>
+                          )}
+                        </div>
+
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!query.trim() || isScanning) return;
+                            (async () => {
+                              setIsScanning(true);
+                              setQuery('Enumerating subdomains...');
+                              try {
+                                const result = await findSubdomains(query.trim());
+                                setSubdomainResult(result);
+                                const scanResults = makeSubdomainResults(result);
+                                setResults(scanResults);
+                                saveScanToHistory(scanResults);
+                              } catch (err) {
+                                showToast('Subdomain scan failed. Please try again.', 'error');
+                              } finally {
+                                setIsScanning(false);
+                              }
+                            })();
+                          }}
+                          className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                            isLightMode ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500' : 'border-slate-800 bg-[#0e1424]/40 shadow-lg focus-within:border-red-500/85'
+                          }`}
+                        >
+                          <div className="pl-3.5 text-slate-500">
+                            <Search className="w-5 h-5" />
+                          </div>
+                          <input
+                            type="text"
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Enter a domain (e.g., example.com)..."
+                            className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
+                            disabled={isScanning}
+                          />
+                          <button
+                            type="submit"
+                            disabled={!query.trim() || isScanning}
+                            className="px-5 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                          >
+                            {isScanning ? 'Scanning...' : 'Discover'}
+                          </button>
+                        </form>
+
+                        {isScanning && (
+                          <div className="flex items-center justify-center gap-3 py-8">
+                            <RefreshCw className="w-5 h-5 animate-spin text-indigo-500" />
+                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Enumerating subdomains via CT logs and DNS validation...</span>
+                          </div>
+                        )}
+
+                        {subdomainResult && !isScanning && (
+                          <div className="space-y-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                              {[
+                                { label: 'Discovered', value: subdomainResult.items.length, color: 'text-blue-500' },
+                                { label: 'Verified', value: subdomainResult.items.filter(i => i.status !== 'wildcard').length, color: 'text-emerald-500' },
+                                { label: 'Sensitive', value: subdomainResult.items.filter(i => i.severity === 'medium').length, color: 'text-amber-500' },
+                                { label: 'CT + Wordlist', value: `${subdomainResult.extra?.CT || 0} + ${subdomainResult.extra?.Wordlist || 0}`, color: 'text-purple-500' },
+                              ].map((stat) => (
+                                <div key={stat.label} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                  <span className="text-[10px] text-slate-500 block mb-1">{stat.label}</span>
+                                  <span className={`text-lg font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{stat.value}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            <div className={`border rounded-xl overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-800 bg-[#0e1424]/20'}`}>
+                              <div className={`px-4 py-3 border-b flex items-center justify-between font-mono text-[10px] font-bold ${isLightMode ? 'border-slate-200 bg-slate-50 text-slate-500' : 'border-slate-800 bg-[#0c1221] text-slate-400'}`}>
+                                <span>DISCOVERED SUBDOMAINS</span>
+                                <button
+                                  onClick={() => {
+                                    const text = subdomainResult.items.map(i => i.label).join('\n');
+                                    navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard'));
+                                  }}
+                                  className="px-2 py-1 rounded text-[10px] font-bold uppercase border cursor-pointer hover:bg-slate-100 transition-all flex items-center gap-1"
+                                >
+                                  <Copy className="w-3 h-3" /> Copy All
+                                </button>
+                              </div>
+                              <div className="divide-y divide-slate-200/50 max-h-[400px] overflow-y-auto">
+                                {subdomainResult.items.map((item, idx) => (
+                                  <div key={idx} className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                                      <Boxes className={`w-4 h-4 shrink-0 ${item.status === 'wildcard' ? 'text-red-400' : 'text-indigo-400'}`} />
+                                      <div className="flex-1 min-w-0">
+                                        <span className="text-sm font-mono text-slate-700 truncate block">{item.label}</span>
+                                        {item.value && (
+                                          <span className="text-[10px] text-slate-500 font-mono">{item.value}</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      {item.severity === 'medium' && (
+                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-bold uppercase">Sensitive</span>
+                                      )}
+                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                                        item.status === 'wildcard' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                        'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                      }`}>
+                                        {item.status}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                                {subdomainResult.items.length === 0 && (
+                                  <div className="px-4 py-8 text-center text-slate-500 font-mono text-sm">
+                                    No subdomains discovered. Try a different domain.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setSubdomainResult(null)}
+                                className="flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white"
+                              >
+                                <RefreshCw className="w-4 h-4" /> Scan Again
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setViewingReport(true)}
+                                className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 border ${isLightMode ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50' : 'border-slate-700 bg-slate-900/40 text-slate-300'}`}
+                              >
+                                <FileText className="w-4 h-4" /> View Full Report
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ) : (
-                    /* Dynamic Text Inputs Form */
                     <div className="space-y-4">
                       <form
                         onSubmit={(e) => {
