@@ -195,6 +195,7 @@ export function generateReportDocument(
 ): string {
   const { target, scanTime, riskScore, findings, recommendations } = results;
   const metrics = calculateRiskScore(findings);
+  const popoScan = results.poplenscan;
 
   if (format === 'json') {
     if (template === 'concise') {
@@ -361,6 +362,87 @@ export function generateReportDocument(
     html += `<p><strong>Critical:</strong> ${metrics.criticalCount} | <strong>High:</strong> ${metrics.highCount} | <strong>Medium:</strong> ${metrics.mediumCount} | <strong>Low:</strong> ${metrics.lowCount}</p>`;
     html += `</div>`;
 
+    if (popoScan) {
+      html += `<h2>PopoScan Webpage Analysis</h2>`;
+      html += `<div class="meta">`;
+      html += `<p><strong>Target URL:</strong> <code>${popoScan.targetUrl || target.value}</code></p>`;
+      html += `<p><strong>Final URL:</strong> <code>${popoScan.finalUrl || 'N/A'}</code></p>`;
+      html += `<p><strong>Scan Time:</strong> ${popoScan.scanTime || scanTime}</p>`;
+      html += `<p><strong>Total Requests:</strong> ${popoScan.statistics?.requests?.total || 0}</p>`;
+      html += `<p><strong>Total Domains:</strong> ${popoScan.statistics?.domains?.total || 0}</p>`;
+      html += `<p><strong>Third-Party Domains:</strong> <span style="color:#dc2626;font-weight:bold;">${popoScan.statistics?.domains?.thirdParty || 0}</span></p>`;
+      html += `<p><strong>First-Party Domains:</strong> ${popoScan.statistics?.domains?.firstParty || 0}</p>`;
+      html += `<p><strong>Redirects:</strong> ${popoScan.statistics?.redirects?.total || 0}</p>`;
+      html += `<p><strong>HTTPS Coverage:</strong> ${popoScan.statistics?.security?.httpsCoverage || 0}%</p>`;
+      html += `<p><strong>Overall Risk Score:</strong> <strong>${popoScan.overallRiskScore}/100</strong> (${(popoScan.riskLevel || 'N/A').toUpperCase()})</p>`;
+      html += `</div>`;
+
+      if (popoScan.statistics?.resources?.byType) {
+        html += `<h3>Resource Type Breakdown</h3>`;
+        html += `<table><tr><th>Resource Type</th><th>Count</th></tr>`;
+        Object.entries(popoScan.statistics.resources.byType).forEach(([type, count]) => {
+          html += `<tr><td>${type}</td><td>${count}</td></tr>`;
+        });
+        html += `</table>`;
+      }
+
+      if (popoScan.redirectChain?.length > 0) {
+        html += `<h3>Redirect Chain</h3>`;
+        html += `<table><tr><th>Step</th><th>From</th><th>To</th><th>Status</th><th>Type</th></tr>`;
+        popoScan.redirectChain.forEach((r: any, idx: number) => {
+          html += `<tr><td>${idx + 1}</td><td>${r.from}</td><td>${r.to}</td><td>${r.statusCode}</td><td>${r.isThirdParty ? 'Third-Party' : 'First-Party'}</td></tr>`;
+        });
+        html += `</table>`;
+      }
+
+      if (popoScan.domains?.length > 0) {
+        const thirdPartyDomains = popoScan.domains.filter((d: any) => d.isThirdParty);
+        if (thirdPartyDomains.length > 0) {
+          html += `<h3>Third-Party Domains (${thirdPartyDomains.length})</h3>`;
+          thirdPartyDomains.forEach((domain: any) => {
+            html += `<div class="card">`;
+            html += `<h4>${domain.domain}</h4>`;
+            html += `<p><strong>Requests:</strong> ${domain.requestCount} | <strong>Size:</strong> ${domain.totalSize > 0 ? (domain.totalSize / 1024).toFixed(1) + ' KB' : 'N/A'}</p>`;
+            if (domain.resources?.length > 0) {
+              html += `<ul>`;
+              domain.resources.forEach((r: any) => {
+                html += `<li><code>${r.type}</code>: ${r.url}</li>`;
+              });
+              html += `</ul>`;
+            }
+            html += `</div>`;
+          });
+        }
+
+        const firstPartyDomains = popoScan.domains.filter((d: any) => !d.isThirdParty);
+        if (firstPartyDomains.length > 0) {
+          html += `<h3>First-Party Domains (${firstPartyDomains.length})</h3>`;
+          firstPartyDomains.forEach((domain: any) => {
+            html += `<div class="card">`;
+            html += `<h4>${domain.domain}</h4>`;
+            html += `<p><strong>Requests:</strong> ${domain.requestCount} | <strong>Size:</strong> ${domain.totalSize > 0 ? (domain.totalSize / 1024).toFixed(1) + ' KB' : 'N/A'}</p>`;
+            if (domain.resources?.length > 0) {
+              html += `<ul>`;
+              domain.resources.forEach((r: any) => {
+                html += `<li><code>${r.type}</code>: ${r.url}</li>`;
+              });
+              html += `</ul>`;
+            }
+            html += `</div>`;
+          });
+        }
+      }
+
+      if (popoScan.cookies?.length > 0) {
+        html += `<h3>Cookies (${popoScan.cookies.length})</h3>`;
+        html += `<table><tr><th>Name</th><th>Domain</th><th>Secure</th><th>HttpOnly</th><th>SameSite</th></tr>`;
+        popoScan.cookies.forEach((cookie: any) => {
+          html += `<tr><td>${cookie.name}</td><td>${cookie.domain}</td><td>${cookie.secure ? 'Yes' : 'No'}</td><td>${cookie.httpOnly ? 'Yes' : 'No'}</td><td>${cookie.sameSite || '—'}</td></tr>`;
+        });
+        html += `</table>`;
+      }
+    }
+
     html += `<h2>Executive Summary</h2>`;
     html += `<div class="summary-box">`;
     html += `<p>A comprehensive browser-side OSINT audit of <code>${target.value}</code> was executed. The analysis identified <strong>${metrics.criticalCount}</strong> critical vulnerabilities, <strong>${metrics.highCount}</strong> high-risk findings, and <strong>${metrics.mediumCount}</strong> moderate-risk findings. The overall grade assigned is <strong>${metrics.grade}</strong>.</p>`;
@@ -448,6 +530,109 @@ export function generateReportDocument(
     }
     if (results.whois) {
       txt += `WHOIS Data:\n${results.whois.raw || 'N/A'}\n\n`;
+    }
+  }
+
+  if (popoScan && template !== 'concise') {
+    txt += `==================================================\n`;
+    txt += `               POPOSCAN WEBPAGE ANALYSIS\n`;
+    txt += `==================================================\n\n`;
+    txt += `Target URL: ${popoScan.targetUrl || target.value}\n`;
+    txt += `Final URL: ${popoScan.finalUrl || 'N/A'}\n`;
+    txt += `Scan Time: ${popoScan.scanTime || scanTime}\n\n`;
+
+    txt += `Summary Statistics:\n`;
+    txt += `- Total Requests: ${popoScan.statistics?.requests?.total || 0}\n`;
+    txt += `- Successful Requests: ${popoScan.statistics?.requests?.successful || 0}\n`;
+    txt += `- Failed Requests: ${popoScan.statistics?.requests?.failed || 0}\n`;
+    txt += `- Total Domains: ${popoScan.statistics?.domains?.total || 0}\n`;
+    txt += `- First-Party Domains: ${popoScan.statistics?.domains?.firstParty || 0}\n`;
+    txt += `- Third-Party Domains: ${popoScan.statistics?.domains?.thirdParty || 0}\n`;
+    txt += `- Redirects: ${popoScan.statistics?.redirects?.total || 0}\n`;
+    txt += `- Total Transfer Size: ${popoScan.statistics?.transfers?.totalBytes ? (popoScan.statistics.transfers.totalBytes / 1024).toFixed(1) + ' KB' : 'N/A'}\n`;
+    txt += `- HTTPS Coverage: ${popoScan.statistics?.security?.httpsCoverage || 0}%\n`;
+    txt += `- Mixed Content: ${popoScan.statistics?.security?.mixedContent || 0}\n`;
+    txt += `- Insecure Cookies: ${popoScan.statistics?.security?.insecureCookies || 0}\n`;
+    txt += `- Overall Risk Score: ${popoScan.overallRiskScore}/100\n`;
+    txt += `- Risk Level: ${(popoScan.riskLevel || 'N/A').toUpperCase()}\n\n`;
+
+    if (popoScan.statistics?.resources?.byType) {
+      txt += `Resource Type Breakdown:\n`;
+      Object.entries(popoScan.statistics.resources.byType).forEach(([type, count]) => {
+        txt += `- ${type}: ${count}\n`;
+      });
+      txt += `\n`;
+    }
+
+    if (popoScan.redirectChain?.length > 0) {
+      txt += `Redirect Chain:\n`;
+      popoScan.redirectChain.forEach((r: any, idx: number) => {
+        txt += `${idx + 1}. ${r.from} -> ${r.to} (${r.statusCode}) ${r.isThirdParty ? '[Third-Party]' : ''}\n`;
+      });
+      txt += `\n`;
+    }
+
+    if (popoScan.domains?.length > 0) {
+      const thirdPartyDomains = popoScan.domains.filter((d: any) => d.isThirdParty);
+      if (thirdPartyDomains.length > 0) {
+        txt += `Third-Party Domains (${thirdPartyDomains.length}):\n`;
+        thirdPartyDomains.forEach((domain: any) => {
+          txt += `\n- ${domain.domain}\n`;
+          txt += `  Requests: ${domain.requestCount}\n`;
+          txt += `  Total Size: ${domain.totalSize > 0 ? (domain.totalSize / 1024).toFixed(1) + ' KB' : 'N/A'}\n`;
+          if (domain.resources?.length > 0) {
+            txt += `  Resources:\n`;
+            domain.resources.forEach((r: any) => {
+              txt += `    - ${r.type}: ${r.url}\n`;
+            });
+          }
+          if (domain.cookies?.length > 0) {
+            txt += `  Cookies: ${domain.cookies.join(', ')}\n`;
+          }
+        });
+        txt += `\n`;
+      }
+
+      const firstPartyDomains = popoScan.domains.filter((d: any) => !d.isThirdParty);
+      if (firstPartyDomains.length > 0) {
+        txt += `First-Party Domains (${firstPartyDomains.length}):\n`;
+        firstPartyDomains.forEach((domain: any) => {
+          txt += `\n- ${domain.domain}\n`;
+          txt += `  Requests: ${domain.requestCount}\n`;
+          txt += `  Total Size: ${domain.totalSize > 0 ? (domain.totalSize / 1024).toFixed(1) + ' KB' : 'N/A'}\n`;
+          if (domain.resources?.length > 0) {
+            txt += `  Resources:\n`;
+            domain.resources.forEach((r: any) => {
+              txt += `    - ${r.type}: ${r.url}\n`;
+            });
+          }
+          if (domain.cookies?.length > 0) {
+            txt += `  Cookies: ${domain.cookies.join(', ')}\n`;
+          }
+        });
+        txt += `\n`;
+      }
+    }
+
+    if (popoScan.cookies?.length > 0) {
+      txt += `Cookies (${popoScan.cookies.length}):\n`;
+      popoScan.cookies.forEach((cookie: any) => {
+        txt += `- ${cookie.name} | Domain: ${cookie.domain} | Secure: ${cookie.secure ? 'Yes' : 'No'} | HttpOnly: ${cookie.httpOnly ? 'Yes' : 'No'} | SameSite: ${cookie.sameSite || '—'}\n`;
+      });
+      txt += `\n`;
+    }
+
+    if (popoScan.riskFactors?.length > 0) {
+      txt += `Risk Factors:\n`;
+      popoScan.riskFactors.forEach((factor: any) => {
+        txt += `- [${factor.severity?.toUpperCase() || 'INFO'}] ${factor.factor}\n`;
+        txt += `  Category: ${factor.category}\n`;
+        txt += `  Description: ${factor.description}\n`;
+        if (factor.affectedResources?.length > 0) {
+          txt += `  Affected Resources: ${factor.affectedResources.join(', ')}\n`;
+        }
+        txt += `\n`;
+      });
     }
   }
 
