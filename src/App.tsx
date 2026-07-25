@@ -631,6 +631,15 @@ export default function App() {
   const makeSubdomainResults = (result: ReconResult): ScanResults => {
     const sensitiveCount = result.items.filter(i => i.severity === 'medium').length;
     const verifiedCount = result.items.filter(i => i.status !== 'wildcard').length;
+    const subItems: any[] = result.items.map((it: any) => ({
+      subdomain: it.label,
+      recordType: it.recordTypes?.join(',') || 'A',
+      value: it.value || '',
+      source: it.source || 'wordlist',
+      validated: it.status !== 'wildcard',
+      status: it.status === 'wildcard' ? 'unresolved' : 'verified',
+      sensitivity: it.severity === 'medium' ? 'high' : 'low',
+    }));
     return {
       target: { value: result.target, type: 'subdomain' },
       scanTime: new Date().toLocaleTimeString(),
@@ -647,6 +656,7 @@ export default function App() {
       }],
       riskScore: Math.min(100, sensitiveCount * 10 + Math.max(0, result.items.length - 5) * 2),
       timeline: [],
+      dns: { records: {}, spf: { present: false, valid: false }, dmarc: { present: false }, dnssec: { enabled: false }, subdomains: subItems },
       recon: { subdomain: result },
       recommendations: [],
     };
@@ -667,6 +677,7 @@ export default function App() {
   const [popoScanExpandedDomains, setPopoScanExpandedDomains] = useState<Set<string>>(new Set());
 
   const [subdomainResult, setSubdomainResult] = useState<ReconResult | null>(null);
+  const [expandedSubdomain, setExpandedSubdomain] = useState<string | null>(null);
 
   const togglePopoScanSection = (section: string) => {
     setPopoScanExpanded(prev => ({ ...prev, [section]: !prev[section] }));
@@ -3224,27 +3235,43 @@ export default function App() {
                               </div>
                               <div className="divide-y divide-slate-200/50 max-h-[400px] overflow-y-auto">
                                 {subdomainResult.items.map((item, idx) => (
-                                  <div key={idx} className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-colors">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                      <Boxes className={`w-4 h-4 shrink-0 ${item.status === 'wildcard' ? 'text-red-400' : 'text-indigo-400'}`} />
-                                      <div className="flex-1 min-w-0">
-                                        <span className="text-sm font-mono text-slate-700 truncate block">{item.label}</span>
-                                        {item.value && (
-                                          <span className="text-[10px] text-slate-500 font-mono">{item.value}</span>
+                                  <div key={idx} className="hover:bg-slate-50/50 transition-colors">
+                                    <div
+                                      className="px-4 py-3 flex items-center justify-between gap-4 cursor-pointer"
+                                      onClick={() => setExpandedSubdomain(expandedSubdomain === item.label ? null : item.label)}
+                                    >
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <Boxes className={`w-4 h-4 shrink-0 ${item.status === 'wildcard' ? 'text-red-400' : 'text-indigo-400'}`} />
+                                        <div className="flex-1 min-w-0">
+                                          <span className="text-sm font-mono text-slate-700 truncate block">{item.label}</span>
+                                          {item.value && (
+                                            <span className="text-[10px] text-slate-500 font-mono">{item.value}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        {item.severity === 'medium' && (
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-bold uppercase">Sensitive</span>
                                         )}
+                                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
+                                          item.status === 'wildcard' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                                          'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                        }`}>
+                                          {item.status}
+                                        </span>
+                                        <ChevronRight className={`w-3.5 h-3.5 text-slate-400 transition-transform ${expandedSubdomain === item.label ? 'rotate-90' : ''}`} />
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                      {item.severity === 'medium' && (
-                                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-mono font-bold uppercase">Sensitive</span>
-                                      )}
-                                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-bold uppercase ${
-                                        item.status === 'wildcard' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                                        'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                      }`}>
-                                        {item.status}
-                                      </span>
-                                    </div>
+                                    {expandedSubdomain === item.label && (
+                                      <div className={`px-4 py-3 border-t ${isLightMode ? 'border-slate-100 bg-slate-50/80' : 'border-slate-800 bg-slate-900/20'}`}>
+                                        <div className="text-[10px] font-mono text-slate-500 leading-relaxed space-y-1">
+                                          <div className="flex items-start gap-1.5">
+                                            <Info className="w-3 h-3 mt-0.5 shrink-0 text-indigo-400" />
+                                            <span>{item.detail}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
                                 ))}
                                 {subdomainResult.items.length === 0 && (

@@ -956,7 +956,7 @@ export interface ReconResult {
   target: string;
   summary: string;
   items: ReconItem[];
-  extra?: Record<string, string | number | boolean | undefined>;
+  extra?: Record<string, any>;
 }
 
 export interface ScanResults {

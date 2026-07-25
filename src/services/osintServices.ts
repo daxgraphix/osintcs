@@ -1272,7 +1272,7 @@ function makeRecon(
   target: string,
   summary: string,
   items: ReconItem[],
-  extra?: Record<string, string | number | boolean | undefined>
+  extra?: Record<string, any>
 ): ReconResult {
   return { module, target, summary, items, ...(extra ? { extra } : {}) };
 }
@@ -1576,15 +1576,25 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
 
   const totalFound = [...wordlistFound, ...validated.filter((r) => r.found)];
   const uniqueFound = new Set(totalFound.map((r) => r.sub));
-  const items: ReconItem[] = totalFound.map((r) => ({
-    label: r.sub,
-    value: r.ip || (r.cname ? `CNAME → ${r.cname}` : undefined),
-    status: r.isWildcard ? 'wildcard' : 'found',
-    severity: isSensitive(r.sub) ? 'medium' : 'info',
-    detail: r.source === 'ct'
-      ? `Discovered via Certificate Transparency${r.cname ? ` · CNAME → ${r.cname}` : ''}`
-      : `Discovered via wordlist (validated)${r.cname ? ` · CNAME → ${r.cname}` : ''}`,
-  }));
+  const sensitiveFound = totalFound.filter(r => isSensitive(r.sub));
+  const cnameFound = totalFound.filter(r => r.cname);
+  const items: ReconItem[] = totalFound.map((r) => {
+    const sens = isSensitive(r.sub);
+    const evidence = [
+      `Source: ${r.source === 'ct' ? 'Certificate Transparency (crt.sh)' : 'Active DNS wordlist validation'}`,
+      `Records: ${r.recordTypes.join(', ')}`,
+      r.cname ? `CNAME → ${r.cname}` : `IP → ${r.ip}`,
+      `Validation: Cloudflare DoH (A=${r.recordTypes.includes('A')}, AAAA=${r.recordTypes.includes('AAAA')}, CNAME=${r.recordTypes.includes('CNAME')})`,
+      sens ? 'Risk: sensitive prefix detected (admin/auth/internal/vpn/etc.)' : 'Risk: standard prefix',
+    ].join(' | ');
+    return {
+      label: r.sub,
+      value: r.ip || (r.cname ? `CNAME → ${r.cname}` : undefined),
+      status: r.isWildcard ? 'wildcard' : 'found',
+      severity: sens ? 'medium' : 'info',
+      detail: evidence,
+    };
+  });
 
   return makeRecon(
     'subdomain',
@@ -1596,8 +1606,11 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
       CT: ctSubs.length,
       Wordlist: prefixes.length,
       Validated: totalFound.length,
-      Sensitive: totalFound.filter(r => isSensitive(r.sub)).length,
+      Sensitive: sensitiveFound.length,
       Wildcards: totalFound.filter(r => r.isWildcard).length,
+      CNAMES: cnameFound.length,
+      SensitiveList: sensitiveFound.map(r => r.sub),
+      CNAMEList: cnameFound.map(r => ({ sub: r.sub, target: r.cname })),
     }
   );
 }

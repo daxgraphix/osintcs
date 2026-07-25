@@ -419,7 +419,7 @@ export default function ReportDashboard({
             target.type === 'domain' || target.type === 'website' || target.type === 'email'
               ? { id: 'dns', label: 'DNS', icon: Globe }
               : null,
-            (target.type === 'domain' || target.type === 'website') && results.dns?.subdomains && results.dns.subdomains.length > 0
+            (target.type === 'domain' || target.type === 'website' || target.type === 'subdomain') && results.dns?.subdomains && results.dns.subdomains.length > 0
               ? { id: 'subdomains', label: `Subdomains (${results.dns.subdomains.length})`, icon: Network }
               : null,
             target.type === 'domain' || target.type === 'website'

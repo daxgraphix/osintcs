@@ -769,6 +769,126 @@ export function analyzeMetadataRules(metadata: any): Finding[] {
 }
 
 /**
+ * Subdomain Finder Rules Engine
+ * Analyzes subdomain enumeration results for sensitive exposure, CNAME
+ * infrastructure clues, wildcard DNS, and attack-surface expansion.
+ */
+export function analyzeSubdomainRules(result: any, target: string): Finding[] {
+  const findings: Finding[] = [];
+  const items = result?.items || [];
+  const extra = result?.extra || {};
+  const total = items.length;
+  const sensitive = items.filter((i: any) => i.severity === 'medium');
+  const cnames = items.filter((i: any) => i.value?.startsWith?.('CNAME →'));
+  const wildcards = items.filter((i: any) => i.status === 'wildcard');
+  const verified = items.filter((i: any) => i.status === 'found' || i.status === 'verified');
+
+  if (total === 0) {
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_NONE',
+        'subdomain',
+        'No live subdomains discovered',
+        `Enumeration against ${target} returned zero resolved subdomains. The attack surface may be smaller, or the domain uses strict DNS controls.`,
+        'pass',
+        'Subdomain Discovery',
+        'No action required. Re-scan after infrastructure changes or certificate renewals.'
+      )
+    );
+    return findings;
+  }
+
+  if (sensitive.length > 0) {
+    const list = sensitive.slice(0, 8).map((i: any) => i.label).join(', ');
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_SENSITIVE_EXPOSED',
+        'subdomain',
+        `Sensitive subdomains publicly reachable (${sensitive.length})`,
+        `Discovered ${sensitive.length} subdomain(s) with sensitive naming conventions (${list}${sensitive.length > 8 ? '...' : ''}). These often map to admin panels, CI/CD pipelines, internal portals, or VPN concentrators.`,
+        'medium',
+        'Subdomain Discovery',
+        'Restrict access to sensitive subdomains via firewall rules, VPN segmentation, or HTTP auth. Verify they are not exposing admin interfaces, debug endpoints, or internal services to the public internet.'
+      )
+    );
+  }
+
+  if (cnames.length > 0) {
+    const cnameTargets = cnames.map((i: any) => i.value.replace('CNAME → ', '')).filter((v: string) => v);
+    const uniqueCnames = [...new Set(cnameTargets)];
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_CNAME_CLUES',
+        'subdomain',
+        `CNAME records reveal external infrastructure (${uniqueCnames.length} unique target(s))`,
+        `Resolved CNAME records point to ${uniqueCnames.slice(0, 6).join(', ')}. CNAMEs often reveal cloud buckets, PaaS providers, deprecated services, or third-party integrations that expand the blast radius.`,
+        'info',
+        'Subdomain Discovery',
+        'Audit CNAME targets for ownership and exposure. Remove dangling CNAMEs pointing to decommissioned services. Verify third-party integrations do not leak sensitive data or allow subdomain takeover.'
+      )
+    );
+  }
+
+  if (wildcards.length > 0) {
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_WILDCARD_DETECTED',
+        'subdomain',
+        'Wildcard DNS entries detected',
+        `Wildcard DNS is active on ${target}. ${wildcards.length} subdomain(s) resolved to the same IP as a random probe, indicating a catch-all record. This can inflate enumeration results and may hide legitimate hosts.`,
+        'info',
+        'Subdomain Discovery',
+        'Validate whether the wildcard is intentional. If unintended, remove the wildcard A/AAAA record. Cross-reference wildcard IPs with known CDN or load-balancer ranges.'
+      )
+    );
+  }
+
+  if (total >= 20) {
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_LARGE_FOOTPRINT',
+        'subdomain',
+        `Large subdomain footprint detected (${total} entries)`,
+        `The target maintains ${total} resolved subdomains. A large footprint increases the probability of forgotten, deprecated, or misconfigured endpoints that attackers can chain for initial access.`,
+        'medium',
+        'Subdomain Discovery',
+        'Implement a subdomain lifecycle policy. Audit inactive subdomains quarterly, decommission DNS entries for retired services, and monitor certificate transparency logs for unexpected registrations.'
+      )
+    );
+  }
+
+  if (extra.CT > 0 && extra.Wordlist > 0) {
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_MULTI_SOURCE_VALIDATED',
+        'subdomain',
+        'Subdomains validated via multiple independent sources',
+        `Enumeration combined ${extra.CT} certificate-transparency entries with ${extra.Wordlist} active DNS wordlist checks. Multi-source coverage reduces false negatives and increases confidence in the discovered attack surface.`,
+        'pass',
+        'Subdomain Discovery',
+        'Continue multi-source enumeration on a regular cadence. Integrate CT log monitoring into your bug-bounty or red-team workflow.'
+      )
+    );
+  }
+
+  if (verified.length > 0 && sensitive.length === 0) {
+    findings.push(
+      createFinding(
+        'SUBDOMAIN_CLEAN',
+        'subdomain',
+        'No sensitive subdomains detected in verified set',
+        `Out of ${verified.length} verified subdomain(s), none matched high-risk naming patterns. The current public surface appears to avoid exposing administrative or internal endpoints.`,
+        'pass',
+        'Subdomain Discovery',
+        'Maintain naming conventions that avoid sensitive keywords in public DNS. Continue monitoring for drift as new services are provisioned.'
+      )
+    );
+  }
+
+  return findings;
+}
+
+/**
  * Recon Toolkit Rules Engine
  * Converts recon items that carry an actionable severity into findings.
  */
@@ -776,6 +896,10 @@ export function analyzeReconResult(result: any): Finding[] {
   const findings: Finding[] = [];
   const module = result?.module || 'recon';
   const target = result?.target || '';
+
+  if (module === 'subdomain') {
+    return analyzeSubdomainRules(result, target);
+  }
 
   (result?.items || []).forEach((item: any, idx: number) => {
     const sev = item?.severity;

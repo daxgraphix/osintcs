@@ -292,6 +292,15 @@ export function generateReportDocument(
       if (results.dns) {
         md += `### DNS Records Summary\n\`\`\`json\n${JSON.stringify(results.dns.records, null, 2)}\n\`\`\`\n\n`;
       }
+      if (results.dns?.subdomains?.length > 0) {
+        md += `### Discovered Subdomains\n\n`;
+        md += `| Subdomain | Record Type | Value | Source | Validated |\n`;
+        md += `|-----------|------------|-------|--------|----------|\n`;
+        results.dns.subdomains.forEach((sub: any) => {
+          md += `| \`${sub.subdomain}\` | ${sub.recordType || 'A'} | ${sub.value || '—'} | ${sub.source || 'dns'} | ${sub.validated ? 'Yes' : 'No'} |\n`;
+        });
+        md += `\n`;
+      }
       if (results.whois) {
         md += `### WHOIS Registration Raw\n\`\`\`text\n${results.whois.raw}\n\`\`\`\n\n`;
       }
@@ -340,6 +349,14 @@ export function generateReportDocument(
       html += `<h2>Technical Evidence Details</h2>`;
       if (results.dns) {
         html += `<h3>DNS Zone Records</h3><pre style="background:#f1f5f9;padding:12px;border-radius:6px;overflow-x:auto;">${JSON.stringify(results.dns.records, null, 2)}</pre>`;
+      }
+      if (results.dns?.subdomains?.length > 0) {
+        html += `<h3>Discovered Subdomains (${results.dns.subdomains.length})</h3>`;
+        html += `<table><tr><th>Subdomain</th><th>Record Type</th><th>Value</th><th>Source</th><th>Validated</th></tr>`;
+        results.dns.subdomains.forEach((sub: any) => {
+          html += `<tr><td><code>${sub.subdomain}</code></td><td>${sub.recordType || 'A'}</td><td>${sub.value || '—'}</td><td>${sub.source || 'dns'}</td><td>${sub.validated ? 'Yes' : 'No'}</td></tr>`;
+        });
+        html += `</table>`;
       }
       if (results.whois) {
         html += `<h3>WHOIS Registry Data</h3><pre style="background:#f1f5f9;padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap;">${results.whois.raw || 'N/A'}</pre>`;
@@ -474,6 +491,14 @@ export function generateReportDocument(
       if (results.dns) {
         html += `<h3>DNS Zone Records</h3><pre>${JSON.stringify(results.dns.records, null, 2)}</pre>`;
       }
+      if (results.dns?.subdomains?.length > 0) {
+        html += `<h3>Discovered Subdomains (${results.dns.subdomains.length})</h3>`;
+        html += `<table><tr><th>Subdomain</th><th>Record Type</th><th>Value</th><th>Source</th><th>Validated</th></tr>`;
+        results.dns.subdomains.forEach((sub: any) => {
+          html += `<tr><td><code>${sub.subdomain}</code></td><td>${sub.recordType || 'A'}</td><td>${sub.value || '—'}</td><td>${sub.source || 'dns'}</td><td>${sub.validated ? 'Yes' : 'No'}</td></tr>`;
+        });
+        html += `</table>`;
+      }
       if (results.whois) {
         html += `<h3>WHOIS Registry Data</h3><pre style="white-space:pre-wrap;">${results.whois.raw || 'N/A'}</pre>`;
       }
@@ -527,6 +552,13 @@ export function generateReportDocument(
     txt += `==================================================\n\n`;
     if (results.dns) {
       txt += `DNS Records:\n${JSON.stringify(results.dns.records, null, 2)}\n\n`;
+    }
+    if (results.dns?.subdomains?.length > 0) {
+      txt += `Discovered Subdomains (${results.dns.subdomains.length}):\n`;
+      results.dns.subdomains.forEach((sub: any) => {
+        txt += `- ${sub.subdomain} | Type: ${sub.recordType || 'A'} | Value: ${sub.value || '—'} | Source: ${sub.source || 'dns'} | Validated: ${sub.validated ? 'Yes' : 'No'}\n`;
+      });
+      txt += `\n`;
     }
     if (results.whois) {
       txt += `WHOIS Data:\n${results.whois.raw || 'N/A'}\n\n`;
