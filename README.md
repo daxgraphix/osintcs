@@ -154,6 +154,7 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - Probes common admin paths, backup files, debug endpoints, and parameter vectors.
 - Severity classification (medium/high) based on endpoint sensitivity.
 
+
 ### 18. WAF Detector
 - Inspects response headers for WAF/CDN vendor fingerprints (Cloudflare, Akamai, AWS WAF, Imperva, Sucuri, etc.).
 - Detects challenge pages and security header configurations.
