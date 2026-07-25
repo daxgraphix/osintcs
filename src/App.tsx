@@ -522,6 +522,33 @@ export default function App() {
   const [simulateDelay, setSimulateDelay] = useState(true);
   const [strictScans, setStrictScans] = useState(false);
 
+  // PopoScan expandable sections state
+  const [popoScanExpanded, setPopoScanExpanded] = useState<Record<string, boolean>>({
+    redirects: false,
+    thirdParty: false,
+    firstParty: false,
+    resources: false,
+    cookies: false,
+  });
+
+  const [popoScanExpandedDomains, setPopoScanExpandedDomains] = useState<Set<string>>(new Set());
+
+  const togglePopoScanSection = (section: string) => {
+    setPopoScanExpanded(prev => ({ ...prev, [section]: !prev[section] }));
+  };
+
+  const togglePopoScanDomain = (domain: string) => {
+    setPopoScanExpandedDomains(prev => {
+      const next = new Set(prev);
+      if (next.has(domain)) {
+        next.delete(domain);
+      } else {
+        next.add(domain);
+      }
+      return next;
+    });
+  };
+
   // Recent scans (browser local storage persistence layer)
   const [recentScans, setRecentScans] = useState<ScanResults[]>(() => {
     try {
@@ -2304,164 +2331,328 @@ export default function App() {
                           </div>
                         ) : results?.poplenscan ? (
                           <div className="space-y-6">
-                            {/* Summary Stats */}
+                            {/* Summary Stats - Clickable Cards */}
                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                               {[
-                                { label: 'Total Requests', value: results.poplenscan.statistics.requests.total, color: 'text-slate-900' },
-                                { label: 'Total Domains', value: results.poplenscan.statistics.domains.total, color: 'text-slate-900' },
-                                { label: 'Third-Party', value: results.poplenscan.statistics.domains.thirdParty, color: 'text-red-400' },
-                                { label: 'Redirects', value: results.poplenscan.statistics.redirects.total, color: 'text-amber-400' },
+                                { label: 'Total Requests', value: results.poplenscan.statistics.requests.total, color: 'text-slate-900', section: null },
+                                { label: 'Total Domains', value: results.poplenscan.statistics.domains.total, color: 'text-slate-900', section: null },
+                                { label: 'Third-Party', value: results.poplenscan.statistics.domains.thirdParty, color: 'text-red-400', section: 'thirdParty' },
+                                { label: 'Redirects', value: results.poplenscan.statistics.redirects.total, color: 'text-amber-400', section: 'redirects' },
                               ].map((field, idx) => (
-                                <div key={idx} className={`p-3.5 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  onClick={() => field.section && togglePopoScanSection(field.section)}
+                                  className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer ${field.section ? 'hover:shadow-md hover:scale-[1.02] active:scale-[0.98]' : 'cursor-default'} ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}
+                                >
                                   <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
-                                  <span className={`text-xl font-black font-mono ${field.color}`}>{field.value}</span>
-                                </div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className={`text-xl font-black font-mono ${field.color}`}>{field.value}</span>
+                                    {field.section && (
+                                      <span className={`text-slate-400 transition-transform duration-200 ${popoScanExpanded[field.section] ? 'rotate-180' : ''}`}>
+                                        <ChevronRight className="w-4 h-4 rotate-90" />
+                                      </span>
+                                    )}
+                                  </div>
+                                </button>
                               ))}
                             </div>
 
-                            {/* Redirect Chain */}
+                            {/* Redirect Chain - Collapsible */}
                             {results.poplenscan.redirectChain.length > 0 && (
                               <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
-                                <table className="w-full text-left border-collapse font-mono text-[11px]">
-                                  <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
-                                    <tr>
-                                      <th className="px-3 py-2 font-bold">Step</th>
-                                      <th className="px-3 py-2 font-bold">From</th>
-                                      <th className="px-3 py-2 font-bold">To</th>
-                                      <th className="px-3 py-2 font-bold">Status</th>
-                                      <th className="px-3 py-2 font-bold">Type</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
-                                    {results.poplenscan.redirectChain.map((r, idx) => (
-                                      <tr key={idx}>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{idx + 1}</td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.from}</code></td>
-                                        <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.to}</code></td>
-                                        <td className="px-3 py-2">
-                                          <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${r.statusCode >= 300 && r.statusCode < 400 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'}`}>{r.statusCode}</span>
-                                        </td>
-                                        <td className="px-3 py-2">
-                                          {r.isThirdParty && (
-                                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">Third-Party</span>
-                                          )}
-                                        </td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePopoScanSection('redirects')}
+                                  className={`w-full p-3 flex items-center justify-between cursor-pointer transition-colors ${isLightMode ? 'hover:bg-slate-50' : 'hover:bg-slate-900/20'}`}
+                                >
+                                  <span className={`text-xs font-bold font-mono uppercase tracking-wider ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                                    Redirect Chain ({results.poplenscan.redirectChain.length})
+                                  </span>
+                                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${popoScanExpanded['redirects'] ? 'rotate-90' : ''}`} />
+                                </button>
+                                <AnimatePresence>
+                                  {popoScanExpanded['redirects'] && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse font-mono text-[11px]">
+                                          <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                            <tr>
+                                              <th className="px-3 py-2 font-bold">Step</th>
+                                              <th className="px-3 py-2 font-bold">From</th>
+                                              <th className="px-3 py-2 font-bold">To</th>
+                                              <th className="px-3 py-2 font-bold">Status</th>
+                                              <th className="px-3 py-2 font-bold">Type</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                            {results.poplenscan.redirectChain.map((r, idx) => (
+                                              <tr key={idx}>
+                                                <td className={`px-3 py-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{idx + 1}</td>
+                                                <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.from}</code></td>
+                                                <td className={`px-3 py-2 ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}><code className="break-all">{r.to}</code></td>
+                                                <td className="px-3 py-2">
+                                                  <span className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold ${r.statusCode >= 300 && r.statusCode < 400 ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'}`}>{r.statusCode}</span>
+                                                </td>
+                                                <td className="px-3 py-2">
+                                                  {r.isThirdParty && (
+                                                    <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">Third-Party</span>
+                                                  )}
+                                                </td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
                             )}
 
-                            {/* Third-Party Domains */}
+                            {/* Third-Party Domains - Collapsible */}
                             {results.poplenscan.statistics.domains.thirdParty > 0 && (
                               <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
-                                <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
-                                  Third-Party Domains ({results.poplenscan.statistics.domains.thirdParty})
-                                </div>
-                                <div className="divide-y divide-slate-850">
-                                  {results.poplenscan.domains.filter(d => d.isThirdParty).map((domain, idx) => (
-                                    <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
-                                      <div className="flex items-center justify-between mb-1">
-                                        <span className="text-xs font-bold font-mono truncate pr-2 text-violet-400">{domain.domain}</span>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">{domain.requestCount} req</span>
-                                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
-                                        </div>
-                                      </div>
-                                      <div className="flex flex-wrap gap-1.5">
-                                        {domain.resources.slice(0, 8).map((r, ri) => (
-                                          <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-700 font-mono">
-                                            {r.type}: {r.url.length > 50 ? r.url.substring(0, 50) + '…' : r.url}
-                                          </span>
-                                        ))}
-                                        {domain.resources.length > 8 && <span className="text-[9px] text-slate-500">+{domain.resources.length - 8} more</span>}
-                                      </div>
-                                      {domain.cookies.length > 0 && (
-                                        <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
-                                      )}
-                                    </div>
-                                  ))}
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePopoScanSection('thirdParty')}
+                                  className={`w-full p-3 flex items-center justify-between cursor-pointer transition-colors ${isLightMode ? 'hover:bg-slate-50' : 'hover:bg-slate-900/20'}`}
+                                >
+                                  <span className={`text-xs font-bold font-mono uppercase tracking-wider ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                                    Third-Party Domains ({results.poplenscan.statistics.domains.thirdParty})
+                                  </span>
+                                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${popoScanExpanded['thirdParty'] ? 'rotate-90' : ''}`} />
+                                </button>
+                                <AnimatePresence>
+                                  {popoScanExpanded['thirdParty'] && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="overflow-hidden"
+                                    >
+                                       <div className="divide-y divide-slate-850">
+                                         {results.poplenscan.domains.filter(d => d.isThirdParty).map((domain, idx) => {
+                                           const isDomainExpanded = popoScanExpandedDomains.has(domain.domain);
+                                           const visibleResources = isDomainExpanded ? domain.resources : domain.resources.slice(0, 8);
+                                           return (
+                                           <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
+                                             <div className="flex items-center justify-between mb-1">
+                                               <span className="text-xs font-bold font-mono truncate pr-2 text-violet-400">{domain.domain}</span>
+                                               <div className="flex items-center gap-2">
+                                                 <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20">{domain.requestCount} req</span>
+                                                 <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
+                                               </div>
+                                             </div>
+                                             <div className="flex flex-wrap gap-1.5">
+                                               {visibleResources.map((r, ri) => (
+                                                 <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-200/60 text-slate-700 font-mono break-all">
+                                                   {r.type}: {r.url}
+                                                 </span>
+                                               ))}
+                                               {domain.resources.length > 8 && !isDomainExpanded && (
+                                                 <button
+                                                   type="button"
+                                                   onClick={() => togglePopoScanDomain(domain.domain)}
+                                                   className="text-[9px] text-violet-400 hover:text-violet-300 font-mono font-bold cursor-pointer"
+                                                 >
+                                                   +{domain.resources.length - 8} more
+                                                 </button>
+                                               )}
+                                               {isDomainExpanded && domain.resources.length > 8 && (
+                                                 <button
+                                                   type="button"
+                                                   onClick={() => togglePopoScanDomain(domain.domain)}
+                                                   className="text-[9px] text-violet-400 hover:text-violet-300 font-mono font-bold cursor-pointer"
+                                                 >
+                                                   Show less
+                                                 </button>
+                                               )}
+                                             </div>
+                                             {domain.cookies.length > 0 && (
+                                               <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
+                                             )}
+                                           </div>
+                                           );
+                                         })}
+                                       </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
                             )}
 
-                            {/* First-Party Domains */}
+                            {/* First-Party Domains - Collapsible */}
                             <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
-                              <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
-                                First-Party Domains ({results.poplenscan.domains.filter(d => !d.isThirdParty).length})
-                              </div>
-                              <div className="divide-y divide-slate-850">
-                                {results.poplenscan.domains.filter(d => !d.isThirdParty).map((domain, idx) => (
-                                  <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <span className="text-xs font-bold font-mono truncate pr-2 text-emerald-400">{domain.domain}</span>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">{domain.requestCount} req</span>
-                                        <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
-                                      </div>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5">
-                                      {domain.resources.slice(0, 8).map((r, ri) => (
-                                        <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-mono">
-                                          {r.type}: {r.url.length > 50 ? r.url.substring(0, 50) + '…' : r.url}
-                                        </span>
+                              <button
+                                type="button"
+                                onClick={() => togglePopoScanSection('firstParty')}
+                                className={`w-full p-3 flex items-center justify-between cursor-pointer transition-colors ${isLightMode ? 'hover:bg-slate-50' : 'hover:bg-slate-900/20'}`}
+                              >
+                                <span className={`text-xs font-bold font-mono uppercase tracking-wider ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                                  First-Party Domains ({results.poplenscan.domains.filter(d => !d.isThirdParty).length})
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${isLightMode ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>
+                                    {results.poplenscan.domains.filter(d => !d.isThirdParty).length}
+                                  </span>
+                                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${popoScanExpanded['firstParty'] ? 'rotate-90' : ''}`} />
+                                </div>
+                              </button>
+                              <AnimatePresence>
+                                {popoScanExpanded['firstParty'] && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                     <div className="divide-y divide-slate-850">
+                                       {results.poplenscan.domains.filter(d => !d.isThirdParty).map((domain, idx) => {
+                                         const isDomainExpanded = popoScanExpandedDomains.has(domain.domain);
+                                         const visibleResources = isDomainExpanded ? domain.resources : domain.resources.slice(0, 8);
+                                         return (
+                                         <div key={idx} className={`p-3 ${isLightMode ? 'bg-white' : 'bg-slate-900/30'}`}>
+                                           <div className="flex items-center justify-between mb-1">
+                                             <span className="text-xs font-bold font-mono truncate pr-2 text-emerald-400">{domain.domain}</span>
+                                             <div className="flex items-center gap-2">
+                                               <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">{domain.requestCount} req</span>
+                                               <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">{domain.totalSize > 0 ? `${(domain.totalSize / 1024).toFixed(1)} KB` : '—'}</span>
+                                             </div>
+                                           </div>
+                                           <div className="flex flex-wrap gap-1.5">
+                                             {visibleResources.map((r, ri) => (
+                                               <span key={ri} className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 font-mono break-all">
+                                                 {r.type}: {r.url}
+                                               </span>
+                                             ))}
+                                             {domain.resources.length > 8 && !isDomainExpanded && (
+                                               <button
+                                                 type="button"
+                                                 onClick={() => togglePopoScanDomain(domain.domain)}
+                                                 className="text-[9px] text-violet-400 hover:text-violet-300 font-mono font-bold cursor-pointer"
+                                               >
+                                                 +{domain.resources.length - 8} more
+                                               </button>
+                                             )}
+                                             {isDomainExpanded && domain.resources.length > 8 && (
+                                               <button
+                                                 type="button"
+                                                 onClick={() => togglePopoScanDomain(domain.domain)}
+                                                 className="text-[9px] text-violet-400 hover:text-violet-300 font-mono font-bold cursor-pointer"
+                                               >
+                                                 Show less
+                                               </button>
+                                             )}
+                                           </div>
+                                           {domain.cookies.length > 0 && (
+                                             <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
+                                           )}
+                                         </div>
+                                         );
+                                       })}
+                                     </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+
+                            {/* Resource Type Breakdown - Collapsible */}
+                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
+                              <button
+                                type="button"
+                                onClick={() => togglePopoScanSection('resources')}
+                                className={`w-full p-3 flex items-center justify-between cursor-pointer transition-colors ${isLightMode ? 'hover:bg-slate-50' : 'hover:bg-slate-900/20'}`}
+                              >
+                                <span className={`text-xs font-bold font-mono uppercase tracking-wider ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                                  Resource Type Breakdown
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold ${isLightMode ? 'bg-slate-100 text-slate-600' : 'bg-slate-800 text-slate-400'}`}>
+                                    {Object.keys(results.poplenscan.statistics.resources.byType).length} types
+                                  </span>
+                                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${popoScanExpanded['resources'] ? 'rotate-90' : ''}`} />
+                                </div>
+                              </button>
+                              <AnimatePresence>
+                                {popoScanExpanded['resources'] && (
+                                  <motion.div
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.2 }}
+                                    className="overflow-hidden"
+                                  >
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 p-3">
+                                      {Object.entries(results.poplenscan.statistics.resources.byType).map(([type, count]) => (
+                                        <div key={type} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 text-center">
+                                          <div className={`text-xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{count}</div>
+                                          <div className="text-[10px] font-mono uppercase text-slate-500 capitalize">{type}</div>
+                                        </div>
                                       ))}
-                                      {domain.resources.length > 8 && <span className="text-[9px] text-slate-500">+{domain.resources.length - 8} more</span>}
                                     </div>
-                                    {domain.cookies.length > 0 && (
-                                      <div className="text-[9px] text-slate-500 font-mono mt-1">Cookies: {domain.cookies.join(', ')}</div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </div>
 
-                            {/* Resource Type Breakdown */}
-                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
-                              <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
-                                Resource Type Breakdown
-                              </div>
-<div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 p-3">
-                                 {Object.entries(results.poplenscan.statistics.resources.byType).map(([type, count]) => (
-                                   <div key={type} className="p-3 rounded-lg bg-slate-50/50 border border-slate-200 text-center">
-                                     <div className={`text-xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{count}</div>
-                                     <div className="text-[10px] font-mono uppercase text-slate-500 capitalize">{type}</div>
-                                   </div>
-                                 ))}
-                              </div>
-                            </div>
-
-                            {/* Cookies */}
+                            {/* Cookies - Collapsible */}
                             {results.poplenscan.statistics.cookies.total > 0 && (
                               <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-slate-900/30'}`}>
-                                <div className={`p-3 font-bold text-sm ${isLightMode ? 'bg-slate-50 text-slate-900 border-b border-slate-200' : 'bg-slate-900/40 text-white border-b border-slate-850'}`}>
-                                  Cookies ({results.poplenscan.statistics.cookies.total})
-                                </div>
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-left border-collapse font-mono text-xs">
-                                    <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
-                                      <tr>
-                                        <th className="px-3 py-2 font-bold">Name</th>
-                                        <th className="px-3 py-2 font-bold">Domain</th>
-                                        <th className="px-3 py-2 font-bold">Secure</th>
-                                        <th className="px-3 py-2 font-bold">HttpOnly</th>
-                                        <th className="px-3 py-2 font-bold">SameSite</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
-                                      {results.poplenscan.cookies.map((cookie, idx) => (
-                                        <tr key={idx}>
-                                          <td className="px-3 py-2 font-semibold text-slate-900">{cookie.name}</td>
-                                          <td className="px-3 py-2 text-slate-700">{cookie.domain}</td>
-                                          <td className="px-3 py-2 text-center">{cookie.secure ? '✓' : '✗'}</td>
-                                          <td className="px-3 py-2 text-center">{cookie.httpOnly ? '✓' : '✗'}</td>
-                                          <td className="px-3 py-2 text-center">{cookie.sameSite || '—'}</td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => togglePopoScanSection('cookies')}
+                                  className={`w-full p-3 flex items-center justify-between cursor-pointer transition-colors ${isLightMode ? 'hover:bg-slate-50' : 'hover:bg-slate-900/20'}`}
+                                >
+                                  <span className={`text-xs font-bold font-mono uppercase tracking-wider ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
+                                    Cookies ({results.poplenscan.statistics.cookies.total})
+                                  </span>
+                                  <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${popoScanExpanded['cookies'] ? 'rotate-90' : ''}`} />
+                                </button>
+                                <AnimatePresence>
+                                  {popoScanExpanded['cookies'] && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: 'auto', opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.2 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full text-left border-collapse font-mono text-xs">
+                                          <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
+                                            <tr>
+                                              <th className="px-3 py-2 font-bold">Name</th>
+                                              <th className="px-3 py-2 font-bold">Domain</th>
+                                              <th className="px-3 py-2 font-bold">Secure</th>
+                                              <th className="px-3 py-2 font-bold">HttpOnly</th>
+                                              <th className="px-3 py-2 font-bold">SameSite</th>
+                                            </tr>
+                                          </thead>
+                                          <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
+                                            {results.poplenscan.cookies.map((cookie, idx) => (
+                                              <tr key={idx}>
+                                                <td className="px-3 py-2 font-semibold text-slate-900">{cookie.name}</td>
+                                                <td className="px-3 py-2 text-slate-700">{cookie.domain}</td>
+                                                <td className="px-3 py-2 text-center">{cookie.secure ? '✓' : '✗'}</td>
+                                                <td className="px-3 py-2 text-center">{cookie.httpOnly ? '✓' : '✗'}</td>
+                                                <td className="px-3 py-2 text-center">{cookie.sameSite || '—'}</td>
+                                              </tr>
+                                            ))}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
                               </div>
                             )}
 
