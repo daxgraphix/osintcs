@@ -6,18 +6,36 @@
 import { TargetType } from '../../types';
 import { ModuleConfig, QUICK_MODULES } from './moduleConfig';
 
+export type ModuleTabId = TargetType | 'risk' | 'home' | 'settings' | 'history';
+
+export const SPECIAL_TABS = new Set(['home', 'settings', 'history']);
+export const QUERY_EXCLUDED_TABS = new Set(['home', 'settings', 'history', 'risk', 'image', 'metadata']);
+
 const REGISTRY = new Map<TargetType | 'risk', ModuleConfig>();
 
 for (const mod of QUICK_MODULES) {
   REGISTRY.set(mod.id, mod);
 }
 
-export function getModule(id: TargetType | 'risk'): ModuleConfig | undefined {
-  return REGISTRY.get(id);
+export function getModule(id: string): ModuleConfig | undefined {
+  if (typeof id !== 'string') return undefined;
+  return REGISTRY.get(id as TargetType | 'risk');
 }
 
 export function getAllModules(): ModuleConfig[] {
   return QUICK_MODULES;
+}
+
+export function getModuleTabOrder(): Array<TargetType | 'risk'> {
+  return QUICK_MODULES.map((module) => module.id);
+}
+
+export function isModuleTab(tab: string): boolean {
+  return typeof tab === 'string' && REGISTRY.has(tab as TargetType | 'risk');
+}
+
+export function canResolveQueryFromTab(tab: string): boolean {
+  return isModuleTab(tab) && !QUERY_EXCLUDED_TABS.has(tab);
 }
 
 export function getModulesByCategory(category: string): ModuleConfig[] {

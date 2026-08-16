@@ -1498,6 +1498,21 @@ const EXPANDED_WORDLIST = [
 
 const WILDCARD_RANDOM_SUFFIX = 'a7f3x9z1';
 
+export function normalizeSubdomainCandidates(candidates: string[], maxResults = 50): string[] {
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+
+  for (const value of candidates) {
+    const candidate = value.trim().toLowerCase();
+    if (!candidate || seen.has(candidate)) continue;
+    seen.add(candidate);
+    ordered.push(candidate);
+    if (ordered.length >= maxResults) break;
+  }
+
+  return ordered;
+}
+
 function isSensitive(name: string): boolean {
   const base = name.split('.')[0];
   return SENSITIVE_PREFIXES.has(base);
@@ -1525,13 +1540,22 @@ async function validateSubdomain(sub: string, domain: string, wildcardIp: string
   ]};
 }
 
+type SubdomainValidationResult = {
+  sub: string;
+  found: boolean;
+  ip: string | null;
+  source: 'wordlist' | 'ct';
+  cname: string | null;
+  recordTypes: string[];
+  isWildcard: boolean;
+};
+
 export async function findSubdomains(target: string): Promise<ReconResult> {
   const domain = cleanHost(target);
   const prefixes = EXPANDED_WORDLIST;
 
   const wildcardIp = await detectWildcard(domain);
 
-  // Passive: certificate transparency logs (real subdomain enumeration via crt.sh)
   let ctSubs: string[] = [];
   try {
     const ct = await fetchJSON(`https://crt.sh/?q=${encodeURIComponent('%25.' + domain)}&output=json`, {}, 8000);
@@ -1545,16 +1569,16 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
             if (s.endsWith('.' + domain) && s !== domain) set.add(s);
           });
       });
-      ctSubs = Array.from(set);
+      ctSubs = normalizeSubdomainCandidates(Array.from(set), 80);
     }
   } catch {
     // fallback to wordlist only
   }
 
-  // Active: wordlist validation via DoH
+  const wordlistCandidates = prefixes.map((p) => `${p}.${domain}`);
+  const limitedWordlist = normalizeSubdomainCandidates(wordlistCandidates, 40);
   const wordlistResults = await Promise.all(
-    prefixes.map(async (p) => {
-      const sub = `${p}.${domain}`;
+    limitedWordlist.map(async (sub) => {
       const v = await validateSubdomain(sub, domain, wildcardIp);
       return { sub: v.sub, found: v.found && !v.isWildcard, ip: v.ip, source: 'wordlist' as const, cname: v.cname, recordTypes: v.recordTypes, isWildcard: v.isWildcard };
     })
@@ -1564,8 +1588,7 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
   const wordlistSubs = new Set(wordlistFound.map((r) => r.sub));
 
   const merged = new Set([...wordlistFound.map(r => r.sub), ...ctSubs]);
-  const allUnique = Array.from(merged);
-  const ctUnvalidated = ctSubs.filter((s) => !wordlistSubs.has(s)).slice(0, 120);
+  const ctUnvalidated = ctSubs.filter((s) => !wordlistSubs.has(s)).slice(0, 32);
 
   const validated = await Promise.all(
     ctUnvalidated.map(async (sub) => {
@@ -1574,7 +1597,15 @@ export async function findSubdomains(target: string): Promise<ReconResult> {
     })
   );
 
-  const totalFound = [...wordlistFound, ...validated.filter((r) => r.found)];
+  const foundCandidates = [...wordlistFound, ...validated.filter((r) => r.found)] as SubdomainValidationResult[];
+  const totalFound: SubdomainValidationResult[] = normalizeSubdomainCandidates(
+    foundCandidates.map((r) => r.sub),
+    32
+  ).map((sub) => {
+    const found = foundCandidates.find((r) => r.sub === sub);
+    return found || { sub, found: false, ip: null, source: 'ct', cname: null, recordTypes: [], isWildcard: false };
+  });
+
   const uniqueFound = new Set(totalFound.map((r) => r.sub));
   const sensitiveFound = totalFound.filter(r => isSensitive(r.sub));
   const cnameFound = totalFound.filter(r => r.cname);
@@ -3441,7 +3472,6 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, 'text/html');
 
-  // Extract resources from various HTML elements
   const resourceSelectors = [
     { selector: 'script[src]', type: 'script' as const },
     { selector: 'link[rel="stylesheet"]', type: 'stylesheet' as const },
@@ -3626,12 +3656,11 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
     }
   }
 
-  // Convert domain map to array
   const domains = Array.from(domainMap.values());
-  const thirdPartyDomains = domains.filter(d => d.isThirdParty);
+  const thirdPartyDomains = domains.filter(d => d.isThirdParty).slice(0, 12);
   const thirdPartyCount = thirdPartyDomains.length;
-  const totalRequests = resources.length;
-  const totalSize = resources.reduce((sum, r) => sum + (r.size || 0), 0);
+  const totalRequests = Math.min(resources.length, 200);
+  const totalSize = resources.slice(0, totalRequests).reduce((sum, r) => sum + (r.size || 0), 0);
   const cookieCount = cookies.length;
 
   // Build all analytical structures
@@ -3644,7 +3673,7 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
 
   // Build third-party reports
   const thirdPartyReports: PopoScanThirdPartyReport[] = thirdPartyDomains.map(d =>
-    buildThirdPartyReport(d.domain, resources, baseDomain)
+    buildThirdPartyReport(d.domain, resources.slice(0, 80), baseDomain)
   );
 
   // Build historical lookups
@@ -3683,25 +3712,29 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
    const ipAddresses: PopoScanIPAddress[] = [];
    const hostnames: PopoScanHostname[] = [];
    const firstPartyDomainsList = domains.filter(d => !d.isThirdParty).map(d => d.domain).slice(0, 5);
-    await Promise.all(firstPartyDomainsList.map(async (domain) => {
-      try {
-        const ips = await resolveDomainIPs(domain);
-        ips.forEach(async (ip) => {
-          ipAddresses.push(await buildIPAddressIntel(ip, domain));
-        });
-      } catch {
-        // DNS resolution failed, skip
-      }
-      try {
-        hostnames.push(await buildHostnameIntel(domain, domain));
-      } catch {
-        // Hostname intel failed, skip
-      }
-    }));
+   const domainIntel = await Promise.all(firstPartyDomainsList.map(async (domain) => {
+     try {
+       const ips = await resolveDomainIPs(domain);
+       const resolvedIps = await Promise.all(ips.map((ip) => buildIPAddressIntel(ip, domain)));
+       return { ipResults: resolvedIps, hostnameResult: await buildHostnameIntel(domain, domain) };
+     } catch {
+       return { ipResults: [], hostnameResult: null };
+     }
+   }));
+
+   domainIntel.forEach(({ ipResults, hostnameResult }) => {
+     ipAddresses.push(...ipResults);
+     if (hostnameResult) {
+       hostnames.push(hostnameResult);
+     }
+   });
 
   // Build URL analyses
   // Limit URL analysis to 10 script/iframe resources for performance
-  const urlAnalyses: PopoScanURLAnalysis[] = resources.filter(r => r.type === 'script' || r.type === 'iframe').slice(0, 10).map(r => analyzeURL(r.url));
+  const urlAnalyses: PopoScanURLAnalysis[] = resources
+    .filter(r => r.type === 'script' || r.type === 'iframe')
+    .slice(0, 8)
+    .map(r => analyzeURL(r.url));
 
   // Detect favicons
   const favicons = detectFavicons(doc, finalUrl, baseDomain);

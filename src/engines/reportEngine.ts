@@ -4,6 +4,7 @@
  */
 
 import { Finding, Recommendation } from '../types';
+import { sanitizeHtmlFragment } from '../utils/security';
 import { calculateRiskScore } from './riskEngine';
 
 export function generateReportDocument(
@@ -12,8 +13,13 @@ export function generateReportDocument(
   template: 'detailed' | 'concise' = 'detailed'
 ): string {
   const { target, scanTime, riskScore, findings, recommendations } = results;
-  const metrics = calculateRiskScore(findings);
+  const metrics = calculateRiskScore(findings || []);
   const popoScan = results.poplenscan;
+  const safeFindings = Array.isArray(findings) ? findings : [];
+  const safeRecommendations = Array.isArray(recommendations) ? recommendations : [];
+
+  const boundedFindings = safeFindings.slice(0, 50);
+  const boundedRecommendations = safeRecommendations.slice(0, 12);
 
   if (format === 'json') {
     if (template === 'concise') {
@@ -29,7 +35,7 @@ export function generateReportDocument(
           low: metrics.lowCount,
           pass: metrics.passCount,
         },
-        findings: findings
+        findings: boundedFindings
           .filter((f: Finding) => f.severity !== 'pass' && f.severity !== 'info')
           .map((f: Finding) => ({
             id: f.id,
@@ -38,18 +44,18 @@ export function generateReportDocument(
             category: f.category,
             description: f.description,
           })),
-        recommendationTitles: recommendations.map((r: Recommendation) => r.title),
+        recommendationTitles: boundedRecommendations.map((r: Recommendation) => r.title),
       };
       return JSON.stringify(conciseResults, null, 2);
     }
-    return JSON.stringify(results, null, 2);
+    return JSON.stringify({ ...results, findings: boundedFindings, recommendations: boundedRecommendations }, null, 2);
   }
 
   if (format === 'csv') {
     let csv = 'ID,Module,Severity,Title,Category,Description,Remediation\n';
     const targetsList = template === 'concise'
-      ? findings.filter((f: Finding) => f.severity !== 'pass' && f.severity !== 'info')
-      : findings;
+      ? boundedFindings.filter((f: Finding) => f.severity !== 'pass' && f.severity !== 'info')
+      : boundedFindings;
 
     targetsList.forEach((f: Finding) => {
       const row = [
@@ -78,8 +84,21 @@ export function generateReportDocument(
     md += `**${metrics.highCount}** high-risk findings, and **${metrics.mediumCount}** moderate-risk findings. `;
     md += `The overall grade assigned is **${metrics.grade}**.\n\n`;
 
+    if (template !== 'concise') {
+      md += `### SUMMARY BY MODULE\n`;
+      const modules = new Map<string, number>();
+      boundedFindings.forEach((f: Finding) => {
+        const current = modules.get(f.module) || 0;
+        modules.set(f.module, current + 1);
+      });
+      Array.from(modules.entries()).slice(0, 8).forEach(([module, count]) => {
+        md += `- **${module.toUpperCase()}:** ${count} finding(s) captured\n`;
+      });
+      md += `\n`;
+    }
+
     md += `## KEY FINDINGS\n\n`;
-    findings.forEach((f: Finding) => {
+    boundedFindings.forEach((f: Finding) => {
       if (f.severity !== 'pass') {
         md += `### [${f.severity.toUpperCase()}] ${f.title}\n`;
         md += `- **Module:** ${f.module.toUpperCase()}\n`;
@@ -93,7 +112,7 @@ export function generateReportDocument(
     });
 
     md += `## ACTIONABLE RECOMMENDATIONS\n\n`;
-    recommendations.forEach((r: Recommendation, index: number) => {
+    boundedRecommendations.forEach((r: Recommendation, index: number) => {
       md += `${index + 1}. **[${r.priority.toUpperCase()}] ${r.title}**\n`;
       if (template !== 'concise') {
         md += `   - **Vulnerability Category:** ${r.category}\n`;
@@ -106,8 +125,26 @@ export function generateReportDocument(
 
     if (template !== 'concise') {
       md += `## TECHNICAL EVIDENCE\n\n`;
+      const evidenceSummary: string[] = [];
       if (results.dns) {
+        evidenceSummary.push(`DNS: ${Array.isArray(results.dns.records?.A) ? results.dns.records.A.length : 0} A record(s), DNSSEC ${results.dns.dnssec?.enabled ? 'enabled' : 'disabled'}`);
         md += `### DNS Records Summary\n\`\`\`json\n${JSON.stringify(results.dns.records, null, 2)}\n\`\`\`\n\n`;
+      }
+      if (results.whois) {
+        evidenceSummary.push(`WHOIS: registrar ${results.whois.registrar || 'unknown'}; age ${results.whois.domainAgeDays || 'n/a'} days`);
+      }
+      if (results.ssl) {
+        evidenceSummary.push(`SSL: issuer ${results.ssl.issuer || 'unknown'}, protocol ${results.ssl.protocol || 'unknown'}, expires in ${results.ssl.daysRemaining || 'n/a'} days`);
+      }
+      if (results.poplenscan) {
+        evidenceSummary.push(`PopoScan: ${results.poplenscan.statistics?.domains?.thirdParty || 0} third-party domains, ${results.poplenscan.statistics?.redirects?.total || 0} redirect(s)`);
+      }
+      if (evidenceSummary.length > 0) {
+        md += `### EVIDENCE SUMMARY\n`;
+        evidenceSummary.forEach((line) => {
+          md += `- ${line}\n`;
+        });
+        md += `\n`;
       }
       if (results.dns?.subdomains?.length > 0) {
         md += `### Discovered Subdomains\n\n`;
@@ -126,6 +163,11 @@ export function generateReportDocument(
       }
     }
 
+    md += `## IMMEDIATE REMEDIATION PRIORITY\n\n`;
+    boundedRecommendations.slice(0, 3).forEach((r: Recommendation, index: number) => {
+      md += `${index + 1}. **${r.title}** — ${r.description}\n`;
+    });
+    md += `\n`;
     md += `---\n*Report compiled by OSINTCS. Created by Cyberswahili. Privacy-First OSINT Workspace.*`;
     return md;
   }
@@ -133,13 +175,15 @@ export function generateReportDocument(
   if (format === 'html') {
     let html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>OSINTCS Investigation Report: ${target.value}</title>`;
     html += `<style>body{font-family:sans-serif;line-height:1.6;color:#333;padding:40px;max-width:800px;margin:auto;} h1{border-bottom:2px solid #ddd;padding-bottom:10px;color:#1e293b;} .badge{padding:4px 8px;border-radius:4px;font-weight:bold;font-size:12px;color:#fff;} .critical{background:#ef4444;} .high{background:#f97316;} .medium{background:#eab308;} .low{background:#3b82f6;} .card{border:1px solid #e2e8f0;padding:16px;border-radius:8px;margin-bottom:16px;background:#f8fafc;} table{width:100%;border-collapse:collapse;margin:20px 0;} th,td{border:1px solid #cbd5e1;padding:12px;text-align:left;} th{background:#e2e8f0;}</style></head><body>`;
+    const safeTarget = sanitizeHtmlFragment(String(target.value || 'unknown'));
+    const safeTitleValue = sanitizeHtmlFragment(String(target.value || 'unknown'));
     html += `<h1>OSINTCS Security Investigation Report (${template.toUpperCase()})</h1>`;
-    html += `<p><strong>Target:</strong> <code>${target.value}</code> (${target.type.toUpperCase()})</p>`;
-    html += `<p><strong>Scan Timestamp:</strong> ${scanTime}</p>`;
+    html += `<p><strong>Target:</strong> <code>${safeTarget}</code> (${String(target.type || 'unknown').toUpperCase()})</p>`;
+    html += `<p><strong>Scan Timestamp:</strong> ${sanitizeHtmlFragment(String(scanTime || 'n/a'))}</p>`;
     html += `<p><strong>Risk Score:</strong> <strong style="font-size:1.5em;color:#e11d48;">${riskScore}/100</strong> (Grade: ${metrics.grade})</p>`;
 
     html += `<h2>Executive Summary</h2>`;
-    html += `<p>A comprehensive browser-side OSINT audit of <code>${target.value}</code> was executed. The analysis identified <strong>${metrics.criticalCount}</strong> critical issues, <strong>${metrics.highCount}</strong> high-risk findings, and <strong>${metrics.mediumCount}</strong> moderate-risk findings.</p>`;
+    html += `<p>A comprehensive browser-side OSINT audit of <code>${safeTitleValue}</code> was executed. The analysis identified <strong>${metrics.criticalCount}</strong> critical issues, <strong>${metrics.highCount}</strong> high-risk findings, and <strong>${metrics.mediumCount}</strong> moderate-risk findings.</p>`;
 
     html += `<h2>Findings</h2>`;
     findings.forEach((f: Finding) => {

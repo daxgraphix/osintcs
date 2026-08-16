@@ -198,6 +198,25 @@ export default function ReportDashboard({
   const { target, scanTime, riskScore, findings, recommendations, timeline } = results;
   const scoreDetails = calculateRiskScore(findings);
 
+  const moduleCoverage = [
+    { label: 'DNS', active: Boolean(results.dns) },
+    { label: 'WHOIS', active: Boolean(results.whois) },
+    { label: 'SSL', active: Boolean(results.ssl) },
+    { label: 'Headers', active: Boolean(results.headers) },
+    { label: 'IP', active: Boolean(results.ip) },
+    { label: 'IP Advance', active: Boolean(results.ipadvance) },
+    { label: 'Technology', active: Boolean(results.techlookup) },
+    { label: 'Geo', active: Boolean(results.geolookup) },
+    { label: 'Speed', active: Boolean(results.speedtest) },
+    { label: 'PopoScan', active: Boolean(results.poplenscan) },
+    { label: 'Email', active: Boolean(results.email) },
+    { label: 'Username', active: Boolean(results.username) },
+    { label: 'Hash', active: Boolean(results.hash) },
+    { label: 'Image', active: Boolean(results.image) },
+  ];
+
+  const enabledModules = moduleCoverage.filter((item) => item.active).length;
+
   // Helper to copy text to clipboard
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -413,7 +432,7 @@ export default function ReportDashboard({
         {/* Module Sub-Tabs Navigation */}
         <div
           id="tabs_rail"
-          className="flex items-center overflow-x-auto gap-1 border-b pb-0 mb-8 scrollbar-thin"
+          className="dashboard-tablist mb-8 scrollbar-thin"
           style={{ borderColor: 'var(--border-subtle)' }}
         >
           {[
@@ -441,6 +460,7 @@ export default function ReportDashboard({
             results.techlookup ? { id: 'techlookup', label: 'Technology', icon: Cpu } : null,
             results.geolookup ? { id: 'geolookup', label: 'Geo Lookup', icon: MapPin } : null,
             results.speedtest ? { id: 'speedtest', label: 'Speed Test', icon: Gauge } : null,
+            results.poplenscan ? { id: 'poplenscan', label: 'PopoScan', icon: Radar } : null,
             target.type === 'email' ? { id: 'email', label: 'Email Audit', icon: Mail } : null,
             target.type === 'username' ? { id: 'username', label: 'Username Footprint', icon: User } : null,
             target.type === 'hash' ? { id: 'hash', label: 'Hash Intel', icon: Key } : null,
@@ -458,17 +478,8 @@ export default function ReportDashboard({
                   key={tab.id}
                   id={`tab_trigger_${tab.id}`}
                   onClick={() => setActiveTab(tab.id as TabType)}
-                  className="flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap"
-                  style={isActive ? {
-                    borderColor: 'var(--accent)',
-                    color: 'var(--accent)',
-                    background: 'var(--accent-bg)',
-                  } : {
-                    borderColor: 'transparent',
-                    color: 'var(--text-muted)',
-                  }}
-                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)'; } }}
-                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}
+                  className="dashboard-tab-button"
+                  data-active={isActive}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -489,15 +500,34 @@ export default function ReportDashboard({
           {activeTab === 'overview' && (
             <TabErrorBoundary tabName="Overview">
               <>
+                <div className="mb-6 flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.18em] font-mono font-bold" style={{ color: 'var(--text-muted)' }}>Module coverage</span>
+                  {moduleCoverage.map((item) => (
+                    <span
+                      key={item.label}
+                      className="dashboard-tag"
+                      style={item.active ? {
+                        borderColor: 'rgba(16,185,129,0.35)',
+                        background: 'rgba(16,185,129,0.08)',
+                        color: 'var(--accent-green)',
+                      } : undefined}
+                    >
+                      {item.label}
+                    </span>
+                  ))}
+                  <span className="dashboard-tag ml-auto" style={{ borderColor: 'rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.08)', color: 'var(--accent-violet)' }}>
+                    {enabledModules}/{moduleCoverage.length} enabled
+                  </span>
+                </div>
+
                 <div id="overview_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Score Circular Gauge Widget */}
               <div
-                className="lg:col-span-1 rounded-2xl p-6 flex flex-col items-center justify-between min-h-[360px]"
-                style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', boxShadow: '0 2px 8px rgba(15,23,42,0.08)' }}
+                className="dashboard-surface lg:col-span-1 p-6 flex flex-col items-center justify-between min-h-[360px]"
               >
                 <div className="w-full text-left">
-                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono" style={{ color: '#475569' }}>RISK SCORE GAUGE</h3>
-                  <p className="text-xs mt-1" style={{ color: '#64748b' }}>Calculated via deterministic rule severity aggregation</p>
+                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono" style={{ color: 'var(--text-secondary)' }}>RISK SCORE GAUGE</h3>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Calculated via deterministic rule severity aggregation</p>
                 </div>
 
                 <div className="relative flex items-center justify-center my-6">
@@ -508,7 +538,7 @@ export default function ReportDashboard({
                       cy="88"
                       r="74"
                       fill="none"
-                      stroke="#e2e8f0"
+                      stroke="var(--border-default)"
                       strokeWidth="12"
                     />
                     <circle
@@ -524,16 +554,16 @@ export default function ReportDashboard({
                     />
                   </svg>
                   <div className="absolute text-center">
-                    <span className="text-5xl font-black font-mono tracking-tighter" style={{ color: '#0f172a' }}>
+                    <span className="text-5xl font-black font-mono tracking-tighter" style={{ color: 'var(--text-primary)' }}>
                       {100 - riskScore}
                     </span>
-                    <span className="block font-mono text-xs font-bold mt-1" style={{ color: '#64748b' }}>SECURITY GRADE</span>
+                    <span className="block font-mono text-xs font-bold mt-1" style={{ color: 'var(--text-muted)' }}>SECURITY GRADE</span>
                   </div>
                 </div>
 
-                <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t text-center" style={{ borderColor: '#e2e8f0' }}>
+                <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t text-center" style={{ borderColor: 'var(--border-subtle)' }}>
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: '#64748b' }}>RISK ASSESSMENT</span>
+                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-muted)' }}>RISK ASSESSMENT</span>
                     <span
                       className="text-sm font-bold font-mono"
                       style={{ color: riskScore > 65 ? '#dc2626' : riskScore > 35 ? '#d97706' : '#16a34a' }}
@@ -542,8 +572,8 @@ export default function ReportDashboard({
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: '#64748b' }}>SECURITY LEVEL</span>
-                    <span className="text-sm font-bold font-mono" style={{ color: '#0f172a' }}>
+                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-muted)' }}>SECURITY LEVEL</span>
+                    <span className="text-sm font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
                       {scoreDetails.grade}
                     </span>
                   </div>
@@ -573,31 +603,30 @@ export default function ReportDashboard({
 
                 {/* Executive Summary Narrative */}
                 <div
-                  className="rounded-2xl p-6 flex-1 flex flex-col justify-between"
-                  style={{ background: '#ffffff', border: '1.5px solid #cbd5e1', boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}
+                  className="dashboard-surface p-6 flex-1 flex flex-col justify-between"
                 >
                   <div>
-                    <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2" style={{ color: '#475569' }}>
-                      <FileCheck className="w-4 h-4" style={{ color: '#dc2626' }} /> EXECUTIVE INTELLIGENCE SUMMARY
+                    <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                      <FileCheck className="w-4 h-4" style={{ color: 'var(--text-accent)' }} /> EXECUTIVE INTELLIGENCE SUMMARY
                     </h3>
-                    <div className="text-sm leading-relaxed space-y-3 mt-4" style={{ color: '#334155' }}>
+                    <div className="text-sm leading-relaxed space-y-3 mt-4" style={{ color: 'var(--text-primary)' }}>
                       <p>
-                        Our deterministic OSINT analysis of the endpoint <code className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ background: '#f1f5f9', color: '#dc2626', border: '1px solid #e2e8f0' }}>{target.value}</code> has concluded with a security grade of <strong className="font-mono text-base" style={{ color: '#0f172a' }}>{scoreDetails.grade}</strong>.
+                        Our deterministic OSINT analysis of the endpoint <code className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ background: 'rgba(148,163,184,0.10)', color: 'var(--text-accent)', border: '1px solid var(--border-default)' }}>{target.value}</code> has concluded with a security grade of <strong className="font-mono text-base" style={{ color: 'var(--text-primary)' }}>{scoreDetails.grade}</strong>.
                       </p>
                       {scoreDetails.criticalCount > 0 || scoreDetails.highCount > 0 ? (
-                        <p style={{ color: '#991b1b', background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.15)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: '#fca5a5', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.22)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Immediate Intervention Required:</strong> The presence of {scoreDetails.criticalCount} critical and {scoreDetails.highCount} high-risk vulnerabilities compromises the perimeter integrity. Unauthenticated spoofing, downgrade exploits, or unencrypted session tracking may be viable threat scenarios.
                         </p>
                       ) : scoreDetails.mediumCount > 0 ? (
-                        <p style={{ color: '#92400e', background: 'rgba(217,119,6,0.06)', border: '1px solid rgba(217,119,6,0.15)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: '#fcd34d', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.22)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Advisory Action Recommended:</strong> The investigation flagged {scoreDetails.mediumCount} moderate anomalies. Hardening server configuration values (like HTTP security headers) and aligning SPF/DMARC policies are advised to reduce overall risk posture.
                         </p>
                       ) : (
-                        <p style={{ color: '#166534', background: 'rgba(22,163,74,0.06)', border: '1px solid rgba(22,163,74,0.15)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: '#86efac', background: 'rgba(22,163,74,0.12)', border: '1px solid rgba(22,163,74,0.22)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Excellent Security Hygiene:</strong> Our evaluation identified zero critical or medium-risk anomalies. Standard security configurations are properly synchronized, showing outstanding posture.
                         </p>
                       )}
-                      <p className="text-xs" style={{ color: '#94a3b8' }}>
+                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                         This summary is structured through automated client-side rules evaluating raw network signatures. No personal identifiers or data logs have left the browser.
                       </p>
                     </div>
@@ -622,16 +651,16 @@ export default function ReportDashboard({
             </div>
 
             {/* Historical Trend Analysis Card */}
-            <div className="mt-8 border border-slate-200 bg-white rounded-xl p-6">
+            <div className="dashboard-surface mt-8 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-600 tracking-wider uppercase font-mono flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-red-500" /> HISTORICAL RISK TREND AUDIT
+                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <Clock className="w-4 h-4" style={{ color: 'var(--text-accent)' }} /> HISTORICAL RISK TREND AUDIT
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1">Tracks security score evolution over successive system audits</p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Tracks security score evolution over successive system audits</p>
                 </div>
                 <div className="text-right">
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-red-500/10 text-red-500 border border-red-500/25 uppercase font-bold">
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded uppercase font-bold" style={{ background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)', color: 'var(--text-accent)' }}>
                     Active Target: {target.value}
                   </span>
                 </div>
@@ -687,7 +716,7 @@ export default function ReportDashboard({
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-              <div className="mt-4 flex items-center justify-between text-[10px] text-slate-500 font-mono">
+              <div className="mt-4 flex items-center justify-between text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>
                 <span>← EARLIER RUNS</span>
                 <span>CURRENT POSTURE: {results.riskScore}% RISK SCORE</span>
               </div>
@@ -1155,11 +1184,11 @@ export default function ReportDashboard({
             <TabErrorBoundary tabName="Evidence">
               <div id="evidence_panel" className="space-y-6">
               {/* Finding Filters */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border border-slate-200 bg-white rounded-xl">
-                <div className="flex flex-wrap items-center gap-4">
+              <div className="dashboard-surface flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:p-4">
+                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-2">
-                    <ListFilter className="w-4 h-4 text-red-400" />
-                    <span className="text-sm font-semibold">Filter Findings:</span>
+                    <ListFilter className="w-4 h-4" style={{ color: 'var(--text-accent)' }} />
+                    <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Filter Findings:</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {(['all', 'critical', 'high', 'medium', 'low', 'pass'] as const).map((sev) => {
@@ -1171,11 +1200,16 @@ export default function ReportDashboard({
                         <button
                           key={sev}
                           onClick={() => setEvidenceFilter(sev)}
-                          className={`px-3 py-1 text-xs rounded-lg font-mono font-medium border transition-all cursor-pointer ${
-                            isActive
-                              ? 'bg-red-500/15 border-red-500/40 text-red-400'
-                              : 'border-slate-200/60 bg-slate-50/40 text-slate-600 hover:text-slate-800 hover:bg-slate-100'
-                          }`}
+                          className="px-2.5 py-1 text-[11px] rounded-md font-mono font-medium border transition-all cursor-pointer"
+                          style={isActive ? {
+                            background: 'var(--accent-bg)',
+                            borderColor: 'var(--accent-border)',
+                            color: 'var(--text-accent)',
+                          } : {
+                            borderColor: 'var(--border-default)',
+                            background: 'rgba(148,163,184,0.04)',
+                            color: 'var(--text-muted)',
+                          }}
                         >
                           {sev.toUpperCase()} ({count})
                         </button>
@@ -1186,13 +1220,16 @@ export default function ReportDashboard({
 
                 <button
                   onClick={handleCopyFindingsMarkdown}
-                  className={`px-3 py-1.5 rounded-lg border text-xs font-bold font-mono transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
-                    copiedFindingsMarkdown
-                      ? 'bg-emerald-500/10 border-emerald-500/45 text-emerald-400'
-                      : isLightMode
-                      ? 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100 shadow-sm'
-                      : 'border-red-950 bg-red-500/10 text-red-400 hover:bg-red-500/20'
-                  }`}
+                  className="px-3 py-1.5 rounded-lg border text-xs font-bold font-mono transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                  style={copiedFindingsMarkdown ? {
+                    background: 'rgba(16,185,129,0.08)',
+                    borderColor: 'rgba(16,185,129,0.35)',
+                    color: 'var(--accent-green)',
+                  } : {
+                    background: 'var(--accent-bg)',
+                    borderColor: 'var(--accent-border)',
+                    color: 'var(--text-accent)',
+                  }}
                 >
                   {copiedFindingsMarkdown ? (
                     <>
@@ -1217,10 +1254,11 @@ export default function ReportDashboard({
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="text-center py-12 border border-slate-200 border-dashed rounded-xl"
+                      className="dashboard-card text-center py-10 border-dashed"
+                      style={{ borderColor: 'var(--border-default)' }}
                     >
-                      <ShieldCheck className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-                      <p className="text-slate-600 font-mono text-sm">No findings match the active severity filter.</p>
+                      <ShieldCheck className="w-10 h-10 mx-auto mb-3" style={{ color: 'var(--text-muted)' }} />
+                      <p className="font-mono text-sm" style={{ color: 'var(--text-secondary)' }}>No findings match the active severity filter.</p>
                     </motion.div>
                   ) : (
                     filteredFindings.map((f, idx) => {
@@ -1229,36 +1267,39 @@ export default function ReportDashboard({
                       return (
                         <motion.div
                           key={f.id}
-                          initial={{ opacity: 0, y: 15 }}
+                          initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.15) }}
-                          className={`border rounded-xl p-5 bg-white ${
-                            f.severity === 'pass' ? 'border-slate-200/50' : 'border-slate-200'
-                          } flex flex-col md:flex-row gap-4 items-start`}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={{ duration: 0.18, delay: Math.min(idx * 0.02, 0.12) }}
+                          className="dashboard-card flex flex-col md:flex-row gap-3 items-start p-3.5 sm:p-4"
+                          style={{
+                            borderColor: f.severity === 'pass' ? 'var(--border-subtle)' : 'var(--border-default)',
+                            background: 'linear-gradient(180deg, rgba(255,255,255,0.82), rgba(248,250,252,0.92))',
+                            boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.65), 0 12px 24px rgba(15,23,42,0.06)',
+                          }}
                         >
-                          <div className={`p-2.5 rounded-lg border shrink-0 ${styles.bg}`}>
-                            <SeverityIcon className="w-5 h-5" />
+                          <div className="p-2.5 rounded-xl border shrink-0" style={{ ...styles.bgStyle, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35)' }}>
+                            <SeverityIcon className="w-4 h-4" />
                           </div>
-                          <div className="flex-1 space-y-2">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-300 pb-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h4 className="text-sm font-bold text-slate-900 tracking-tight">{f.title}</h4>
+                          <div className="flex-1 space-y-2.5">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-2.5" style={{ borderColor: 'var(--border-subtle)' }}>
+                              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                                <h4 className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>{f.title}</h4>
                                 <span className={`text-[10px] px-2 py-0.5 rounded font-mono font-bold uppercase ${styles.badge}`}>
                                   {f.severity}
                                 </span>
-                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-mono">
+                                <span className="text-[10px] px-2 py-0.5 rounded font-mono" style={{ background: 'rgba(148,163,184,0.10)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}>
                                   MODULE: {f.module.toUpperCase()}
                                 </span>
                                 
                                 {/* FLAGGED BADGES */}
                                 {flaggedFindings[f.id] === 'critical' && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/20 text-red-500 border border-red-500/30 font-mono font-black animate-pulse flex items-center gap-1 shrink-0">
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/15 text-red-500 border border-red-500/25 font-mono font-black animate-pulse flex items-center gap-1 shrink-0">
                                     <span>🚩</span> CRITICAL EVIDENCE
                                   </span>
                                 )}
                                 {flaggedFindings[f.id] === 'interesting' && (
-                                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-500 border border-amber-500/30 font-mono font-black flex items-center gap-1 shrink-0">
+                                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/15 text-amber-500 border border-amber-500/25 font-mono font-black flex items-center gap-1 shrink-0">
                                     <span>⭐</span> INTERESTING
                                   </span>
                                 )}
@@ -1269,22 +1310,32 @@ export default function ReportDashboard({
                                 <div className="flex items-center gap-1.5 shrink-0 pt-1 sm:pt-0">
                                   <button
                                     onClick={() => toggleFlagFinding(f.id, 'critical')}
-                                    className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all flex items-center gap-1 border cursor-pointer ${
-                                      flaggedFindings[f.id] === 'critical'
-                                        ? 'bg-red-500 border-red-600 text-slate-900 shadow-sm'
-                                        : 'border-slate-200 bg-slate-50/40 text-slate-600 hover:border-red-500/30 hover:text-red-400'
-                                    }`}
+                                    className="px-2 py-1 rounded text-[10px] font-mono font-bold transition-all flex items-center gap-1 border cursor-pointer"
+                                    style={flaggedFindings[f.id] === 'critical' ? {
+                                      background: 'rgba(239,68,68,0.12)',
+                                      borderColor: 'rgba(239,68,68,0.30)',
+                                      color: 'var(--text-accent)',
+                                    } : {
+                                      background: 'rgba(148,163,184,0.04)',
+                                      borderColor: 'var(--border-default)',
+                                      color: 'var(--text-secondary)',
+                                    }}
                                     title="Flag as Critical Evidence"
                                   >
                                     <span>🚩</span> Critical Evidence
                                   </button>
                                   <button
                                     onClick={() => toggleFlagFinding(f.id, 'interesting')}
-                                    className={`px-2 py-1 rounded text-[10px] font-mono font-bold transition-all flex items-center gap-1 border cursor-pointer ${
-                                      flaggedFindings[f.id] === 'interesting'
-                                        ? 'bg-amber-500 border-amber-600 text-slate-900 shadow-sm'
-                                        : 'border-slate-200 bg-slate-50/40 text-slate-600 hover:border-amber-500/30 hover:text-amber-400'
-                                    }`}
+                                    className="px-2 py-1 rounded text-[10px] font-mono font-bold transition-all flex items-center gap-1 border cursor-pointer"
+                                    style={flaggedFindings[f.id] === 'interesting' ? {
+                                      background: 'rgba(245,158,11,0.12)',
+                                      borderColor: 'rgba(245,158,11,0.30)',
+                                      color: 'var(--accent-amber)',
+                                    } : {
+                                      background: 'rgba(148,163,184,0.04)',
+                                      borderColor: 'var(--border-default)',
+                                      color: 'var(--text-secondary)',
+                                    }}
                                     title="Flag as Interesting"
                                   >
                                     <span>⭐</span> Interesting
@@ -1292,11 +1343,11 @@ export default function ReportDashboard({
                                 </div>
                               )}
                             </div>
-                            <p className="text-xs text-slate-700 leading-relaxed">{f.description}</p>
+                            <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{f.description}</p>
                             {f.severity !== 'pass' && (
-                              <div className="mt-3 pt-3 border-t border-slate-200/40 text-xs">
-                                <span className="text-red-400 font-bold block font-mono uppercase text-[10px] tracking-wider mb-1">REMEDIATION ACTION:</span>
-                                <p className="text-slate-600 bg-slate-50/60 p-2.5 rounded border border-slate-200/50 leading-relaxed">
+                              <div className="mt-2 pt-2 border-t text-xs" style={{ borderColor: 'var(--border-subtle)' }}>
+                                <span className="font-bold block font-mono uppercase text-[10px] tracking-wider mb-1" style={{ color: 'var(--text-accent)' }}>REMEDIATION ACTION:</span>
+                                <p className="p-3 rounded-xl leading-relaxed" style={{ background: 'linear-gradient(180deg, rgba(148,163,184,0.08), rgba(15,23,42,0.02))', border: '1px solid var(--border-default)', color: 'var(--text-secondary)' }}>
                                   {f.remediation}
                                 </p>
                               </div>
@@ -3467,10 +3518,10 @@ export default function ReportDashboard({
                 {recommendations.map((rec, idx) => {
                   const prioColor =
                     rec.priority === 'high'
-                      ? 'border-red-500/30 bg-red-500/5 text-red-400'
+                      ? 'border-red-500/30 bg-red-500/8 text-red-500'
                       : rec.priority === 'medium'
-                      ? 'border-amber-500/30 bg-amber-500/5 text-amber-400'
-                      : 'border-blue-500/30 bg-blue-500/5 text-blue-400';
+                      ? 'border-amber-500/30 bg-amber-500/8 text-amber-500'
+                      : 'border-blue-500/30 bg-blue-500/8 text-blue-500';
 
                   return (
                     <motion.div
@@ -3478,26 +3529,28 @@ export default function ReportDashboard({
                       initial={{ opacity: 0, x: -10 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col md:flex-row gap-6 items-start"
+                      className="dashboard-card flex flex-col md:flex-row gap-5 items-start p-4 sm:p-5"
+                      style={{
+                        background: 'linear-gradient(180deg, rgba(255,255,255,0.78), rgba(248,250,252,0.9))',
+                        borderColor: 'var(--border-default)',
+                      }}
                     >
-                      {/* Left Badge */}
-                      <div className={`px-3.5 py-1 rounded-lg text-xs font-mono font-black border text-center shrink-0 w-24 ${prioColor}`}>
+                      <div className={`px-3 py-1.5 rounded-xl text-[10px] font-mono font-black border text-center shrink-0 w-24 ${prioColor}`}>
                         {rec.priority.toUpperCase()} PRIO
                       </div>
 
-                      {/* Right content details */}
-                      <div className="flex-1 space-y-2">
+                      <div className="flex-1 space-y-2.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="text-sm font-bold text-slate-900 tracking-tight">{rec.title}</h4>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 text-slate-600 font-mono">
+                          <h4 className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>{rec.title}</h4>
+                          <span className="text-[10px] px-2 py-0.5 rounded font-mono" style={{ background: 'rgba(148,163,184,0.10)', color: 'var(--text-secondary)', border: '1px solid var(--border-default)' }}>
                             CATEGORY: {rec.category}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-700 leading-relaxed bg-white/60 p-3 rounded border border-slate-200/40">
+                        <p className="text-xs leading-relaxed p-3 rounded-xl" style={{ color: 'var(--text-secondary)', background: 'linear-gradient(180deg, rgba(148,163,184,0.08), rgba(15,23,42,0.02))', border: '1px solid var(--border-default)' }}>
                           {rec.description}
                         </p>
-                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 font-mono">
-                          <span className="font-bold text-slate-600">IMPACT FACTOR:</span>
+                        <div className="text-[11px] flex items-center gap-1.5 font-mono" style={{ color: 'var(--text-muted)' }}>
+                          <span className="font-bold" style={{ color: 'var(--text-secondary)' }}>IMPACT FACTOR:</span>
                           <span>{rec.impact}</span>
                         </div>
                       </div>

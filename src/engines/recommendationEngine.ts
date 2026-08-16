@@ -15,13 +15,18 @@ export function generateRecommendations(findings: Finding[]): Recommendation[] {
       if (f.severity === 'critical' || f.severity === 'high') priority = 'high';
       else if (f.severity === 'medium') priority = 'medium';
 
+      const rootCause = f.description ? f.description.replace(/\.$/, '') : 'The observed issue is caused by configuration drift or incomplete validation.';
+      const actionPlan = f.remediation && f.remediation.trim().length > 0
+        ? f.remediation
+        : `Review the configuration for ${f.module} and confirm the control is enforced consistently across production and staging.`;
+
       recommendations.push({
         id: `REC_${f.id}`,
-        title: `Remediate ${f.title}`,
-        description: f.remediation,
+        title: `${f.title.includes('Remediate') ? '' : 'Remediate '}${f.title}`.trim(),
+        description: `${actionPlan}. Root cause: ${rootCause}. Validate the fix by re-running the relevant scan and confirming the control is active across all environments.`,
         priority,
-        category: f.category,
-        impact: `Resolves the identified vulnerability: ${f.title}.`,
+        category: f.category || 'Security Hygiene',
+        impact: `Reduces exposure from ${f.title.toLowerCase()} and improves baseline security posture while reducing the likelihood of repeat exploitation.`,
       });
     });
 
@@ -29,12 +34,12 @@ export function generateRecommendations(findings: Finding[]): Recommendation[] {
     recommendations.push({
       id: 'REC_DEFAULT_MAINTENANCE',
       title: 'Maintain Regular Security Audits',
-      description: 'Continue tracking and scanning this endpoint on a monthly cadence to capture configuration drift or key expirations.',
+      description: 'Continue tracking and scanning this endpoint on a monthly cadence to capture configuration drift, certificate expiration, and policy gaps before they become exploitable.',
       priority: 'low',
       category: 'General Hygiene',
-      impact: 'Establishes secure, consistent baseline awareness.',
+      impact: 'Creates a reliable security baseline and helps detect drift before it affects operational exposure.',
     });
   }
 
-  return recommendations;
+  return recommendations.slice(0, 12);
 }

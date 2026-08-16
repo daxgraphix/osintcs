@@ -5,6 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { calculateRiskScore, generateRecommendations, buildTimeline } from '../engines/osintEngines';
+import { generateReportDocument } from '../engines/reportEngine';
 import { Finding, TimelineEvent } from '../types';
 
 describe('calculateRiskScore', () => {
@@ -104,6 +105,42 @@ describe('generateRecommendations', () => {
     const recs = generateRecommendations([]);
     expect(recs).toHaveLength(1);
     expect(recs[0].id).toBe('REC_DEFAULT_MAINTENANCE');
+  });
+
+  it('generates actionable remediation guidance with root-cause and impact details', () => {
+    const findings: Finding[] = [
+      { id: '1', module: 'dns', title: 'DNSSEC Missing', description: 'DNSSEC is not enabled for the zone.', severity: 'high', category: 'DNS Security', remediation: 'Enable DNSSEC and sign zone data.' },
+    ];
+    const recs = generateRecommendations(findings);
+    expect(recs[0].title).toContain('DNSSEC');
+    expect(recs[0].description).toContain('Enable');
+    expect(recs[0].impact).toMatch(/risk|security|validate/i);
+  });
+});
+
+describe('generateReportDocument', () => {
+  it('includes a structured summary and evidence section for exported reports', () => {
+    const report = generateReportDocument({
+      target: { value: 'example.com', type: 'domain' },
+      scanTime: '2026-08-16',
+      riskScore: 42,
+      findings: [
+        { id: '1', module: 'dns', title: 'DNSSEC Missing', description: 'DNSSEC is not enabled for the zone.', severity: 'high', category: 'DNS Security', remediation: 'Enable DNSSEC and sign the zone.' },
+      ],
+      recommendations: [
+        { id: 'REC_1', title: 'Enable DNSSEC', description: 'Enable DNSSEC on all authoritative nameservers and validate with dig + DNSViz.', priority: 'high', category: 'DNS Security', impact: 'Reduces spoofing and cache-poisoning risk.' },
+      ],
+      dns: {
+        records: { A: ['93.184.216.34'] },
+        spf: { present: false, valid: false },
+        dmarc: { present: false },
+        dnssec: { enabled: false },
+      },
+    }, 'markdown', 'detailed');
+
+    expect(report).toContain('EXECUTIVE SUMMARY');
+    expect(report).toContain('TECHNICAL EVIDENCE');
+    expect(report).toContain('DNSSEC');
   });
 });
 

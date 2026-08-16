@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import pLimit from 'p-limit';
 import {
   InvestigationTarget,
@@ -59,6 +59,73 @@ type LogFn = (msg: string, delay?: number) => Promise<void>;
 
 const MODULE_TABS: string[] = ['home', 'risk', 'settings', 'history', 'image', 'metadata'];
 
+export function createScanRequestGuard() {
+  let latestRequestId = 0;
+
+  return {
+    begin() {
+      latestRequestId += 1;
+      return latestRequestId;
+    },
+    isCurrent(requestId: number) {
+      return requestId === latestRequestId;
+    },
+    reset() {
+      latestRequestId = 0;
+    },
+  };
+}
+
+export function assignBatchResult<T extends ScanResults | { riskScore: number }>(
+  results: Array<T | undefined>,
+  index: number,
+  value: T
+): void {
+  results[index] = value;
+}
+
+export function normalizeScanResult(result: Partial<ScanResults>): ScanResults {
+  const dedupedFindings = Array.from(
+    new Map(
+      (result.findings ?? []).map((finding) => {
+        const key = `${finding.module || 'unknown'}::${finding.title || 'untitled'}::${finding.category || 'general'}::${finding.severity || 'info'}`;
+        return [key, finding];
+      })
+    ).values()
+  );
+
+  const riskMetrics = calculateRiskScore(dedupedFindings);
+  const recommendations = (result.recommendations?.length ? result.recommendations : generateRecommendations(dedupedFindings))
+    .filter((rec, index, arr) => arr.findIndex((item) => item.id === rec.id) === index);
+  const timeline = (result.timeline ?? []).filter((event, index, arr) => arr.findIndex((item) => item.id === event.id) === index);
+
+  return {
+    target: result.target ?? { value: '', type: 'domain' },
+    scanTime: result.scanTime ?? new Date().toLocaleString(),
+    dataSource: result.dataSource ?? 'mixed',
+    recon: result.recon,
+    dns: result.dns,
+    whois: result.whois,
+    ssl: result.ssl,
+    headers: result.headers,
+    ip: result.ip,
+    email: result.email,
+    username: result.username,
+    image: result.image,
+    hash: result.hash,
+    myip: result.myip,
+    ipadvance: result.ipadvance,
+    techlookup: result.techlookup,
+    geolookup: result.geolookup,
+    speedtest: result.speedtest,
+    poplenscan: result.poplenscan,
+    findings: dedupedFindings,
+    recommendations,
+    timeline,
+    riskScore: result.riskScore && result.riskScore > 0 ? result.riskScore : riskMetrics.score,
+  };
+}
+
 /** Resolve the effective target, applying the active module tab override. */
 function resolveTarget(
   raw: string,
@@ -102,21 +169,23 @@ async function performScan(
   let reconData: Record<string, any> = {};
 
   if (finalTarget.type === 'domain' || finalTarget.type === 'website') {
-    await log('DNS-QUERY: Connecting to Cloudflare DNS-over-HTTPS gateway...', 120);
-    dnsData = await scanDomain(finalTarget.value);
+    const [domainResult, whoisResult, sslResult, headersResult] = await Promise.all([
+      scanDomain(finalTarget.value),
+      getWhoisData(finalTarget.value),
+      checkSslCertificate(finalTarget.value),
+      finalTarget.type === 'website' ? scanHeaders(finalTarget.value) : Promise.resolve(undefined),
+    ]);
+
+    dnsData = domainResult;
+    whoisData = whoisResult;
+    sslData = sslResult;
+    headersData = headersResult;
+
     await log('DNS-OK: MX, SPF, DMARC, and DNSSEC signatures resolved.', 80);
-
-    await log('WHOIS-QUERY: Requesting registration details from domain WHOIS authorities...', 120);
-    whoisData = await getWhoisData(finalTarget.value);
     await log(`WHOIS-OK: Registrar resolved as "${whoisData.registrar}".`, 80);
-
-    await log('SSL-HANDSHAKE: Querying remote socket for TLS negotiation logs...', 120);
-    sslData = await checkSslCertificate(finalTarget.value);
     await log(`SSL-OK: Established cipher "${sslData.cipher}" via ${sslData.protocol}.`, 80);
 
-    if (finalTarget.type === 'website') {
-      await log('HTTP-HEADERS: Initiating GET request to parse safety headers...', 120);
-      headersData = await scanHeaders(finalTarget.value);
+    if (headersData) {
       await log('HTTP-OK: Response headers and security flags compiled.', 80);
     }
 
@@ -351,6 +420,32 @@ async function performScan(
     const popoData = await scanPopoScan(finalTarget.value);
     await log(`POPO-OK: Mapped ${popoData.statistics.domains.total} domains (${popoData.statistics.domains.thirdParty} third-party), ${popoData.statistics.requests.total} requests, ${popoData.statistics.redirects.total} redirects.`, 80);
     findings.push(...analyzePopoScanResult(popoData));
+    reconData.poplenscan = popoData as any;
+    return {
+      target: finalTarget,
+      scanTime,
+      dataSource: 'mixed',
+      recon: reconData,
+      dns: dnsData,
+      whois: whoisData,
+      ssl: sslData,
+      headers: headersData,
+      ip: ipData,
+      email: emailData,
+      username: usernameData,
+      hash: hashData,
+      image: imageData,
+      myip: myipData,
+      ipadvance: ipAdvanceData,
+      techlookup: techLookupData,
+      geolookup: geoLookupData,
+      speedtest: speedTestData,
+      poplenscan: popoData,
+      findings,
+      recommendations: [],
+      timeline: [],
+      riskScore: 0,
+    };
   }
 
   await log('RISK-CALC: Triggering rule scoring and grade classification algorithms...', 120);
@@ -359,7 +454,7 @@ async function performScan(
   const timeline = buildTimeline({ whois: whoisData, ssl: sslData });
   await log('RISK-OK: Finished aggregation. Compiling interactive report panel...', 80);
 
-  return {
+  return normalizeScanResult({
     target: finalTarget,
     scanTime,
     dataSource: 'mixed',
@@ -378,22 +473,24 @@ async function performScan(
     techlookup: techLookupData,
     geolookup: geoLookupData,
     speedtest: speedTestData,
-    poplenscan: reconData['poplenscan'],
+    poplenscan: reconData['poplenscan'] ?? undefined,
     findings,
     recommendations,
     timeline,
     riskScore: metrics.score,
-  };
+  });
 }
 
 export function useScanWorkflow({
   simulateDelay,
+  strictScans,
   activeTab,
   onInvestigationComplete,
   onBatchComplete,
   onRateLimited,
 }: {
   simulateDelay: boolean;
+  strictScans: boolean;
   activeTab: string;
   onInvestigationComplete: (result: ScanResults) => void;
   onBatchComplete: (results: ScanResults[]) => void;
@@ -401,6 +498,8 @@ export function useScanWorkflow({
 }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanLogs, setScanLogs] = useState<string[]>([]);
+  const requestGuard = createScanRequestGuard();
+  const scanCacheRef = useRef<Map<string, Promise<ScanResults>>>(new Map());
 
   const makeLogger = (): LogFn => {
     return (msg: string, delay = 80) =>
@@ -425,6 +524,8 @@ export function useScanWorkflow({
     const finalTarget: InvestigationTarget = overrideTarget
       ? overrideTarget
       : resolveTarget('', activeTab);
+    const requestId = requestGuard.begin();
+    const scanCacheKey = `${finalTarget.type}:${finalTarget.value.trim().toLowerCase()}`;
     setIsScanning(true);
     setScanLogs([]);
     const log = makeLogger();
@@ -434,13 +535,26 @@ export function useScanWorkflow({
     await log('SYS-PARALLEL-CORE: Initializing parallel reconnaissance pipelines...', 150);
 
     try {
-      const result = await performScan(finalTarget, localFile, log);
+      const cachedScan = scanCacheRef.current.get(scanCacheKey);
+      const scanPromise = cachedScan ?? performScan(finalTarget, localFile, log).then(normalizeScanResult);
+      if (!cachedScan) {
+        scanCacheRef.current.set(scanCacheKey, scanPromise);
+      }
+
+      const result = await scanPromise;
+      if (!requestGuard.isCurrent(requestId)) {
+        return;
+      }
       setTimeout(() => {
         onInvestigationComplete(result);
         setIsScanning(false);
+        scanCacheRef.current.delete(scanCacheKey);
       }, 400);
     } catch (err) {
       console.error('OSINT scan crashed:', err);
+      if (!requestGuard.isCurrent(requestId)) {
+        return;
+      }
       await log('SYS-CRITICAL: Run crashed. Connection timed out or DNS blocked.', 100);
       setTimeout(() => setIsScanning(false), 2000);
     }
@@ -460,40 +574,53 @@ export function useScanWorkflow({
       return;
     }
 
+    const requestId = requestGuard.begin();
     setIsScanning(true);
     setScanLogs([]);
     const log = makeLogger();
 
-    await log(`SYS-BATCH: Starting batch scan reconnaissance for ${targetValues.length} targets...`, 100);
+    const uniqueTargets = Array.from(
+      new Map(
+        targetValues.map((value) => [String(value).trim().toLowerCase(), value])
+      ).values()
+    ).filter((value) => value.trim().length > 0);
 
-    const compiledResults: ScanResults[] = [];
-    const limit = pLimit(5);
+    await log(`SYS-BATCH: Starting batch scan reconnaissance for ${uniqueTargets.length} unique targets...`, 100);
 
-    const promises = targetValues.map((rawVal, idx) => 
+    const compiledResults: Array<ScanResults | undefined> = new Array(uniqueTargets.length);
+    const limit = pLimit(strictScans ? 3 : 5);
+
+    const promises = uniqueTargets.map((rawVal, idx) => 
       limit(async () => {
         const finalTarget = resolveTarget(rawVal, activeTab);
         await log(
-          `BATCH-RECON [${idx + 1}/${targetValues.length}]: Commencing audits for "${finalTarget.value}" (${finalTarget.type.toUpperCase()})...`,
+          `BATCH-RECON [${idx + 1}/${uniqueTargets.length}]: Commencing audits for "${finalTarget.value}" (${finalTarget.type.toUpperCase()})...`,
           120
         );
         try {
-          const result = await performScan(finalTarget, undefined, async () => {});
-          compiledResults.push(result);
+          const result = await performScan(finalTarget, undefined, async () => {}).then(normalizeScanResult);
+          assignBatchResult(compiledResults, idx, result);
           await log(
-            `BATCH-OK [${idx + 1}/${targetValues.length}]: Scanned "${finalTarget.value}" (Risk Score: ${result.riskScore}/100).`,
+            `BATCH-OK [${idx + 1}/${uniqueTargets.length}]: Scanned "${finalTarget.value}" (Risk Score: ${result.riskScore}/100).`,
             80
           );
         } catch (err) {
           console.error(`Batch item failed: ${rawVal}`, err);
-          await log(`BATCH-ERROR [${idx + 1}/${targetValues.length}]: Audit failed for "${rawVal}".`, 100);
+          await log(`BATCH-ERROR [${idx + 1}/${uniqueTargets.length}]: Audit failed for "${rawVal}".`, 100);
         }
       })
     );
 
-    await Promise.all(promises);
+    await Promise.allSettled(promises);
+    if (!requestGuard.isCurrent(requestId)) {
+      return;
+    }
+    const orderedResults = compiledResults
+      .filter((result): result is ScanResults => Boolean(result))
+      .map(normalizeScanResult);
     await log('SYS-BATCH-COMPLETE: Compiled results for all targeted nodes.', 100);
     setTimeout(() => {
-      onBatchComplete(compiledResults);
+      onBatchComplete(orderedResults);
       setIsScanning(false);
     }, 400);
   };

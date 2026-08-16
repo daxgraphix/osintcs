@@ -10,7 +10,14 @@ export function escapeHtml(value: string): string {
     '"': '&quot;',
     "'": '&#39;',
   };
-  return value.replace(/[&<>"']/g, (char) => map[char] || char);
+  return String(value).replace(/[&<>"']/g, (char) => map[char] || char);
+}
+
+export function sanitizeHtmlFragment(value: string): string {
+  return escapeHtml(value)
+    .replace(/javascript:/gi, 'javascript&#58;')
+    .replace(/onerror=/gi, 'onerror&#61;')
+    .replace(/onload=/gi, 'onload&#61;');
 }
 
 export function sanitizeText(value: string, maxLength = 2000): string {

@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, Globe, Settings, Shield, History } from 'lucide-react';
+import { Menu, X, Globe, Settings, History } from 'lucide-react';
 import { TargetType } from '../../types';
 import { getAllModules } from '../pages/moduleRegistry';
 import { useInvestigationStore } from '../../stores/investigationStore';
@@ -16,17 +16,21 @@ export default function MobileHeader() {
   const mobileMenuOpen = useInvestigationStore(s => s.mobileMenuOpen);
   const setMobileMenuOpen = useInvestigationStore(s => s.setMobileMenuOpen);
   const setActiveTab = useInvestigationStore(s => s.setActiveTab);
-  const theme = useInvestigationStore(s => s.theme);
-  const setTheme = useInvestigationStore(s => s.setTheme);
-
-  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const setViewingReport = useInvestigationStore(s => s.setViewingReport);
+  const setViewingBatch = useInvestigationStore(s => s.setViewingBatch);
+  const modules = useMemo(() => getAllModules(), []);
 
   const navItem = (id: TargetType | 'home' | 'risk' | 'settings' | 'history', icon: React.ReactNode, label: string) => {
     const isActive = activeTab === id;
     return (
       <button
         key={String(id)}
-        onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+        onClick={() => {
+          setActiveTab(id);
+          setViewingReport(false);
+          setViewingBatch(false);
+          setMobileMenuOpen(false);
+        }}
         aria-label={label}
         className={`
           w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold
@@ -84,7 +88,11 @@ export default function MobileHeader() {
         <div className="flex items-center gap-2">
           <ThemeToggle />
           <button
-            onClick={() => setActiveTab('history')}
+            onClick={() => {
+              setActiveTab('history');
+              setViewingReport(false);
+              setViewingBatch(false);
+            }}
             className="p-2 rounded-lg cursor-pointer border transition-colors"
             title="Scan History"
             style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}
@@ -92,7 +100,11 @@ export default function MobileHeader() {
             <History className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setActiveTab('settings')}
+            onClick={() => {
+              setActiveTab('settings');
+              setViewingReport(false);
+              setViewingBatch(false);
+            }}
             className="p-2 rounded-lg cursor-pointer border transition-colors"
             title="Settings"
             style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}
@@ -130,7 +142,7 @@ export default function MobileHeader() {
                    <span className="text-[10px] font-mono font-bold tracking-widest px-3 block mb-2" style={{ color: 'var(--text-muted)' }}>
                      RECON MODULES
                    </span>
-                   {getAllModules().map((mod) => {
+                   {modules.map((mod) => {
                     const Icon = mod.icon;
                     return navItem(mod.id, <Icon className="w-4 h-4" />, mod.label);
                   })}

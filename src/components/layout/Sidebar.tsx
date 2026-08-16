@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Globe, FileText, Layers, History, Settings,
@@ -56,6 +56,7 @@ export default function Sidebar() {
   const viewingBatch = useInvestigationStore(s => s.viewingBatch);
   const setViewingBatch = useInvestigationStore(s => s.setViewingBatch);
   const setActiveTab = useInvestigationStore(s => s.setActiveTab);
+  const modules = useMemo(() => getAllModules(), []);
 
   const navBtn = (
     id: TargetType | 'home' | 'risk' | 'settings' | 'history',
@@ -68,7 +69,11 @@ export default function Sidebar() {
     return (
       <button
         key={String(id)}
-        onClick={() => setActiveTab(id)}
+        onClick={() => {
+          setActiveTab(id);
+          setViewingReport(false);
+          setViewingBatch(false);
+        }}
         title={!sidebarOpen ? label : undefined}
         aria-current={isActive ? 'page' : undefined}
         aria-label={label}
@@ -226,7 +231,7 @@ export default function Sidebar() {
           )}
            {!sidebarOpen && <div className="h-px mx-2 mb-2" style={{ background: 'var(--border-subtle)' }} />}
 
-          {getAllModules().map((mod) => {
+          {modules.map((mod) => {
             const accent = MODULE_ACCENTS[mod.id] ?? MODULE_ACCENTS.hash;
             const Icon = mod.icon;
             return navBtn(mod.id, <Icon className="w-4 h-4" />, mod.label, accent);

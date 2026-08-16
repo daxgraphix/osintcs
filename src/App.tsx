@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import {
@@ -54,7 +54,7 @@ import {
 import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult, ReconResult } from './types';
 import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanPopoScan, findSubdomains } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
-import { getAllModules, getModule } from './components/pages/moduleRegistry';
+import { getAllModules, getModule, canResolveQueryFromTab } from './components/pages/moduleRegistry';
 import ModuleGuide from './components/pages/ModuleGuide';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
 import Toast from './components/overlays/Toast';
@@ -129,6 +129,8 @@ export default function App() {
   const batchFileInputRef = useRef<HTMLInputElement>(null);
 
   const [rateLimitCountdown, setRateLimitCountdown] = useState<{ ms: number; type: 'single' | 'batch' } | null>(null);
+  const activeModule = useMemo(() => getModule(activeTab), [activeTab]);
+  const allModules = useMemo(() => getAllModules(), []);
 
   const handleQueryChange = (value: string) => {
     setQuery(sanitizeText(value, 500));
@@ -318,6 +320,7 @@ export default function App() {
     triggerBatchInvestigation: runBatchInvestigation,
   } = useScanWorkflow({
     simulateDelay,
+    strictScans,
     activeTab,
     onInvestigationComplete: (result) => {
       setResults(result);
@@ -425,14 +428,7 @@ export default function App() {
       if (!query.trim()) return;
       const sanitizedQuery = sanitizeText(query, 500);
       const parsed = parseInvestigationTarget(sanitizedQuery);
-      const isModuleTab =
-        activeTab !== 'home' &&
-        activeTab !== 'risk' &&
-        activeTab !== 'settings' &&
-        activeTab !== 'history' &&
-        activeTab !== 'image' &&
-        activeTab !== 'metadata';
-      const finalTarget: InvestigationTarget = isModuleTab
+      const finalTarget: InvestigationTarget = canResolveQueryFromTab(activeTab)
         ? { value: parsed.value, type: activeTab as TargetType }
         : parsed;
       run(finalTarget, localFile);
@@ -546,7 +542,7 @@ export default function App() {
   };
 
   return (
-    <div className={`h-screen overflow-hidden font-sans flex flex-col md:flex-row transition-colors duration-200`} style={{
+    <div className={`h-dvh min-h-dvh overflow-hidden font-sans flex flex-col md:flex-row transition-colors duration-200`} style={{
       background: 'var(--bg-base)',
       color: 'var(--text-primary)'
     }}>
@@ -579,11 +575,11 @@ export default function App() {
 
       {/* --- MAIN CONTENT CANVAS WORKSPACE --- */}
       <ErrorBoundary>
-        <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto" role="main" aria-label="OSINT.CS main content">
+        <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto scrollbar-thin" role="main" aria-label="OSINT.CS main content">
           <a href="#main_content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-red-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-bold">Skip to main content</a>
           
           {/* Dynamic page/module views container */}
-          <div id="main_content" className="flex-1 p-4 sm:p-6 lg:p-8">
+          <div id="main_content" className="flex-1 w-full max-w-[1480px] mx-auto p-3 sm:p-6 lg:p-8">
             <AnimatePresence mode="wait">
               
               {/* --- ACTIVE REPORT OVERLAY --- */}
@@ -741,10 +737,10 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.25 }}
-                className="space-y-16"
+                className="space-y-10 sm:space-y-14"
               >
                 {/* HERO AREA (Split Columns) */}
-                <section className="grid grid-cols-1 md:gap-12 lg:gap-16 lg:grid-cols-12 gap-8 items-center">
+                <section className="grid grid-cols-1 md:gap-10 lg:gap-14 lg:grid-cols-12 gap-8 items-start">
                    
                     {/* Left Column (Brand info & quick search bar) */}
                     <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
@@ -762,7 +758,7 @@ export default function App() {
                         <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight" style={{ color: 'var(--text-primary)' }}>
                           Digital Verification &amp; Intelligence Platform
                         </h2>
-                        <p className="text-slate-400 leading-relaxed text-sm sm:text-base">
+                        <p className="muted-copy leading-relaxed text-sm sm:text-base">
                           OSINTCS helps investigators, journalists, cybersecurity professionals, and researchers discover, analyze, and verify fragmented digital information.
                         </p>
                       </div>
@@ -770,11 +766,11 @@ export default function App() {
                      {/* Integrated Quick Search Bar with Dual Mode */}
                      <div className="space-y-3 sm:space-y-4">
                        {/* Search Mode Tab Toggle */}
-                       <div className="flex gap-2 sm:gap-2.5 pb-1">
+                       <div className="flex gap-2 sm:gap-2.5 pb-1 overflow-x-auto scrollbar-thin">
  <button
             type="button"
             onClick={() => setScanMode('single')}
-            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer"
+            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer whitespace-nowrap"
             style={scanMode === 'single'
               ? { background: 'var(--accent-bg)', color: 'var(--text-accent)', borderColor: 'var(--accent-border)' }
               : { background: 'var(--bg-panel)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
@@ -785,7 +781,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setScanMode('batch')}
-            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer"
+            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer whitespace-nowrap"
             style={scanMode === 'batch'
               ? { background: 'var(--accent-bg)', color: 'var(--text-accent)', borderColor: 'var(--accent-border)' }
               : { background: 'var(--bg-panel)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
@@ -808,7 +804,7 @@ export default function App() {
                                triggerInvestigation();
                              }
                            }}
-                           className="relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 focus-within:border-red-500"
+                           className="command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 focus-within:border-red-500"
                            style={{
                              borderColor: 'var(--border-default)',
                              background: 'var(--bg-panel)',
@@ -823,11 +819,11 @@ export default function App() {
                              value={query}
                              onChange={(e) => handleQueryChange(e.target.value)}
                              placeholder="Enter a domain, URL, email, username or hash..."
-                             className="w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm placeholder-slate-500 focus:ring-0"
+                             className="min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm placeholder-slate-500 focus:ring-0"
                              style={{ color: 'var(--text-primary)' }}
                              disabled={isScanning}
                            />
-                           <div className="flex items-center gap-1.5 shrink-0 pr-1">
+                           <div className="command-actions flex items-center gap-1.5 shrink-0 pr-1">
                               <button
                                 type="button"
                                 onClick={() => setShowQrScanner(true)}
@@ -944,39 +940,38 @@ export default function App() {
 
                     {/* Try Chips */}
                     <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
-                      <span className="text-slate-500 uppercase font-semibold">QUICK ACCESS:</span>
+                      <span className="data-label uppercase font-semibold">QUICK ACCESS:</span>
                       {['cloudflare.com', 'github.com', 'natro.com', 'turhost.com', 'example.com'].map((chip) => (
                         <button
                           key={chip}
                           onClick={() => handleTryChip(chip)}
-                          className="px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer"
-                          style={{
-                            borderColor: 'var(--border-default)',
-                            background: 'var(--bg-panel)',
-                            color: 'var(--text-secondary)',
-                          }}
+                          className="keyword-chip px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer"
                         >
                           {chip}
                         </button>
                       ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-mono uppercase tracking-[0.12em]">
+                      <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--accent-border)', background: 'var(--accent-bg)', color: 'var(--text-accent)' }}>LIVE DNS</span>
+                      <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>TLS</span>
+                      <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>INTELLIGENCE</span>
+                      <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>FORENSICS</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Right Column (The interactive "Smart Target Router" card!) */}
                   <div className="lg:col-span-5">
-                    <div className="border rounded-2xl p-4 sm:p-6 relative flex flex-col justify-between min-h-[360px] sm:min-h-[380px] shadow-xl overflow-hidden"
+                    <div className="border rounded-2xl p-4 sm:p-6 relative flex flex-col justify-between min-h-[360px] sm:min-h-[380px] overflow-hidden"
                       style={{
                         borderColor: 'var(--border-default)',
-                        background: 'var(--bg-panel)',
-                        boxShadow: isDarkMode ? 'var(--shadow-xl)' : 'var(--shadow-md)',
+                        background: 'radial-gradient(circle at top, rgba(239,68,68,0.08), transparent 35%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--bg-panel)',
+                        boxShadow: isDarkMode ? '0 18px 42px rgba(2,8,23,0.50), inset 0 1px 0 rgba(255,255,255,0.04)' : '0 16px 32px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.7)',
                       }}>
-                      {/* Interactive background effect */}
-                      <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-red-500/5 rounded-full blur-xl pointer-events-none" />
-
                       <div className="space-y-5 sm:space-y-6">
                         {/* Title Row */}
-                         <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
+                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
                           <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Sliders className="w-3.5 h-3.5" /> SMART TARGET ROUTER
                           </span>
@@ -1014,7 +1009,7 @@ export default function App() {
                             <h4 className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
                               {query.trim() ? `Recommended module: ${detectedType.toUpperCase()}` : 'Awaiting target analysis...'}
                             </h4>
-                            <p className="text-[11px] text-slate-400 leading-normal">
+                            <p className="text-[11px] muted-copy leading-normal">
                               {query.trim()
                                 ? `Target "${sanitizeText(query.slice(0, 20), 20)}..." analyzed. Optimal module: ${detectedType.toUpperCase()}.`
                                 : 'Enter any target (domain, IP, email, username, hash, image) for intelligent routing.'}
@@ -1023,7 +1018,7 @@ export default function App() {
                         </div>
 
                          {/* List of Module pathways */}
-                         <div className="grid grid-cols-2 gap-2 pt-2">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
   {[
                                { step: '01', name: 'Domain Intelligence', active: query.trim() && (detectedType === 'domain' || detectedType === 'website') },
                                { step: '02', name: 'SSL/TLS Analysis', active: query.trim() && detectedType === 'website' },
@@ -1037,8 +1032,8 @@ export default function App() {
                                key={idx}
                                className={`p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
                                  m.active
-                                   ? 'border-red-500/50 bg-red-500/10 text-red-300'
-                                   : 'border-slate-800/40 bg-slate-950/20 text-slate-500'
+                                   ? 'router-path-active'
+                                   : 'router-path'
                                }`}
                              >
                                <span className="text-[9px] font-mono font-bold block">{m.step}</span>
@@ -1049,8 +1044,8 @@ export default function App() {
                       </div>
 
                       {/* Action Button */}
-                      <div className="pt-4 mt-4 border-t flex items-center justify-between text-xs font-mono" style={{ borderColor: 'var(--border-default)' }}>
-                        <span className="text-slate-500 text-[10px]">◎ Open selected pathway directly</span>
+                      <div className="pt-4 mt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-mono" style={{ borderColor: 'var(--border-default)' }}>
+                        <span className="data-label text-[10px]">Open selected pathway directly</span>
                         <button
                           onClick={() => {
                             if (query.trim()) {
@@ -1070,78 +1065,119 @@ export default function App() {
                 </section>
 
                 {/* STATISTICS TICKER */}
-                <section className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 border-y py-6 sm:py-8 text-center font-mono" style={{ borderColor: 'var(--border-default)' }}>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
-                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>{getAllModules().length}+</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
-                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>100+</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Report Formats</span>
-                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>5 Formats</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Access Mode</span>
-                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>100% Local</span>
-                  </div>
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-5 border-y py-6 sm:py-8 text-center font-mono" style={{ borderColor: 'var(--border-default)' }}>
+                  {[
+                    { label: 'Modules', value: `${getAllModules().length}+`, tone: 'var(--accent)' },
+                    { label: 'Checks Per Scan', value: '100+', tone: 'var(--accent-blue)' },
+                    { label: 'Report Formats', value: '5 Formats', tone: 'var(--accent-violet)' },
+                    { label: 'Access Mode', value: '100% Local', tone: 'var(--accent-green)' },
+                  ].map((stat) => (
+                    <div key={stat.label} className="rounded-2xl border p-4 sm:p-5" style={{ borderColor: 'var(--border-default)', background: 'linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--bg-panel)' }}>
+                      <span className="text-[10px] block uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>{stat.label}</span>
+                      <span className="mt-2 block text-2xl sm:text-3xl font-black" style={{ color: stat.tone }}>{stat.value}</span>
+                    </div>
+                  ))}
                 </section>
 
                 {/* PLATFORM MODULES SECTION */}
                 <section id="module_grid" className="space-y-8 sm:space-y-10">
                   <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 border-b pb-3 sm:pb-4" style={{ borderColor: 'var(--border-default)' }}>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-[0.2em] block">
                         OSINTCS MODULES
                       </span>
                       <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">
                         Full-spectrum reconnaissance arsenal
                       </h3>
                     </div>
-                    <p className="text-xs text-slate-400 max-w-md">
+                    <div className="flex flex-col items-start sm:items-end gap-2">
+                      <p className="text-xs muted-copy max-w-md text-left sm:text-right">
                         {getAllModules().length}+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, geolocation, technology fingerprinting, and attack-surface discovery.
-                    </p>
+                      </p>
+                      <div className="flex flex-wrap gap-2 text-[9px] font-mono uppercase tracking-[0.14em]">
+                        <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>Active Recon</span>
+                        <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>Local Execution</span>
+                      </div>
+                    </div>
                   </div>
 
                   {[
-                     { category: 'INFRASTRUCTURE & NETWORK RECON', color: 'text-red-400', modules: ['domain','website','websitescanner','networkscan','subdomain','portscan','urlfuzz','waf','domainfinder','vhosts','googlehacking','ip','ipadvance'] },
-                    { category: 'TECHNOLOGY & GEO INTELLIGENCE', color: 'text-violet-400', modules: ['techlookup','geolookup','speedtest'] },
-                    { category: 'IDENTITY & PEOPLE', color: 'text-amber-400', modules: ['email','username','peoplehunter'] },
-                    { category: 'FORENSICS & FILES', color: 'text-emerald-400', modules: ['image','metadata','hash','myip','poplenscan'] },
+                    {
+                      category: 'INFRASTRUCTURE & NETWORK RECON',
+                      accent: 'var(--accent-blue)',
+                      bg: 'var(--accent-blue-bg)',
+                      border: 'var(--accent-blue-border)',
+                      modules: ['domain', 'website', 'subdomain', 'ip', 'ipadvance', 'websitescanner', 'networkscan', 'portscan', 'urlfuzz', 'waf', 'domainfinder', 'vhosts', 'googlehacking']
+                    },
+                    {
+                      category: 'TECHNOLOGY & GEO INTELLIGENCE',
+                      accent: 'var(--accent-violet)',
+                      bg: 'var(--accent-violet-bg)',
+                      border: 'var(--accent-violet-border)',
+                      modules: ['techlookup', 'geolookup', 'speedtest']
+                    },
+                    {
+                      category: 'IDENTITY & PEOPLE',
+                      accent: 'var(--accent-amber)',
+                      bg: 'var(--accent-amber-bg)',
+                      border: 'var(--accent-amber-border)',
+                      modules: ['email', 'username', 'peoplehunter']
+                    },
+                    {
+                      category: 'FORENSICS & FILES',
+                      accent: 'var(--accent-green)',
+                      bg: 'var(--accent-green-bg)',
+                      border: 'var(--accent-green-border)',
+                      modules: ['image', 'metadata', 'hash', 'myip', 'poplenscan']
+                    },
                   ].map((cat) => (
-                    <div key={cat.category} className="space-y-4">
-                      <h4 className={`text-[10px] font-mono font-bold uppercase tracking-widest ${cat.color}`}>{cat.category}</h4>
-                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                          {cat.modules.map((modId) => {
-                             const mod = getModule(modId as TargetType | 'risk');
-                             if (!mod) return null;
-                           const Icon = mod.icon;
-                           return (
-                             <div key={modId} onClick={() => handleSelectModule(modId as TargetType | 'risk' | 'settings' | 'history')}
-                               className="border rounded-xl p-3.5 sm:p-4 space-y-3 group transition-all cursor-pointer hover:-translate-y-0.5"
-                               style={{
-                                 borderColor: 'var(--border-default)',
-                                 background: 'var(--bg-panel)',
-                                 boxShadow: isDarkMode ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
-                               }}>
-                               <div className="flex justify-between items-start">
-                                 <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20" style={{ color: 'var(--text-accent)' }}>
-                                   <Icon className="w-4 h-4" />
-                                 </div>
-                               </div>
-                               <div className="space-y-1">
-                                 <h5 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{mod.label}</h5>
-                                 <p className="text-[11px] text-slate-400 leading-normal line-clamp-2">{mod.description}</p>
-                               </div>
-                               <div className="text-[11px] font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
-                                 Open module <ArrowRight className="w-3 h-3" />
-                               </div>
-                             </div>
-                           );
-                         })}
-                       </div>
+                    <div key={cat.category} className="space-y-3.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="text-[10px] font-mono font-bold uppercase tracking-[0.18em]" style={{ color: cat.accent }}>{cat.category}</h4>
+                        <span className="text-[9px] font-mono uppercase tracking-[0.14em] px-2 py-1 rounded-full border" style={{ borderColor: cat.border, background: cat.bg, color: cat.accent }}>
+                          {cat.modules.length} modules
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-3.5">
+                        {cat.modules.map((modId) => {
+                          const mod = getModule(modId as TargetType | 'risk');
+                          if (!mod) return null;
+                          const Icon = mod.icon;
+                          const isActive = activeTab === modId;
+                          return (
+                            <button
+                              key={modId}
+                              type="button"
+                              onClick={() => handleSelectModule(modId as TargetType | 'risk' | 'settings' | 'history')}
+                              className={`module-card text-left border rounded-xl group transition-all cursor-pointer focus-visible:outline-2 focus-visible:outline-red-400 ${isActive ? 'ring-1 ring-red-300/70 shadow-sm' : ''}`}
+                              style={{
+                                '--module-accent': cat.accent,
+                                '--module-bg': cat.bg,
+                                '--module-border': cat.border,
+                                borderColor: isActive ? cat.border : 'var(--border-default)',
+                                boxShadow: isDarkMode ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+                              } as React.CSSProperties}
+                            >
+                              <div className="module-card__meta">
+                                <div className="module-icon">
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                                <span className="module-card__tag">{isActive ? 'Open' : 'Quick'}</span>
+                              </div>
+
+                              <div className="module-card__body">
+                                <h5 className="font-bold text-sm leading-tight" style={{ color: 'var(--text-primary)' }}>{mod.label}</h5>
+                                <p className="text-[11px] muted-copy leading-relaxed line-clamp-2">{mod.description}</p>
+                              </div>
+
+                              <div className="module-card__footer">
+                                <span className="module-card__status">{isActive ? 'Selected' : 'Scan'}</span>
+                                <ArrowRight className="w-3 h-3" />
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   ))}
                 </section>
@@ -1155,7 +1191,7 @@ export default function App() {
                      <h3 className="text-2xl font-black font-display tracking-tight">
                        Intelligent Investigation Flow
                      </h3>
-                     <p className="text-xs text-slate-400 leading-relaxed">
+                     <p className="text-xs muted-copy leading-relaxed">
                        Multi-module intelligence processing with correlated results, real-time validation, and structured evidence output.
                      </p>
                    </div>
@@ -1190,7 +1226,7 @@ export default function App() {
                          </span>
                          <div className="space-y-0.5 min-w-0">
                            <strong className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
-                           <p className="text-[10px] text-slate-500 leading-normal line-clamp-2">{step.desc}</p>
+                           <p className="text-[10px] muted-copy leading-normal line-clamp-2">{step.desc}</p>
                          </div>
                        </div>
                      ))}
@@ -1203,11 +1239,10 @@ export default function App() {
                      borderColor: 'var(--border-default)',
                      background: 'var(--bg-panel)',
                    }}>
-                   <div className="absolute top-0 right-0 w-40 h-40 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
                    <div className="max-w-xl mx-auto space-y-4">
                      <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
                      <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full reconnaissance suite.</h3>
-                     <p className="text-xs text-slate-400">
+                     <p className="text-xs muted-copy">
                        Audit DNS, SSL, headers, subdomains, WAF, open ports, virtual hosts, and known paths in a single synchronous workflow.
                      </p>
                      <button
@@ -1651,7 +1686,7 @@ export default function App() {
                                   }
                                 })();
                               }}
-                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                              className={`command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                                 isLightMode
                                   ? 'border-slate-200 bg-white shadow-sm focus-within:border-violet-500'
                                   : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-violet-500/80'
@@ -1665,7 +1700,7 @@ export default function App() {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Enter a website URL or hostname (e.g., example.com)..."
-                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
+                                className={`min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
                                   isLightMode ? 'text-slate-900' : 'text-white'
                                 }`}
                                 disabled={isScanning}
@@ -1673,7 +1708,7 @@ export default function App() {
                               <button
                                 type="submit"
                                 disabled={!query.trim() || isScanning}
-                                className="px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                                className="command-submit px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
                               >
                                 Scan
                               </button>
@@ -1815,7 +1850,7 @@ export default function App() {
                                   }
                                 })();
                               }}
-                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                              className={`command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                                 isLightMode
                                   ? 'border-slate-200 bg-white shadow-sm focus-within:border-cyan-500'
                                   : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-cyan-500/80'
@@ -1829,7 +1864,7 @@ export default function App() {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Enter an IP address or domain..."
-                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
+                                className={`min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
                                   isLightMode ? 'text-slate-900' : 'text-white'
                                 }`}
                                 disabled={isScanning}
@@ -1837,7 +1872,7 @@ export default function App() {
                               <button
                                 type="submit"
                                 disabled={!query.trim() || isScanning}
-                                className="px-5 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                                className="command-submit px-5 py-3 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
                               >
                                 Lookup
                               </button>
@@ -2274,7 +2309,7 @@ export default function App() {
                                   }
                                 })();
                               }}
-                              className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                              className={`command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                                 isLightMode
                                   ? 'border-slate-200 bg-white shadow-sm focus-within:border-violet-500'
                                   : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-violet-500/80'
@@ -2288,13 +2323,13 @@ export default function App() {
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
                                 placeholder="Enter a website URL (e.g., https://example.com)..."
-                                className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
+                                className={`min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
                                 disabled={isScanning}
                               />
                               <button
                                 type="submit"
                                 disabled={!query.trim() || isScanning || !isValidUrl(query.trim())}
-                                className="px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                                className="command-submit px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
                               >
                                 Scan
                               </button>
@@ -2497,7 +2532,7 @@ export default function App() {
                               }
                             })();
                           }}
-                          className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                          className={`command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                             isLightMode ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500' : 'border-slate-800 bg-[#0e1424]/40 shadow-lg focus-within:border-red-500/85'
                           }`}
                         >
@@ -2509,13 +2544,13 @@ export default function App() {
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="Enter a domain (e.g., example.com)..."
-                            className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
+                            className={`min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${isLightMode ? 'text-slate-900' : 'text-white'}`}
                             disabled={isScanning}
                           />
                           <button
                             type="submit"
                             disabled={!query.trim() || isScanning}
-                            className="px-5 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
+                            className="command-submit px-5 py-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer"
                           >
                             {isScanning ? 'Scanning...' : 'Discover'}
                           </button>
@@ -2641,7 +2676,7 @@ export default function App() {
                             triggerInvestigation();
                           }
                         }}
-                        className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
+                        className={`command-bar relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
                           isLightMode
                             ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500'
                             : 'border-slate-850 bg-[#0e1424]/40 shadow-lg focus-within:border-red-500/85'
@@ -2655,12 +2690,12 @@ export default function App() {
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
                            placeholder={getModule(activeTab)?.placeholder}
-                          className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
+                          className={`min-w-0 w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
                             isLightMode ? 'text-slate-900' : 'text-white'
                           }`}
                           disabled={isScanning}
                         />
-                        <div className="flex items-center gap-1.5 shrink-0 pr-1">
+                        <div className="command-actions flex items-center gap-1.5 shrink-0 pr-1">
                           <button
                             type="button"
                             onClick={() => setShowQrScanner(true)}
@@ -2758,18 +2793,17 @@ export default function App() {
                   <h2 className="text-xl font-black font-display flex items-center gap-2">
                     <Sliders className="w-5 h-5 text-red-500" /> Workspace Settings
                   </h2>
-                  <p className="text-xs text-slate-400 font-medium">Configure simulated telemetry delays and inspect browser DOM cache stores.</p>
+                  <p className="text-xs text-slate-400 font-medium">Tune the interface, scan behavior, and local data retention for cleaner reconnaissance workflows.</p>
                 </div>
 
                 <div className="max-w-2xl mx-auto space-y-6">
-                  {/* Settings Control Block */}
                   <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
-                    <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Recon Controls</h3>
+                    <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Performance & scanning</h3>
                     
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-4">
                       <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block">Realistic Console Delays</strong>
-                        <p className="text-xs text-slate-500 leading-normal">Simulates network query delays in the HUD console logs.</p>
+                        <strong className="text-sm font-semibold block">Realistic console delays</strong>
+                        <p className="text-xs text-slate-500 leading-normal">Add browser-like pacing so the scan HUD feels closer to a live investigation.</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -2782,10 +2816,10 @@ export default function App() {
                       </label>
                     </div>
 
-                    <div className="flex items-center justify-between pt-4 border-t border-slate-800/40">
+                    <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-800/40">
                       <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block">Thorough Network Auditing</strong>
-                        <p className="text-xs text-slate-500 leading-normal">Performs deep parallel certificate validations on subdomain mappings.</p>
+                        <strong className="text-sm font-semibold block">Deep validation mode</strong>
+                        <p className="text-xs text-slate-500 leading-normal">Slows concurrent scans and raises validation depth for high-risk recon modules.</p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">
                         <input
@@ -2797,27 +2831,25 @@ export default function App() {
                         <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
                       </label>
                     </div>
-                   </div>
+                  </div>
 
-                   {/* Appearance */}
-                   <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
-                     <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Appearance</h3>
-                     <div className="flex items-center justify-between">
-                       <div className="space-y-0.5 pr-4">
-                         <strong className="text-sm font-semibold block">Theme</strong>
-                         <p className="text-xs text-slate-500 leading-normal">Choose between light, dark, or system preference.</p>
-                       </div>
-                       <ThemeToggle />
-                     </div>
-                   </div>
-
-                   {/* Sandbox Cache Clear */}
-                  <div className={`border rounded-xl p-5 space-y-4 border-red-500/20 bg-red-500/5`}>
-                    <h3 className="text-xs font-bold font-mono uppercase text-red-400 tracking-wider">Data Management</h3>
-                    <div className="flex items-center justify-between">
+                  <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
+                    <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Interface</h3>
+                    <div className="flex items-center justify-between gap-4">
                       <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block text-red-300">Wipe Investigation History</strong>
-                        <p className="text-xs text-red-500/70 leading-normal">Irreversibly cleans all stored targets, files, and findings from local storage.</p>
+                        <strong className="text-sm font-semibold block">Theme</strong>
+                        <p className="text-xs text-slate-500 leading-normal">Switch between light mode, dark mode, or your system preference.</p>
+                      </div>
+                      <ThemeToggle />
+                    </div>
+                  </div>
+
+                  <div className={`border rounded-xl p-5 space-y-4 border-red-500/20 bg-red-500/5`}>
+                    <h3 className="text-xs font-bold font-mono uppercase text-red-400 tracking-wider">Data management</h3>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="space-y-0.5 pr-4">
+                        <strong className="text-sm font-semibold block text-red-300">Clear investigation history</strong>
+                        <p className="text-xs text-red-500/70 leading-normal">Remove stored local scan history and recent results from the browser sandbox.</p>
                       </div>
                       <button
                         onClick={clearHistory}
@@ -2890,7 +2922,7 @@ export default function App() {
                               </div>
 
                               <div className="space-y-1">
-                                <h4 className="font-bold font-mono text-sm truncate text-slate-200">{sanitizeText(scan.target.value, 80)}</h4>
+                                <h4 className="font-bold font-mono text-sm truncate" style={{ color: 'var(--text-primary)' }}>{sanitizeText(scan.target.value, 80)}</h4>
                                 <span className="text-[10px] text-slate-500 font-mono block">{scan.scanTime}</span>
                               </div>
 
