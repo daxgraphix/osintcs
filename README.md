@@ -2,30 +2,33 @@
 
 > **Created by Cyberswahili** — Browser-based OSINT reconnaissance suite for infrastructure intelligence, digital forensics, and security assessments.
 
-OSINT.CS is a fully client-side OSINT platform that performs reconnaissance across domains, DNS, SSL, IP, email, usernames, hashes, files, and public IP detection using public APIs with graceful fallbacks. Results are aggregated into an interactive report dashboard with risk scoring, remediation recommendations, timeline visualization, and multi-format export.
+OSINT.CS is a fully client-side OSINT platform that performs reconnaissance across domains, DNS, SSL, IP, email, usernames, hashes, files, images, and public IP detection using public APIs with graceful fallbacks. Results are aggregated into an interactive report dashboard with risk scoring, remediation recommendations, timeline visualization, and multi-format export.
 
 - **Frontend:** React 19 + TypeScript + Vite
 - **Styling:** Tailwind CSS v4 (light-mode design tokens)
 - **Motion:** Motion (Framer Motion)
+- **State:** Zustand
+- **Charts:** Recharts
 - **Icons:** Lucide React
 - **QR:** jsQR
+- **AI:** Google Gemini API (`@google/genai`)
+- **Lists:** react-window
 - **No backend required** — all scans execute client-side against public endpoints.
-- **Modules:** 25+ integrated recon, forensics, and intelligence modules.
+- **Modules:** 24+ integrated recon, forensics, and intelligence modules.
 
 ---
 
 ## Latest Updates
 
-- **25+ Recon Modules** — Expanded from 5 to 25+ integrated modules covering the full reconnaissance lifecycle.
-- **Web Forensics (PopoScan)** — Added webpage capture and resource mapping: domains, resources, redirects, third-party connections, cookies, favicons, tracking identifiers, IP/hostname intelligence, hash lookups, and risk scoring with domain/resource/redirect tree visualization.
-- **Infrastructure Reconnaissance** — Added Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, Google Dorking, Technology Lookup, IP Geo Lookup, and Internet Speed Test.
-- **Identity & People OSINT** — Added People Hunter module with breach-exposure simulation and identity correlation.
+- **24 Recon Modules** — Full reconnaissance lifecycle coverage from DNS to web forensics.
+- **PopoScan (Web Forensics)** — Capture and map every domain, resource, redirect, third-party connection, cookie, favicon, tracking identifier, IP/hostname intelligence, hash lookups, URL analysis, and risk scoring with domain/resource/redirect tree visualization.
+- **Infrastructure Reconnaissance** — Website Scanner, Network Scan, Subdomain Finder (crt.sh), Port Scanner (top + deep profiles), URL Fuzzer, WAF Detector, Domain Finder, Virtual Hosts, Google Dorking, Technology Lookup, IP Geo Lookup, and Internet Speed Test.
+- **Identity & People OSINT** — People Hunter module with breach-exposure simulation and identity correlation.
+- **Advanced IP Intelligence** — IP Advance with multi-source risk scoring, ASN/BGP topology, /24 neighbor scan, browser fingerprint consistency, and WebRTC/DNS leak detection.
 - **Live Integrations** — DNS-over-HTTPS caching, live HTTP header probing via CORS proxy, WAF vendor detection from response headers, and real subdomain enumeration via certificate-transparency logs.
 - **Performance** — DoH response caching reduces redundant network calls; deterministic simulation fallbacks preserve offline resilience.
 - **Home Screen Redesign** — Categorized module grid (Infrastructure, Technology & Geo Intelligence, Identity & People, Forensics & Files), dynamic stats ticker, expanded Smart Target Router with Web Forensics pathway, and refreshed CTAs.
 - **New Modules Wired End-to-End** — Technology Lookup, IP Geo Lookup, and Internet Speed Test now auto-run from the workspace, surface dedicated Report Dashboard tabs, and are fully integrated into the sidebar, lobby grid, and footer.
-- **IP Advance Enhancements** — Added `ip-api.com` fallback to geo resolution, guaranteed resolvable IP for self-mode, reverse-DNS via DoH for targets, and geo-aware AI/streaming regional-availability logic.
-- **Performance** — Added a short-TTL JSON cache so repeated IP/geo/speed lookups are instant and free public APIs are never hammered.
 - **Report Enhancements** — Generic recon panel renders any module result; export filenames sanitized; findings rules expanded for new modules.
 - **Branding** — Created by Cyberswahili branding applied across app footer, reports, and console.
 
@@ -42,7 +45,7 @@ The landing screen offers a universal input field with intelligent target routin
 ### Report Dashboard
 After any scan, the dashboard replaces the lobby and presents:
 - **Overview** — target summary, risk score, grade, timeline, and at-a-glance metadata.
-  - **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Forensics, Metadata, My IP, IP Advance, Technology Lookup, IP Geo Lookup, Internet Speed Test, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking, PopoScan.
+  - **Tabbed deep-dives** per module: DNS, WHOIS, SSL, HTTP Headers, IP Lookup, Email Audit, Username Footprint, Hash Intel, Image Verify, Metadata, My IP, IP Advance, Technology Lookup, IP Geo Lookup, Internet Speed Test, Website Scanner, Subdomains, Port Scan, Network Scan, URL Fuzzer, WAF, People Hunter, Domain Finder, VHosts, Google Dorking, PopoScan.
 - **Evidence** — raw scan payloads and parsed responses.
 - **Findings** — rule-based detections with severity (`pass`, `medium`, `high`), category, and remediation text.
 - **Recommendations** — auto-generated remediation actions derived from findings.
@@ -97,17 +100,21 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - Cross-checks against common malware/ransomware signature fingerprints (e.g., WannaCry, Mimikatz).
 - Returns algorithm, entropy estimate, and threat classification.
 
-### 8. Metadata Extractor
+### 8. Image Verify
 - Accepts drag-and-drop or file browse. Reads file headers and metadata **in-browser only** (no upload).
 - Extracts EXIF tags, creation dates, author tools, and computes SHA-256 / MD5.
 - For images, additionally runs forensic signals: compression ratio, noise-floor consistency, frequency-grid detection, and a hybrid AI classifier for generator traces.
 
-### 9. What is My IP
+### 9. Metadata Extractor
+- Accepts drag-and-drop or file browse. Reads file headers and metadata **in-browser only** (no upload).
+- Extracts EXIF tags, creation dates, author tools, and computes SHA-256 / MD5.
+
+### 10. What is My IP
 - Auto-detects the public IP on tab open via `api.ipify.org` + `ipapi.co` with fallback.
 - Displays IPv4/IPv6, ASN, ISP, organization, country, region, city, timezone, coordinates, platform, language, and user agent.
 - Generates a privacy finding and remediation recommendation (VPN/proxy guidance).
 
-### 9b. IP Advance
+### 11. IP Advance
 - Deep multi-source IP intelligence with a 0–100 **risk purity** score (residential/native IPs score highest; datacenter IPs trigger platform risk controls).
 - **Multi-source voting** across 5 data sources (IP-API, Scamalytics, proxycheck, AbuseIPDB, ipapi.is) with consensus verdict and category labels.
 - **ASN / BGP topology** — announcement prefix, RPKI validation, AS holders, and upstream/downstream peer relations.
@@ -117,75 +124,74 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 - **Regional availability** — reference-only AI-service (ChatGPT/Claude/Gemini) and streaming-zone (Netflix/YouTube/Spotify/TikTok) support by IP location.
 - Leave the query blank to analyze your own public IP, or enter any IPv4/IPv6 address to investigate a target.
 
-### 10. Technology Lookup
+### 12. Technology Lookup
 - Fingerprints the web stack from live HTTP response headers via CORS proxy.
 - Detects **server**, **CMS / platform**, **JS framework**, **CDN / edge**, **WAF**, and **hosting** provider.
 - Returns a breakdown table of detected technologies with category labels and a posture summary.
 - Falls back to deterministic simulation when the proxy is unreachable.
 
-### 11. IP Geo Lookup
+### 13. IP Geo Lookup
 - Resolves the geolocation of an IP address or domain (city, region, country, ASN, ISP, timezone).
 - Performs threat-indicator checks: Tor exit node, VPN, proxy, and hosting-provider flags.
 - Falls back to seeded simulation when the geolocation API is unreachable.
 
-### 12. Internet Speed Test
+### 14. Internet Speed Test
 - Measures dual-source bandwidth (Cloudflare edge + M-Lab) and round-trip latency to regional cloud vantage points.
 - Only runs on click; results are shown only to you. M-Lab is an open research platform and logs test results server-side.
 - Returns download/upload Mbps per source plus a regional latency table.
 
-### 13. Website Scanner
+### 15. Website Scanner
 - Probes live HTTP response headers via CORS proxy.
 - Detects server technology, CMS, security headers (CSP, HSTS, X-Frame-Options, COOP/COEP, Permissions-Policy), CORS configuration, and cookie flags (Secure, HttpOnly, SameSite).
 - Falls back to deterministic simulation when the proxy is unreachable.
 
-### 14. Subdomain Finder
+### 16. Subdomain Finder
 - Queries **crt.sh** certificate-transparency logs for passive subdomain enumeration.
 - Validates discovered hosts via DNS-over-HTTPS A/AAAA resolution.
 - Falls back to seeded simulation when crt.sh is rate-limited or offline.
 
-### 15. Port Scanner
+### 17. Port Scanner
 - Top-profile sweep (34 common ports: 21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 8888, etc.).
 - Deep-profile expansion (additional high-risk ports: 111, 143, 445, 993, 995, 1723, 3306, 3389, 5432, 5900, 6379, 8000, 8009, 8081, 8443, 8888, 9000, 9200, 9300, 10000, 27017, 50000, etc.).
 - Falls back to deterministic simulation preserving open/closed distribution.
 
-### 16. Network Scan
+### 18. Network Scan
 - Broader port coverage with top/deep segmentation.
 - Simulated service fingerprinting and exposure triage.
 
-### 17. URL Fuzzer
+### 19. URL Fuzzer
 - Probes common admin paths, backup files, debug endpoints, and parameter vectors.
 - Severity classification (medium/high) based on endpoint sensitivity.
 
-
-### 18. WAF Detector
+### 20. WAF Detector
 - Inspects response headers for WAF/CDN vendor fingerprints (Cloudflare, Akamai, AWS WAF, Imperva, Sucuri, etc.).
 - Detects challenge pages and security header configurations.
 - Falls back to heuristic detection when live probing is unavailable.
 
-### 19. People Hunter
+### 21. People Hunter
 - Correlates email addresses, usernames, and domain affiliations.
 - Simulates breach-exposure indicators and entity correlation.
 - Returns exposure count and medium-severity finding when exposure is high.
 
-### 20. Domain Finder
+### 22. Domain Finder
 - Discovers related domains via search-engine dorks and pattern enumeration.
 - Returns discovered domains with confidence scoring.
 
-### 21. Virtual Hosts (VHosts)
+### 23. Virtual Hosts (VHosts)
 - Enumerates virtual hostnames associated with an IP or CDN endpoint.
 - Returns discovered vhost entries with HTTP response validation.
 
-### 23. PopoScan
+### 24. Google Dorking
+- Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
+- Returns query templates for manual or automated execution.
+
+### 25. PopoScan
 - Captures a webpage and maps every domain, resource, redirect, and third-party connection involved in loading it.
 - Extracts scripts, stylesheets, images, iframes, media, XHR/fetch endpoints, meta-refresh redirects, cookies, favicons, and tracking identifiers.
 - Generates domain trees, resource trees, and redirect trees for visual hierarchy analysis.
 - Provides third-party reports with reputation scoring, historical lookup snapshots, IP/hostname intelligence, URL parameter analysis, and fuzzy hash similarity detection.
 - Calculates an overall risk score (0–100) with severity-rated risk factors based on third-party exposure, redirect chains, mixed content, and cookie behavior.
 - Results are displayed in a dedicated PopoScan tab with tree views, risk assessment gauges, capture details, statistics, storage state enumeration, and export-ready summaries.
-
-### 24. Google Dorking
-- Generates search-engine queries (Google dorks) for sensitive files, exposed panels, and configuration leaks.
-- Returns query templates for manual or automated execution.
 
 ---
 
@@ -216,6 +222,85 @@ Orchestrates parallel checks across all applicable pipelines for the detected ta
 
 ---
 
+## Project Structure
+
+```
+osintcs/
+├── src/
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── MobileHeader.tsx
+│   │   │   └── Sidebar.tsx
+│   │   ├── overlays/
+│   │   │   ├── QrScannerModal.tsx
+│   │   │   ├── ScanConsole.tsx
+│   │   │   └── Toast.tsx
+│   │   ├── pages/
+│   │   │   ├── moduleConfig.ts
+│   │   │   └── report/
+│   │   │       ├── DnsTab.tsx
+│   │   │       ├── EvidenceTab.tsx
+│   │   │       ├── ForensicViewer.tsx
+│   │   │       ├── HeadersTab.tsx
+│   │   │       ├── IpAdvanceTab.tsx
+│   │   │       ├── IpTab.tsx
+│   │   │       ├── MyIpTab.tsx
+│   │   │       ├── OverviewTab.tsx
+│   │   │       ├── SslTab.tsx
+│   │   │       └── WhoisTab.tsx
+│   │   ├── ReportDashboard.tsx
+│   │   ├── ErrorBoundary.tsx
+│   │   ├── Skeleton.tsx
+│   │   ├── ThemeToggle.tsx
+│   │   └── VirtualizedList.tsx
+│   ├── engines/
+│   │   └── osintEngines.ts
+│   ├── features/
+│   │   └── speedtest/
+│   │       └── SpeedTestWorkspace.tsx
+│   ├── hooks/
+│   │   ├── useInvestigationStore.ts
+│   │   ├── useOsintWorker.ts
+│   │   ├── usePerformance.ts
+│   │   ├── useScanWorkflow.ts
+│   │   └── useStorage.ts
+│   ├── rules/
+│   │   └── osintRules.ts
+│   ├── services/
+│   │   └── osintServices.ts
+│   ├── stores/
+│   │   └── investigationStore.ts
+│   ├── test/
+│   │   ├── batchFileParser.test.ts
+│   │   ├── osintEngines.test.ts
+│   │   ├── security.test.ts
+│   │   └── setup.ts
+│   ├── utils/
+│   │   ├── batchFileParser.ts
+│   │   ├── proxy.ts
+│   │   ├── rateLimiter.ts
+│   │   ├── resultBuilders.ts
+│   │   └── security.ts
+│   ├── workers/
+│   │   └── osint.worker.ts
+│   ├── App.tsx
+│   ├── index.css
+│   ├── main.tsx
+│   └── types.ts
+├── server/
+│   ├── package.json
+│   ├── proxy.ts
+│   └── node_modules/
+├── index.html
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── .env.example
+└── README.md
+```
+
+---
+
 ## UI & Responsiveness
 
 - **Desktop:** collapsible sidebar (`w-64` ↔ `w-[68px]`) with icon + label navigation, accent colors per module, and active-state indicators.
@@ -233,9 +318,19 @@ npm install
 npm run dev     # http://localhost:3000
 npm run build   # vite build
 npm run lint    # tsc --noEmit
+npm run test    # vitest run
 ```
 
-No environment variables or backend server are required. All scans run against public, no-auth endpoints from the browser.
+No environment variables or backend server are required for basic operation. All scans run against public, no-auth endpoints from the browser.
+
+### Optional Environment Variables
+
+Create a `.env` file based on `.env.example`:
+
+```
+GEMINI_API_KEY="your_gemini_api_key"
+APP_URL="your_app_url"
+```
 
 ---
 

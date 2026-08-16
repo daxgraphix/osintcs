@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import {
@@ -48,12 +48,11 @@ import {
   Network,
   Radar,
   MapPin,
-  Gauge,
   Boxes,
 } from 'lucide-react';
 
 import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult, ReconResult } from './types';
-import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanSpeedTest, scanPopoScan, findSubdomains } from './services/osintServices';
+import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanPopoScan, findSubdomains } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { QUICK_MODULES } from './components/pages/moduleConfig';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
@@ -64,140 +63,126 @@ import Sidebar from './components/layout/Sidebar';
 import MobileHeader from './components/layout/MobileHeader';
 import ReportDashboard from './components/ReportDashboard';
 import { sanitizeText, sanitizeFilename, escapeHtml } from './utils/security';
+import { processBatchFile } from './utils/batchFileParser';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { VirtualizedList } from './components/VirtualizedList';
+import ThemeToggle from './components/ThemeToggle';
+import { useInvestigationStore } from './stores/investigationStore';
+import {
+  makeMyIpResults,
+  makeIpAdvanceResults,
+  makeTechLookupResults,
+  makeGeoLookupResults,
+  makeSpeedTestResults,
+  makePopoScanResults,
+  makeSubdomainResults,
+} from './utils/resultBuilders';
+
+const SpeedTestWorkspace = lazy(() => import('./features/speedtest/SpeedTestWorkspace').then(m => ({ default: m.default })));
 
 export default function App() {
-  // Navigation & Page state
-  const [activeTab, setActiveTab] = useState<'home' | TargetType | 'risk' | 'settings' | 'history'>(() => {
-    try {
-      const stored = sessionStorage.getItem('osintcs_active_tab');
-      return (stored as any) || 'home';
-    } catch (e) {
-      return 'home';
-    }
-  });
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const store = useInvestigationStore();
+  const activeTab = store.activeTab;
+  const setActiveTab = store.setActiveTab;
+  const sidebarOpen = store.sidebarOpen;
+  const setSidebarOpen = store.setSidebarOpen;
+  const mobileMenuOpen = store.mobileMenuOpen;
+  const setMobileMenuOpen = store.setMobileMenuOpen;
+  const query = store.query;
+  const setQuery = store.setQuery;
+  const detectedType = store.detectedType;
+  const setDetectedType = store.setDetectedType;
+  const scanMode = store.scanMode;
+  const setScanMode = store.setScanMode;
+  const theme = store.theme;
+  const setTheme = store.setTheme;
+  const batchQuery = store.batchQuery;
+  const setBatchQuery = store.setBatchQuery;
+  const results = store.results;
+  const setResults = store.setResults;
+  const batchResults = store.batchResults;
+  const setBatchResults = store.setBatchResults;
+  const viewingReport = store.viewingReport;
+  const setViewingReport = store.setViewingReport;
+  const viewingBatch = store.viewingBatch;
+  const setViewingBatch = store.setViewingBatch;
+  const isDragging = store.isDragging;
+  const setIsDragging = store.setIsDragging;
+  const showQrScanner = store.showQrScanner;
+  const setShowQrScanner = store.setShowQrScanner;
+  const toast = store.toast;
+  const setToast = store.setToast;
+  const showToast = store.showToast;
+  const simulateDelay = store.simulateDelay;
+  const setSimulateDelay = store.setSimulateDelay;
+  const strictScans = store.strictScans;
+  const setStrictScans = store.setStrictScans;
+  const recentScans = store.recentScans;
+  const setRecentScans = store.setRecentScans;
+  const addRecentScan = store.addRecentScan;
+  const removeHistoryItem = store.removeRecentScan;
+  const clearHistory = store.clearRecentScans;
 
-  // Search & input state
-  // Search & input state
-  const [query, setQuery] = useState('');
-  const [detectedType, setDetectedType] = useState<TargetType>('domain');
-
-  // Search Mode for Landing page (single vs batch)
-  const [scanMode, setScanMode] = useState<'single' | 'batch'>('single');
-  const [batchQuery, setBatchQuery] = useState('');
-
-   const handleQueryChange = (value: string) => {
-     setQuery(sanitizeText(value, 500));
-   };
-
-   const isValidUrl = (value: string): boolean => {
-     try {
-       const u = new URL(value);
-       return u.protocol === 'http:' || u.protocol === 'https:';
-     } catch {
-       return false;
-     }
-   };
-
-   const handleBatchQueryChange = (value: string) => {
-    setBatchQuery(sanitizeText(value, 5000));
-  };
-
-  // Scanning & loading states are provided by useScanWorkflow (see below)
-  
-  // Investigation state synced with sessionStorage
-  const [results, setResults] = useState<ScanResults | null>(() => {
-    try {
-      const stored = sessionStorage.getItem('osintcs_current_results');
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  const [batchResults, setBatchResults] = useState<ScanResults[] | null>(() => {
-    try {
-      const stored = sessionStorage.getItem('osintcs_current_batch_results');
-      return stored ? JSON.parse(stored) : null;
-    } catch (e) {
-      return null;
-    }
-  });
-
-  const [viewingReport, setViewingReport] = useState(() => {
-    try {
-      return sessionStorage.getItem('osintcs_viewing_report') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-
-  const [viewingBatch, setViewingBatch] = useState(() => {
-    try {
-      return sessionStorage.getItem('osintcs_viewing_batch') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-
-  // Drag and drop states
-  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleQueryChange = (value: string) => {
+    setQuery(sanitizeText(value, 500));
+  };
+
+  const isValidUrl = (value: string): boolean => {
+    try {
+      const u = new URL(value);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const applyTheme = (t: string) => {
+      if (t === 'system') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        root.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+      } else {
+        root.setAttribute('data-theme', t);
+      }
+    };
+    applyTheme(theme);
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = (e: MediaQueryListEvent) => {
+        root.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+      };
+      mq.addEventListener('change', handler);
+      return () => mq.removeEventListener('change', handler);
+    }
+  }, [theme]);
+
+  const handleBatchQueryChange = (value: string) => {
+    setBatchQuery(sanitizeText(value, 5000));
+  };
 
   const handleBatchFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      showToast('Batch file too large. Maximum size is 5MB.', 'error');
-      return;
-    }
-    if (!file.name.endsWith('.txt') && !file.name.endsWith('.csv') && file.type !== 'text/plain' && file.type !== 'text/csv') {
-      showToast('Invalid file type. Please upload .txt or .csv files.', 'error');
-      return;
-    }
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const content = event.target?.result as string;
-        if (!content || content.length > 200000) {
-          showToast('Batch file content exceeds maximum allowed size.', 'error');
-          return;
-        }
-        const targets = content
-          .split(/[\n,;]+/)
-          .map(t => t.trim())
-          .filter(Boolean);
-        if (targets.length === 0) {
-          showToast('No valid targets found in batch file.', 'error');
-          return;
-        }
-        if (targets.length > 200) {
-          showToast('Batch limit exceeded. Maximum 200 targets per batch.', 'error');
-          return;
-        }
-        await triggerBatchInvestigation(targets);
-      };
-      reader.readAsText(file);
-    } catch (err) {
-      console.error('Failed to parse batch file upload:', err);
-      showToast('Failed to read batch file.', 'error');
-    }
+    await processBatchFile(file, {
+      onSuccess: (targets) => triggerBatchInvestigation(targets),
+      onError: (message) => showToast(message, 'error'),
+    });
     if (e.target) e.target.value = '';
   };
 
   const handleExportBatchCSV = () => {
     if (!batchResults || batchResults.length === 0) return;
     
-    // CSV Headers
     const headers = ["Target", "Type", "Risk Score", "Security Grade", "Total Findings", "Critical/High Findings", "Key Findings"];
     
     const rows = batchResults.map(r => {
       const sDetails = calculateRiskScore(r.findings);
       const criticalHighCount = r.findings.filter(f => f.severity === 'critical' || f.severity === 'high').length;
       
-      // Extract key findings: get top 3 non-pass findings
       const keyFindingsList = r.findings
         .filter(f => f.severity !== 'pass')
         .slice(0, 3)
@@ -215,13 +200,11 @@ export default function App() {
       ];
     });
     
-    // Build CSV content
     const csvContent = [
       headers.join(','),
       ...rows.map(row => 
         row.map(val => {
           const str = String(val);
-          // Escape quotes and wrap in quotes if contains comma, quote, or newline
           if (str.includes(',') || str.includes('"') || str.includes('\n')) {
             return `"${str.replace(/"/g, '""')}"`;
           }
@@ -230,7 +213,6 @@ export default function App() {
       )
     ].join('\n');
     
-    // Trigger download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -243,427 +225,9 @@ export default function App() {
     showToast("Consolidated Batch CSV exported successfully", "success");
   };
 
-  // Toast Notification State & Helper
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
-
-  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
-    setToast({ message, type });
-  };
-
-  useEffect(() => {
-    if (toast) {
-      const timer = setTimeout(() => {
-        setToast(null);
-      }, 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [toast]);
-
-  // Light-only theme — red/white palette
-  const isLightMode = true;
-
-  // Build a complete ScanResults object for a detected public IP so the
-  // full report (findings, remediation, export) is populated consistently.
-  const makeMyIpResults = (result: MyIpResult): ScanResults => ({
-    target: { value: result.ip, type: 'myip' },
-    scanTime: new Date().toLocaleTimeString(),
-    findings: [
-      {
-        id: 'MYIP_DETECTED',
-        module: 'myip',
-        title: 'Public IP Detected',
-        description: `Your public IP is ${result.ip} (${result.ipVersion}), provided by ${result.isp || 'Unknown ISP'} in ${result.country || 'Unknown'}.`,
-        severity: 'pass',
-        category: 'Network Identity',
-        remediation: 'Consider using a reputable VPN or proxy if IP exposure and geolocation leakage are a concern.',
-      },
-    ],
-    riskScore: 0,
-    timeline: [],
-    myip: result,
-    recommendations: [
-      {
-        id: 'MYIP_PRIVACY',
-        title: 'Mask Your Public IP With a Trusted VPN',
-        description: 'Your public IP exposes your ISP, approximate geolocation, and a stable network fingerprint that can be used for tracking and regional content profiling.',
-        priority: 'medium',
-        category: 'Network Privacy',
-        impact: 'Reduces trackability and prevents location-based leakage of your connection identity.',
-      },
-    ],
-  });
-
-  // Build a complete ScanResults object for an IP Advance intelligence report.
-  const makeIpAdvanceResults = (result: IpAdvanceResult): ScanResults => ({
-    target: { value: result.ip, type: 'ipadvance' },
-    scanTime: new Date().toLocaleTimeString(),
-    findings: [
-      {
-        id: 'IPADV_SUMMARY',
-        module: 'ipadvance',
-        title: 'IP Advance Intelligence Complete',
-        description: `Analysed ${result.ip} (${result.ipVersion}) — ${result.ipType} IP with ${result.riskGrade} purity (${result.riskScore}/100). ${result.neighbors.flagged} of ${result.neighbors.total} /24 neighbours flagged; ${result.sources.length} sources cross-validated.`,
-        severity: result.riskScore >= 70 ? 'pass' : 'medium',
-        category: 'IP Reputation',
-        remediation: 'Cross-validate across sources. Residential/native IPs are best for low-risk operations; datacenter IPs trigger platform risk controls.',
-      },
-    ],
-    riskScore: 100 - result.riskScore,
-    timeline: [],
-    ipadvance: result,
-    recommendations: [
-      {
-        id: 'IPADV_NATIVE',
-        title: result.isNativeIp ? 'Native IP Confirmed' : 'IP Location Mismatch',
-        description: result.isNativeIp
-          ? 'The country of registration matches the country of location, making this a locally located IP that is favourable for risk control.'
-          : 'The country of registration and country of location differ, which can raise risk-control flags during business operations.',
-        priority: result.isNativeIp ? 'low' : 'medium',
-        category: 'IP Posture',
-        impact: 'Native IPs improve trust scores across platforms; mismatched IPs are easier to flag.',
-      },
-    ],
-  });
-
-  // Build a complete ScanResults object for a Technology Lookup report.
-  const makeTechLookupResults = (result: TechLookupResult): ScanResults => ({
-    target: { value: result.domain, type: 'techlookup' },
-    scanTime: new Date().toLocaleTimeString(),
-    findings: [
-      {
-        id: 'TECH_SUMMARY',
-        module: 'techlookup',
-        title: 'Technology Stack Identified',
-        description: `Website ${result.domain} runs ${result.cms} on ${result.server} with ${result.jsFramework}. CDN: ${result.cdn} · WAF: ${result.waf}.`,
-        severity: result.cms === 'WordPress' ? 'medium' : 'info',
-        category: 'Web Stack',
-        remediation: result.cms === 'WordPress'
-          ? 'Keep CMS, themes, and plugins patched; WordPress is the most targeted web platform.'
-          : 'No action required.',
-      },
-    ],
-    riskScore: result.cms === 'WordPress' ? 35 : 8,
-    timeline: [],
-    techlookup: result,
-    recommendations: result.cms === 'WordPress' ? [
-      {
-        id: 'TECH_WP',
-        title: 'Harden the WordPress Deployment',
-        description: 'WordPress sites are the most attacked on the web; unpatched core, themes, and plugins are the leading breach vector.',
-        priority: 'medium',
-        category: 'Web Stack',
-        impact: 'Reduces exploit exposure from automated wp-login and plugin CVE scanning.',
-      },
-    ] : [],
-  });
-
-  // Build a complete ScanResults object for an IP Geo Lookup report.
-  const makeGeoLookupResults = (result: GeoLookupResult): ScanResults => ({
-    target: { value: result.target, type: 'geolookup' },
-    scanTime: new Date().toLocaleTimeString(),
-    findings: (() => {
-      const threats: string[] = [];
-      if (result.isTor) threats.push('Tor exit node');
-      if (result.isProxy) threats.push('proxy');
-      if (result.isVpn) threats.push('VPN');
-      if (result.isHosting) threats.push('hosting provider');
-      if (threats.length > 0) {
-        return [{
-          id: 'GEO_THREAT',
-          module: 'geolookup',
-          title: 'Anonymity / Threat Indicators Detected',
-          description: `Target ${result.target} resolves to ${result.city}, ${result.country} with flags: ${threats.join(', ')}.`,
-          severity: result.isTor || result.isProxy ? 'high' : 'medium',
-          category: 'Geo Intelligence',
-          remediation: 'Correlate with other modules before trusting geolocation — proxies and VPNs can misrepresent true location.',
-        }];
-      }
-      return [{
-        id: 'GEO_CLEAN',
-        module: 'geolookup',
-        title: 'Geolocation Resolved',
-        description: `Target ${result.target} maps to ${result.city}, ${result.region}, ${result.country} (AS${result.asn}). No anonymizing indicators.`,
-        severity: 'pass',
-        category: 'Geo Intelligence',
-        remediation: 'No action required.',
-      }];
-    })(),
-    riskScore: result.isTor || result.isProxy ? 75 : result.isVpn ? 45 : 12,
-    timeline: [],
-    geolookup: result,
-    recommendations: [],
-  });
-
-  // Build a complete ScanResults object for an Internet Speed Test report.
-  const makeSpeedTestResults = (result: SpeedTestResult): ScanResults => ({
-    target: { value: result.outgoingIp, type: 'speedtest' },
-    scanTime: new Date().toLocaleTimeString(),
-    findings: [
-      {
-        id: 'SPEED_SUMMARY',
-        module: 'speedtest',
-        title: 'Internet Speed Test Complete',
-        description: `Outgoing route ${result.outgoingIp}. Cloudflare edge: ${result.cloudflare.downloadMbps}↓/${result.cloudflare.uploadMbps}↑ Mbps. M-Lab (MSAK): ${result.mlab.downloadMbps}↓/${result.mlab.uploadMbps}↑ Mbps.`,
-        severity: result.cloudflare.downloadMbps < 10 ? 'medium' : 'pass',
-        category: 'Network Performance',
-        remediation: 'Cross-validate with a native speed test. Use a wired connection and pause background downloads for the most accurate reading.',
-      },
-    ],
-    riskScore: 0,
-    timeline: [],
-    speedtest: result,
-    recommendations: [],
-  });
-
-  // Build a complete ScanResults object for a PopoScan report.
-  const makePopoScanResults = (result: PopoScanResult): ScanResults => ({
-    target: { value: result.targetUrl, type: 'poplenscan' },
-    scanTime: result.scanTime,
-    findings: (() => {
-      const findings: any[] = [];
-      const thirdPartyCount = result.statistics.domains.thirdParty;
-      const redirectCount = result.statistics.redirects.total;
-      const cookieCount = result.statistics.cookies.total;
-      
-      // Third-party connections finding
-      if (thirdPartyCount > 10) {
-        findings.push({
-          id: 'POPO_THIRD_PARTY_HIGH',
-          module: 'poplenscan',
-          title: 'High Number of Third-Party Connections',
-          description: `The page loads resources from ${thirdPartyCount} third-party domains (${result.statistics.requests.total} total requests). This increases attack surface and tracking exposure.`,
-          severity: 'medium',
-          category: 'Third-Party Exposure',
-          remediation: 'Review and minimize third-party dependencies. Implement CSP to restrict unauthorized domains.',
-        });
-      } else if (thirdPartyCount > 5) {
-        findings.push({
-          id: 'POPO_THIRD_PARTY_MEDIUM',
-          module: 'poplenscan',
-          title: 'Moderate Third-Party Connections',
-          description: `The page loads resources from ${thirdPartyCount} third-party domains (${result.statistics.requests.total} total requests).`,
-          severity: 'low',
-          category: 'Third-Party Exposure',
-          remediation: 'Audit third-party domains for necessity and security posture.',
-        });
-      } else {
-        findings.push({
-          id: 'POPO_THIRD_PARTY_LOW',
-          module: 'poplenscan',
-          title: 'Limited Third-Party Connections',
-          description: `The page loads resources from only ${thirdPartyCount} third-party domains.`,
-          severity: 'pass',
-          category: 'Third-Party Exposure',
-          remediation: 'Good — minimal third-party attack surface.',
-        });
-      }
-      
-      // Redirect chain finding
-      if (redirectCount > 3) {
-        findings.push({
-          id: 'POPO_REDIRECT_CHAIN_LONG',
-          module: 'poplenscan',
-          title: 'Long Redirect Chain Detected',
-          description: `The page follows ${redirectCount} redirects before reaching the final destination. Long chains can hide malicious destinations and degrade performance.`,
-          severity: 'medium',
-          category: 'Redirect Security',
-          remediation: 'Minimize redirect chains. Ensure all redirects are intentional and point to trusted destinations.',
-        });
-      } else if (redirectCount > 0) {
-        findings.push({
-          id: 'POPO_REDIRECT_CHAIN',
-          module: 'poplenscan',
-          title: 'Redirect Chain Detected',
-          description: `The page follows ${redirectCount} redirect(s) before reaching the final destination.`,
-          severity: 'info',
-          category: 'Redirect Security',
-          remediation: 'Verify all redirects are intentional and necessary.',
-        });
-      }
-      
-      // Cookie finding
-      if (cookieCount > 0) {
-        const thirdPartyCookies = result.cookies.filter(c => 
-          !result.finalUrl.includes(c.domain.replace(/^\./, ''))
-        ).length;
-        if (thirdPartyCookies > 0) {
-          findings.push({
-            id: 'POPO_THIRD_PARTY_COOKIES',
-            module: 'poplenscan',
-            title: 'Third-Party Cookies Detected',
-            description: `Found ${thirdPartyCookies} third-party cookie(s) that may track users across sites.`,
-            severity: 'medium',
-            category: 'Privacy Exposure',
-            remediation: 'Review cookie purposes. Set SameSite=Lax/Strict and Secure flags. Implement consent management for tracking cookies.',
-          });
-        }
-      }
-      
-      // Overall pass if no significant issues
-      if (thirdPartyCount <= 5 && redirectCount <= 1) {
-        findings.push({
-          id: 'POPO_CLEAN',
-          module: 'poplenscan',
-          title: 'PopoScan Completed — No Significant Issues',
-          description: `Analyzed ${result.statistics.requests.total} requests across ${result.statistics.domains.total} domains with ${thirdPartyCount} third-party connections and ${redirectCount} redirects.`,
-          severity: 'pass',
-          category: 'Web Forensics',
-          remediation: 'No action required.',
-        });
-      }
-      
-      return findings;
-    })(),
-    riskScore: Math.min(100, result.statistics.domains.thirdParty * 5 + result.statistics.redirects.total * 10 + (result.statistics.cookies.total > 0 ? 15 : 0)),
-    timeline: [],
-    poplenscan: result,
-    recommendations: (() => {
-      const recs: any[] = [];
-      const thirdPartyCount = result.statistics.domains.thirdParty;
-      const redirectCount = result.statistics.redirects.total;
-      const cookieCount = result.statistics.cookies.total;
-      const httpsCoverage = result.statistics.security.httpsCoverage;
-
-      if (thirdPartyCount > 10) {
-        recs.push({
-          id: 'POPO_REC_TP_HIGH',
-          title: 'Reduce Third-Party Domain Exposure',
-          description: `The page loads resources from ${thirdPartyCount} third-party domains. Each domain increases tracking risk and potential data leakage.`,
-          priority: 'high',
-          category: 'Third-Party Exposure',
-          impact: 'Reduces attack surface and minimizes cross-site tracking vectors.',
-        });
-      } else if (thirdPartyCount > 5) {
-        recs.push({
-          id: 'POPO_REC_TP_MED',
-          title: 'Audit Third-Party Dependencies',
-          description: `The page loads resources from ${thirdPartyCount} third-party domains. Review each for necessity and security posture.`,
-          priority: 'medium',
-          category: 'Third-Party Exposure',
-          impact: 'Identifies unnecessary tracking and reduces external dependency risk.',
-        });
-      }
-
-      if (redirectCount > 3) {
-        recs.push({
-          id: 'POPO_REC_REDIR_LONG',
-          title: 'Shorten Redirect Chains',
-          description: `The page follows ${redirectCount} redirects. Long chains obscure final destinations and increase latency.`,
-          priority: 'medium',
-          category: 'Redirect Security',
-          impact: 'Improves transparency, performance, and reduces malicious-redirect risk.',
-        });
-      } else if (redirectCount > 0) {
-        recs.push({
-          id: 'POPO_REC_REDIR',
-          title: 'Verify Redirect Necessity',
-          description: `The page follows ${redirectCount} redirect(s). Confirm each redirect is intentional and points to a trusted destination.`,
-          priority: 'low',
-          category: 'Redirect Security',
-          impact: 'Ensures no unintended routing to suspicious endpoints.',
-        });
-      }
-
-      if (cookieCount > 0) {
-        const thirdPartyCookies = result.cookies.filter(c =>
-          !result.finalUrl.includes(c.domain.replace(/^\./, ''))
-        ).length;
-        if (thirdPartyCookies > 0) {
-          recs.push({
-            id: 'POPO_REC_COOKIES',
-            title: 'Harden Cookie Security and Consent',
-            description: `Found ${thirdPartyCookies} third-party cookie(s) that may track users across sites.`,
-            priority: 'high',
-            category: 'Privacy Exposure',
-            impact: 'Reduces cross-site tracking and improves compliance with privacy regulations.',
-          });
-        }
-      }
-
-      if (httpsCoverage < 100) {
-        recs.push({
-          id: 'POPO_REC_HTTPS',
-          title: 'Enforce Full HTTPS Coverage',
-          description: `${httpsCoverage}% of resources are loaded over HTTPS. Mixed content exposes data to interception.`,
-          priority: 'high',
-          category: 'Transport Security',
-          impact: 'Eliminates mixed-content downgrade attacks and ensures encrypted delivery.',
-        });
-      }
-
-      if (result.statistics.security.mixedContent > 0) {
-        recs.push({
-          id: 'POPO_REC_MIXED',
-          title: 'Eliminate Mixed Content',
-          description: `${result.statistics.security.mixedContent} mixed-content resource(s) detected.`,
-          priority: 'high',
-          category: 'Transport Security',
-          impact: 'Prevents protocol downgrade and man-in-the-middle risks.',
-        });
-      }
-
-      if (result.statistics.security.insecureCookies > 0) {
-        recs.push({
-          id: 'POPO_REC_INSECURE_COOKIES',
-          title: 'Secure Cookie Attributes',
-          description: `${result.statistics.security.insecureCookies} cookie(s) missing Secure or HttpOnly flags.`,
-          priority: 'medium',
-          category: 'Cookie Security',
-          impact: 'Reduces XSS and network eavesdropping exposure for session cookies.',
-        });
-      }
-
-      if (recs.length === 0) {
-        recs.push({
-          id: 'POPO_REC_CLEAN',
-          title: 'Maintain Current Security Posture',
-          description: 'No significant third-party or redirect risks detected. Continue monitoring for changes.',
-          priority: 'low',
-          category: 'Maintenance',
-          impact: 'Sustains current low-risk footprint.',
-        });
-      }
-
-      return recs;
-    })(),
-  });
-
-  const makeSubdomainResults = (result: ReconResult): ScanResults => {
-    const sensitiveCount = result.items.filter(i => i.severity === 'medium').length;
-    const verifiedCount = result.items.filter(i => i.status !== 'wildcard').length;
-    const subItems: any[] = result.items.map((it: any) => ({
-      subdomain: it.label,
-      recordType: it.recordTypes?.join(',') || 'A',
-      value: it.value || '',
-      source: it.source || 'wordlist',
-      validated: it.status !== 'wildcard',
-      status: it.status === 'wildcard' ? 'unresolved' : 'verified',
-      sensitivity: it.severity === 'medium' ? 'high' : 'low',
-    }));
-    return {
-      target: { value: result.target, type: 'subdomain' },
-      scanTime: new Date().toLocaleTimeString(),
-      findings: [{
-        id: 'SUBDOMAIN_SCAN',
-        module: 'subdomain',
-        title: `Subdomain Discovery Complete — ${result.items.length} found`,
-        description: result.summary,
-        severity: sensitiveCount > 0 ? 'medium' : 'pass',
-        category: 'Subdomain Discovery',
-        remediation: sensitiveCount > 0
-          ? 'Review sensitive subdomains for exposure. Ensure internal/admin endpoints are not publicly accessible.'
-          : 'No sensitive subdomains detected. Continue monitoring for new subdomain registrations.',
-      }],
-      riskScore: Math.min(100, sensitiveCount * 10 + Math.max(0, result.items.length - 5) * 2),
-      timeline: [],
-      dns: { records: {}, spf: { present: false, valid: false }, dmarc: { present: false }, dnssec: { enabled: false }, subdomains: subItems },
-      recon: { subdomain: result },
-      recommendations: [],
-    };
-  };
-
-  const [simulateDelay, setSimulateDelay] = useState(true);
-  const [strictScans, setStrictScans] = useState(false);
+  // Theme-driven mode — supports light / dark / system
+  const isLightMode = theme === 'light' || (theme === 'system' && !window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const isDarkMode = !isLightMode;
 
   // PopoScan expandable sections state
   const [popoScanExpanded, setPopoScanExpanded] = useState<Record<string, boolean>>({
@@ -695,79 +259,13 @@ export default function App() {
     });
   };
 
-  // Recent scans (browser local storage persistence layer)
-  const [recentScans, setRecentScans] = useState<ScanResults[]>(() => {
-    try {
-      const stored = localStorage.getItem('osintcs_recent_scans');
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      console.error('Failed to parse recent scans from localStorage:', e);
-      return [];
-    }
-  });
-
-  // QR Code Scanner module camera states
-  const [showQrScanner, setShowQrScanner] = useState(false);
-
-  // Sync active tab to sessionStorage
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('osintcs_active_tab', activeTab);
-    } catch (e) {
-      console.error(e);
-    }
-  }, [activeTab]);
-
-  // Sync results state to sessionStorage
-  useEffect(() => {
-    try {
-      if (results) {
-        sessionStorage.setItem('osintcs_current_results', JSON.stringify(results));
-      } else {
-        sessionStorage.removeItem('osintcs_current_results');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [results]);
-
-  // Sync batchResults to sessionStorage
-  useEffect(() => {
-    try {
-      if (batchResults) {
-        sessionStorage.setItem('osintcs_current_batch_results', JSON.stringify(batchResults));
-      } else {
-        sessionStorage.removeItem('osintcs_current_batch_results');
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  }, [batchResults]);
-
-  // Sync viewing states
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('osintcs_viewing_report', String(viewingReport));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [viewingReport]);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem('osintcs_viewing_batch', String(viewingBatch));
-    } catch (e) {
-      console.error(e);
-    }
-  }, [viewingBatch]);
-
   // Handle live type auto-detection
   useEffect(() => {
     if (query) {
       const type = detectTargetType(query);
       setDetectedType(type);
     }
-  }, [query]);
+  }, [query, setDetectedType]);
 
   // Prevent copying of sensitive UI sections
   useEffect(() => {
@@ -783,57 +281,6 @@ export default function App() {
     return () => document.removeEventListener('copy', preventCopy);
   }, []);
 
-  // Save scan results to history
-  const saveScanToHistory = (newScan: ScanResults) => {
-    setRecentScans((prev) => {
-      const filtered = prev.filter(
-        (s) => !(s.target.value === newScan.target.value && s.target.type === newScan.target.type)
-      );
-      const updated = [newScan, ...filtered].slice(0, 20);
-      try {
-        const sanitized = updated.map(s => {
-          if (s.image && s.image.previewUrl && s.image.previewUrl.length > 200000) {
-            return {
-              ...s,
-              image: { ...s.image, previewUrl: undefined }
-            };
-          }
-          return s;
-        });
-        localStorage.setItem('osintcs_recent_scans', JSON.stringify(sanitized));
-      } catch (e) {
-        console.error('Failed to save to localStorage, saving fully sanitized version', e);
-        try {
-          const thoroughlySanitized = updated.map(s => ({
-            ...s,
-            image: s.image ? { ...s.image, previewUrl: undefined } : undefined
-          }));
-          localStorage.setItem('osintcs_recent_scans', JSON.stringify(thoroughlySanitized));
-        } catch (err) {
-          console.error('LocalStorage write failed fully', err);
-        }
-      }
-      return updated;
-    });
-  };
-
-  const clearHistory = () => {
-    setRecentScans([]);
-    localStorage.removeItem('osintcs_recent_scans');
-  };
-
-  const removeHistoryItem = (val: string, type: string) => {
-    setRecentScans((prev) => {
-      const updated = prev.filter((s) => !(s.target.value === val && s.target.type === type));
-      try {
-        localStorage.setItem('osintcs_recent_scans', JSON.stringify(updated));
-      } catch (err) {
-        console.error('Failed to update history local storage', err);
-      }
-      return updated;
-    });
-  };
-
   // Investigation workflow is delegated to the shared useScanWorkflow hook.
   const {
     isScanning,
@@ -846,12 +293,12 @@ export default function App() {
     activeTab,
     onInvestigationComplete: (result) => {
       setResults(result);
-      saveScanToHistory(result);
+      addRecentScan(result);
       setViewingReport(true);
       setViewingBatch(false);
     },
     onBatchComplete: (results) => {
-      results.forEach((r) => saveScanToHistory(r));
+      results.forEach((r) => addRecentScan(r));
       setBatchResults(results);
       setViewingBatch(true);
       setViewingReport(false);
@@ -883,7 +330,7 @@ export default function App() {
         try {
           const result = await scanIpAdvance();
           setResults(makeIpAdvanceResults(result));
-          saveScanToHistory(makeIpAdvanceResults(result));
+          addRecentScan(makeIpAdvanceResults(result));
           setViewingReport(true);
           setViewingBatch(false);
         } catch (e) {
@@ -904,7 +351,7 @@ export default function App() {
         try {
           const result = await scanTechnology(query.trim());
           setResults(makeTechLookupResults(result));
-          saveScanToHistory(makeTechLookupResults(result));
+          addRecentScan(makeTechLookupResults(result));
           setViewingReport(true);
           setViewingBatch(false);
         } catch (e) {
@@ -925,7 +372,7 @@ export default function App() {
         try {
           const result = await scanGeoLookup(query.trim());
           setResults(makeGeoLookupResults(result));
-          saveScanToHistory(makeGeoLookupResults(result));
+          addRecentScan(makeGeoLookupResults(result));
           setViewingReport(true);
           setViewingBatch(false);
         } catch (e) {
@@ -936,48 +383,6 @@ export default function App() {
       })();
     }
   }, [activeTab, results, isScanning, query, showToast]);
-
-  /* Auto-run Technology Lookup when opened with a target pre-filled */
-  useEffect(() => {
-    if (activeTab === 'techlookup' && query.trim() && !results?.techlookup && !isScanning) {
-      (async () => {
-        setIsScanning(true);
-        setQuery('Fingerprinting website stack...');
-        try {
-          const result = await scanTechnology(query.trim());
-          setResults(makeTechLookupResults(result));
-          saveScanToHistory(makeTechLookupResults(result));
-          setViewingReport(true);
-          setViewingBatch(false);
-        } catch (e) {
-          showToast('Technology lookup failed. Please try again.', 'error');
-        } finally {
-          setIsScanning(false);
-        }
-      })();
-    }
-  }, [activeTab, results, isScanning, query, showToast]);
-
-  /* Auto-run Internet Speed Test when the module is opened (no target needed) */
-  useEffect(() => {
-    if (activeTab === 'speedtest' && !results?.speedtest && !isScanning) {
-      (async () => {
-        setIsScanning(true);
-        setQuery('Measuring bandwidth and latency...');
-        try {
-          const result = await scanSpeedTest();
-          setResults(makeSpeedTestResults(result));
-          saveScanToHistory(makeSpeedTestResults(result));
-          setViewingReport(true);
-          setViewingBatch(false);
-        } catch (e) {
-          showToast('Speed test failed. Please try again.', 'error');
-        } finally {
-          setIsScanning(false);
-        }
-      })();
-    }
-  }, [activeTab, results, isScanning, showToast]);
 
   // Thin wrappers preserving the original public call signatures.
   const triggerInvestigation = useCallback((overrideTarget?: InvestigationTarget, localFile?: File) => {
@@ -1042,37 +447,10 @@ export default function App() {
 
     const isTextOrCsv = file.name.endsWith('.txt') || file.name.endsWith('.csv') || file.type === 'text/plain' || file.type === 'text/csv';
     if (isTextOrCsv) {
-      if (file.size > 5 * 1024 * 1024) {
-        showToast('Text/CSV file too large. Maximum size is 5MB.', 'error');
-        return;
-      }
-      try {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const content = event.target?.result as string;
-          if (!content || content.length > 200000) {
-            showToast('File content exceeds maximum allowed size.', 'error');
-            return;
-          }
-          const targets = content
-            .split(/[\n,;]+/)
-            .map(t => t.trim())
-            .filter(Boolean);
-          if (targets.length === 0) {
-            showToast('No valid targets found in file.', 'error');
-            return;
-          }
-          if (targets.length > 200) {
-            showToast('Batch limit exceeded. Maximum 200 targets per batch.', 'error');
-            return;
-          }
-          await triggerBatchInvestigation(targets);
-        };
-        reader.readAsText(file);
-      } catch (err) {
-        console.error('Failed to parse batch file drop:', err);
-        showToast('Failed to read batch file.', 'error');
-      }
+      await processBatchFile(file, {
+        onSuccess: (targets) => triggerBatchInvestigation(targets),
+        onError: (message) => showToast(message, 'error'),
+      });
       return;
     }
 
@@ -1102,33 +480,10 @@ export default function App() {
         if (e.target) e.target.value = '';
         return;
       }
-      try {
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-          const content = event.target?.result as string;
-          if (!content || content.length > 200000) {
-            showToast('File content exceeds maximum allowed size.', 'error');
-            return;
-          }
-          const targets = content
-            .split(/[\n,;]+/)
-            .map(t => t.trim())
-            .filter(Boolean);
-          if (targets.length === 0) {
-            showToast('No valid targets found in file.', 'error');
-            return;
-          }
-          if (targets.length > 200) {
-            showToast('Batch limit exceeded. Maximum 200 targets per batch.', 'error');
-            return;
-          }
-          await triggerBatchInvestigation(targets);
-        };
-        reader.readAsText(file);
-      } catch (err) {
-        console.error('Failed to parse batch file select:', err);
-        showToast('Failed to read batch file.', 'error');
-      }
+      await processBatchFile(file, {
+        onSuccess: (targets) => triggerBatchInvestigation(targets),
+        onError: (message) => showToast(message, 'error'),
+      });
       if (e.target) e.target.value = '';
       return;
     }
@@ -1159,11 +514,10 @@ export default function App() {
   };
 
   return (
-    <div className={`h-screen overflow-hidden font-sans flex flex-col md:flex-row transition-colors duration-200 ${
-      isLightMode
-        ? 'bg-slate-50 text-slate-800'
-        : 'bg-black text-slate-200'
-    }`}>
+    <div className={`h-screen overflow-hidden font-sans flex flex-col md:flex-row transition-colors duration-200`} style={{
+      background: 'var(--bg-base)',
+      color: 'var(--text-primary)'
+    }}>
       <style>{`
         .no-copy {
           -webkit-user-select: none;
@@ -1186,37 +540,20 @@ export default function App() {
       )}
 
       {/* --- DESKTOP SIDEBAR --- */}
-      <Sidebar
-        activeTab={activeTab}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        isLightMode={isLightMode}
-        results={results}
-        batchResults={batchResults}
-        viewingReport={viewingReport}
-        setViewingReport={setViewingReport}
-        viewingBatch={viewingBatch}
-        setViewingBatch={setViewingBatch}
-        onSelectModule={handleSelectModule}
-      />
+      <Sidebar />
 
       {/* --- MOBILE NAVIGATION DRAWER & TOP HEADER --- */}
-      <MobileHeader
-        activeTab={activeTab}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-        isLightMode={isLightMode}
-        onSelectModule={handleSelectModule}
-      />
+      <MobileHeader />
 
       {/* --- MAIN CONTENT CANVAS WORKSPACE --- */}
-      <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto">
-        
-        {/* Dynamic page/module views container */}
-        <div className="flex-1 p-4 sm:p-6 lg:p-8">
-          <AnimatePresence mode="wait">
-            
-            {/* --- ACTIVE REPORT OVERLAY --- */}
+      <ErrorBoundary>
+        <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto">
+          
+          {/* Dynamic page/module views container */}
+          <div className="flex-1 p-4 sm:p-6 lg:p-8">
+            <AnimatePresence mode="wait">
+              
+              {/* --- ACTIVE REPORT OVERLAY --- */}
             {results && viewingReport && (
               <motion.div
                 key="active_report_panel"
@@ -1313,44 +650,49 @@ export default function App() {
                       <span>SECURITY SCORES</span>
                     </div>
 
-                    <div className={`divide-y ${isLightMode ? 'divide-slate-200' : 'divide-slate-800/40'}`}>
-                      {batchResults.map((r, idx) => {
-                        const sDetails = calculateRiskScore(r.findings);
-                        return (
-                          <div key={idx} className="p-4 flex items-center justify-between transition-colors hover:bg-red-500/5">
-                            <div className="flex items-center gap-3 truncate max-w-[70%]">
-                              <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/10 text-red-500 font-mono border border-red-500/25 uppercase shrink-0">
-                                {r.target.type}
-                              </span>
-                               <span className={`text-sm font-bold truncate ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{sanitizeText(r.target.value, 80)}</span>
-                            </div>
+                     <div className={`divide-y ${isLightMode ? 'divide-slate-200' : 'divide-slate-800/40'}`}>
+                       <VirtualizedList
+                         items={batchResults}
+                         itemHeight={72}
+                         height={Math.min(400, batchResults.length * 72)}
+                         renderItem={(r, idx) => {
+                           const sDetails = calculateRiskScore(r.findings);
+                           return (
+                             <div key={idx} className={`p-4 flex items-center justify-between transition-colors hover:bg-red-500/5 ${isLightMode ? 'border-b border-slate-200' : 'border-b border-slate-800/40'}`}>
+                               <div className="flex items-center gap-3 truncate max-w-[70%]">
+                                 <span className="text-[10px] px-2 py-0.5 rounded bg-red-500/10 text-red-500 font-mono border border-red-500/25 uppercase shrink-0">
+                                   {r.target.type}
+                                 </span>
+                                  <span className={`text-sm font-bold truncate ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{sanitizeText(r.target.value, 80)}</span>
+                               </div>
 
-                            <div className="flex items-center gap-4">
-                              <div className="text-right">
-                                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
-                                  r.riskScore > 60 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : r.riskScore > 30 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                }`}>
-                                  {sDetails.grade} ({r.riskScore})
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setResults(r);
-                                  setViewingReport(true);
-                                }}
-                                className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                                  isLightMode 
-                                    ? 'bg-slate-100 hover:bg-red-500 hover:text-white text-slate-700 border border-slate-200' 
-                                    : 'bg-slate-900 border border-slate-800 hover:border-red-500 text-slate-300'
-                                }`}
-                              >
-                                <Eye className="w-3.5 h-3.5" /> Inspect
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
+                               <div className="flex items-center gap-4">
+                                 <div className="text-right">
+                                   <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${
+                                     r.riskScore > 60 ? 'bg-red-500/10 text-red-400 border border-red-500/20' : r.riskScore > 30 ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                   }`}>
+                                     {sDetails.grade} ({r.riskScore})
+                                   </span>
+                                 </div>
+                                 <button
+                                   onClick={() => {
+                                     setResults(r);
+                                     setViewingReport(true);
+                                   }}
+                                   className={`px-3 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                     isLightMode 
+                                       ? 'bg-slate-100 hover:bg-red-500 hover:text-white text-slate-700 border border-slate-200' 
+                                       : 'bg-slate-900 border border-slate-800 hover:border-red-500 text-slate-300'
+                                   }`}
+                                 >
+                                   <Eye className="w-3.5 h-3.5" /> Inspect
+                                 </button>
+                               </div>
+                             </div>
+                           );
+                         }}
+                       />
+                     </div>
                   </div>
                 </div>
               </motion.div>
@@ -1367,159 +709,161 @@ export default function App() {
                 className="space-y-16"
               >
                 {/* HERO AREA (Split Columns) */}
-                <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-                  
-                  {/* Left Column (Brand info & quick search bar) */}
-                  <div className="lg:col-span-7 space-y-6 text-left">
-<div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/5 border border-red-500/10">
-           <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-            <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
-              OSINT INTELLIGENCE PLATFORM · BY CYBERSWAHILI
-            </span>
-         </div>
-
-                    <div className="space-y-1">
-<h1 className="text-4xl sm:text-6xl font-black font-display tracking-tight leading-none">
-         osint<span className="text-red-400">cs</span>
-       </h1>
-       <h2 className={`text-3xl sm:text-5xl font-black tracking-tight leading-none ${
-         isLightMode ? 'text-slate-600' : 'text-slate-400'
-       }`}>
-         Infrastructure Intelligence Suite
-       </h2>
-                    </div>
-
-<p className={`text-sm sm:text-base leading-relaxed ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>
-          osintcs integrates advanced OSINT capabilities including DNS intelligence, SSL/TLS analysis, WHOIS investigation, image forensics, website security scanning, subdomain enumeration, port profiling, WAF detection, and identity reconnaissance into a unified, browser-based platform.
-        </p>
-
-                    {/* Integrated Quick Search Bar with Dual Mode */}
-                    <div className="space-y-4">
-                      {/* Search Mode Tab Toggle */}
-                      <div className="flex gap-2.5 pb-1">
-<button
-           type="button"
-           onClick={() => setScanMode('single')}
-           className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
-             scanMode === 'single'
-               ? 'bg-red-500/10 text-red-400 border-red-500/25'
-               : isLightMode
-               ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-850'
-               : 'border-slate-850 bg-[#0e1424]/20 text-slate-400 hover:text-slate-200'
-           }`}
-         >
-           SINGLE TARGET ANALYSIS
-         </button>
-         <button
-           type="button"
-           onClick={() => setScanMode('batch')}
-           className={`text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer ${
-             scanMode === 'batch'
-               ? 'bg-red-500/10 text-red-400 border-red-500/25'
-               : isLightMode
-               ? 'border-slate-200 bg-white text-slate-500 hover:text-slate-850'
-               : 'border-slate-850 bg-[#0e1424]/20 text-slate-400 hover:text-slate-200'
-           }`}
-         >
-           BATCH INVESTIGATION
-         </button>
+                <section className="grid grid-cols-1 md:gap-12 lg:gap-16 lg:grid-cols-12 gap-8 items-center">
+                   
+                    {/* Left Column (Brand info & quick search bar) */}
+                    <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/5 border border-red-500/10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                        <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
+                          AI-POWERED OPEN-SOURCE INTELLIGENCE
+                        </span>
                       </div>
 
+                      <div className="space-y-1">
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black font-display tracking-tight leading-tighter">
+                          osint<span className="text-red-400">cs</span>
+                        </h1>
+                        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight" style={{ color: 'var(--text-primary)' }}>
+                          Digital Verification &amp; Intelligence Platform
+                        </h2>
+                        <p className="text-slate-400 leading-relaxed text-sm sm:text-base">
+                          OSINTCS helps investigators, journalists, cybersecurity professionals, and researchers discover, analyze, and verify fragmented digital information.
+                        </p>
+                      </div>
+
+                     {/* Integrated Quick Search Bar with Dual Mode */}
+                     <div className="space-y-3 sm:space-y-4">
+                       {/* Search Mode Tab Toggle */}
+                       <div className="flex gap-2 sm:gap-2.5 pb-1">
+ <button
+            type="button"
+            onClick={() => setScanMode('single')}
+            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer"
+            style={scanMode === 'single'
+              ? { background: 'var(--accent-bg)', color: 'var(--text-accent)', borderColor: 'var(--accent-border)' }
+              : { background: 'var(--bg-panel)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
+            }
+          >
+            SINGLE TARGET ANALYSIS
+          </button>
+          <button
+            type="button"
+            onClick={() => setScanMode('batch')}
+            className="text-xs font-mono font-bold px-3 py-1.5 rounded-lg border transition-all cursor-pointer"
+            style={scanMode === 'batch'
+              ? { background: 'var(--accent-bg)', color: 'var(--text-accent)', borderColor: 'var(--accent-border)' }
+              : { background: 'var(--bg-panel)', color: 'var(--text-secondary)', borderColor: 'var(--border-default)' }
+            }
+          >
+            BATCH INVESTIGATION
+          </button>
+                       </div>
+
                       {scanMode === 'single' ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!query.trim()) return;
-                            const sanitizedQuery = sanitizeText(query, 500);
-                            const targets = sanitizedQuery.split(',').map((t) => t.trim()).filter(Boolean);
-                            if (targets.length > 1) {
-                              triggerBatchInvestigation(targets);
-                            } else {
-                              triggerInvestigation();
-                            }
-                          }}
-                          className={`relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 ${
-                            isLightMode
-                              ? 'border-slate-200 bg-white shadow-sm focus-within:border-red-500'
-                              : 'border-slate-850 bg-[#0e1424]/40 shadow-lg shadow-black/40 focus-within:border-red-500/80'
-                          }`}
-                        >
-                          <div className="pl-3.5 text-slate-500">
-                            <Search className="w-5 h-5" />
-                          </div>
-                          <input
-                            type="text"
-                            value={query}
-                            onChange={(e) => handleQueryChange(e.target.value)}
-                            placeholder="Enter a domain, URL, email, username or hash..."
-                            className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm placeholder-slate-500 focus:ring-0 ${
-                              isLightMode ? 'text-slate-900' : 'text-white'
-                            }`}
-                            disabled={isScanning}
-                          />
-                          <div className="flex items-center gap-1.5 shrink-0 pr-1">
-                            <button
-                              type="button"
-                              onClick={() => setShowQrScanner(true)}
-                              className={`p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center ${
-                                isLightMode
-                                  ? 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                                  : 'border-slate-800 bg-slate-900/50 text-slate-400 hover:text-slate-200'
-                              }`}
-                              title="Scan Target QR Code"
-                            >
-                              <QrCode className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={!query.trim() || isScanning}
-                              className="px-5 py-3 rounded-lg bg-red-600 hover:bg-red-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer font-sans"
-                            >
-                              Analyze
-                            </button>
+                         <form
+                           onSubmit={(e) => {
+                             e.preventDefault();
+                             if (!query.trim()) return;
+                             const sanitizedQuery = sanitizeText(query, 500);
+                             const targets = sanitizedQuery.split(',').map((t) => t.trim()).filter(Boolean);
+                             if (targets.length > 1) {
+                               triggerBatchInvestigation(targets);
+                             } else {
+                               triggerInvestigation();
+                             }
+                           }}
+                           className="relative flex items-center border rounded-xl overflow-hidden transition-all p-1.5 focus-within:border-red-500"
+                           style={{
+                             borderColor: 'var(--border-default)',
+                             background: 'var(--bg-panel)',
+                             boxShadow: isDarkMode ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                           }}
+                         >
+                           <div className="pl-3.5" style={{ color: 'var(--text-muted)' }}>
+                             <Search className="w-5 h-5" />
+                           </div>
+                           <input
+                             type="text"
+                             value={query}
+                             onChange={(e) => handleQueryChange(e.target.value)}
+                             placeholder="Enter a domain, URL, email, username or hash..."
+                             className="w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm placeholder-slate-500 focus:ring-0"
+                             style={{ color: 'var(--text-primary)' }}
+                             disabled={isScanning}
+                           />
+                           <div className="flex items-center gap-1.5 shrink-0 pr-1">
+                              <button
+                                type="button"
+                                onClick={() => setShowQrScanner(true)}
+                                className="p-2.5 rounded-lg border transition-all cursor-pointer flex items-center justify-center"
+                                style={{
+                                  borderColor: 'var(--border-default)',
+                                  background: 'var(--bg-hover)',
+                                  color: 'var(--text-muted)',
+                                }}
+                                title="Scan Target QR Code"
+                              >
+                                <QrCode className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="submit"
+                                disabled={!query.trim() || isScanning}
+                                className="px-5 py-3 rounded-lg hover:bg-red-500 text-white font-semibold text-xs transition-all uppercase tracking-wider cursor-pointer font-sans flex items-center justify-center gap-1.5"
+                                style={{
+                                  background: 'var(--accent)',
+                                  opacity: (!query.trim() || isScanning) ? 0.5 : 1,
+                                  cursor: (!query.trim() || isScanning) ? 'not-allowed' : 'pointer',
+                                }}
+                              >
+                                Analyze
+                              </button>
                           </div>
                         </form>
                       ) : (
                         <div className="space-y-3.5">
-                          <div className={`border rounded-xl p-4.5 space-y-3.5 ${
-                            isLightMode ? 'bg-white border-slate-200 shadow-sm' : 'bg-[#0e1424]/40 border-slate-850'
-                          }`}>
-                            <div>
-                              <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase font-bold block mb-1">Enter Comma or Newline Separated Targets</span>
-                              <textarea
-                                value={batchQuery}
+                        <div className="border rounded-xl p-4 space-y-3.5" style={{
+                          borderColor: 'var(--border-default)',
+                          background: 'var(--bg-panel)',
+                          boxShadow: isDarkMode ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                        }}>
+                             <div>
+                               <span className="text-[10px] font-mono tracking-wider text-slate-500 uppercase font-bold block mb-1">Enter Comma or Newline Separated Targets</span>
+                               <textarea
+                                 value={batchQuery}
                                  onChange={(e) => handleBatchQueryChange(e.target.value)}
-                                placeholder="Enter multiple targets (one per line, or comma-separated)&#10;e.g.&#10;google.com&#10;cloudflare.com&#10;user@gmail.com"
-                                rows={4}
-                                className={`w-full bg-transparent border rounded-lg p-3 text-xs font-mono outline-none transition-all resize-none ${
-                                  isLightMode 
-                                    ? 'text-slate-900 border-slate-200 focus:border-red-500 placeholder-slate-400' 
-                                    : 'text-white border-slate-800 focus:border-red-500/80 placeholder-slate-600'
-                                }`}
-                                disabled={isScanning}
-                              />
-                            </div>
-                            
-                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 pt-1">
-                              {/* File Upload Selector */}
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="file"
-                                  ref={batchFileInputRef}
-                                  accept=".txt,.csv"
-                                  onChange={handleBatchFileSelect}
-                                  className="hidden"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => batchFileInputRef.current?.click()}
-                                  className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-black transition-all cursor-pointer flex items-center gap-1.5 ${
-                                    isLightMode
-                                      ? 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
-                                      : 'border-slate-800 bg-slate-900/40 text-slate-300 hover:border-slate-750'
-                                  }`}
-                                >
-                                  <Upload className="w-3.5 h-3.5 text-red-500" />
+                                 placeholder="Enter multiple targets (one per line, or comma-separated)&#10;e.g.&#10;google.com&#10;cloudflare.com&#10;user@gmail.com"
+                                 rows={4}
+                                 className="w-full bg-transparent border rounded-lg p-3 text-xs font-mono outline-none transition-all resize-none"
+                                 style={{
+                                   color: 'var(--text-primary)',
+                                   borderColor: 'var(--border-default)',
+                                 }}
+                                 disabled={isScanning}
+                               />
+                             </div>
+                             
+                             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-1">
+                               {/* File Upload Selector */}
+                               <div className="flex items-center gap-2">
+                                 <input
+                                   type="file"
+                                   ref={batchFileInputRef}
+                                   accept=".txt,.csv"
+                                   onChange={handleBatchFileSelect}
+                                   className="hidden"
+                                 />
+                                 <button
+                                   type="button"
+                                   onClick={() => batchFileInputRef.current?.click()}
+                                   className="px-3.5 py-2 rounded-lg border text-xs font-mono font-black transition-all cursor-pointer flex items-center gap-1.5"
+                                   style={{
+                                     borderColor: 'var(--border-default)',
+                                     background: 'var(--bg-hover)',
+                                     color: 'var(--text-secondary)',
+                                   }}
+                                 >
+                                   <Upload className="w-3.5 h-3.5" style={{ color: 'var(--accent)' }} />
                                   <span>Upload List (.txt / .csv)</span>
                                 </button>
                               </div>
@@ -1537,63 +881,72 @@ export default function App() {
                                       triggerBatchInvestigation(targets);
                                     }
                                   }}
-                                disabled={!batchQuery.trim() || isScanning}
-                                className="px-5 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 disabled:bg-slate-900/50 text-white disabled:text-slate-500 font-bold text-xs transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 font-sans"
-                              >
-                                <Play className="w-3.5 h-3.5" />
-                                <span>Run Batch Scan</span>
-                              </button>
+                                  disabled={!batchQuery.trim() || isScanning}
+                                  className="px-5 py-2.5 rounded-lg hover:bg-red-500 text-white font-bold text-xs transition-all uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 font-sans"
+                                  style={{
+                                    background: 'var(--accent)',
+                                    opacity: (!batchQuery.trim() || isScanning) ? 0.5 : 1,
+                                    cursor: (!batchQuery.trim() || isScanning) ? 'not-allowed' : 'pointer',
+                                  }}
+                                >
+                                  <Play className="w-3.5 h-3.5" />
+                                  <span>Run Batch Scan</span>
+                                </button>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* Try Chips */}
-                      <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
-                        <span className="text-slate-500 uppercase font-semibold">QUICK ACCESS:</span>
-                        {['cloudflare.com', 'github.com', 'natro.com', 'turhost.com', 'example.com'].map((chip) => (
-                          <button
-                            key={chip}
-                            onClick={() => handleTryChip(chip)}
-                            className={`px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer ${
-                              isLightMode
-                                ? 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                                : 'border-slate-800 bg-slate-900/35 hover:border-red-500/40 text-slate-400 hover:text-red-400'
-                            }`}
-                          >
-                            {chip}
-                          </button>
-                        ))}
-                      </div>
+                    {/* Try Chips */}
+                    <div className="flex items-center gap-2 flex-wrap text-xs font-mono">
+                      <span className="text-slate-500 uppercase font-semibold">QUICK ACCESS:</span>
+                      {['cloudflare.com', 'github.com', 'natro.com', 'turhost.com', 'example.com'].map((chip) => (
+                        <button
+                          key={chip}
+                          onClick={() => handleTryChip(chip)}
+                          className="px-2.5 py-1 rounded-md border text-[11px] font-medium transition-all cursor-pointer"
+                          style={{
+                            borderColor: 'var(--border-default)',
+                            background: 'var(--bg-panel)',
+                            color: 'var(--text-secondary)',
+                          }}
+                        >
+                          {chip}
+                        </button>
+                      ))}
                     </div>
                   </div>
+                </div>
 
-                  {/* Right Column (The interactive "Smart Target Router" card!) */}
+                {/* Right Column (The interactive "Smart Target Router" card!) */}
                   <div className="lg:col-span-5">
-                    <div className={`border rounded-2xl p-6 relative flex flex-col justify-between min-h-[380px] shadow-xl overflow-hidden ${
-                      isLightMode ? 'border-slate-200 bg-white shadow-slate-100' : 'border-slate-850 bg-[#0e1424]/40'
-                    }`}>
+                    <div className="border rounded-2xl p-4 sm:p-6 relative flex flex-col justify-between min-h-[360px] sm:min-h-[380px] shadow-xl overflow-hidden"
+                      style={{
+                        borderColor: 'var(--border-default)',
+                        background: 'var(--bg-panel)',
+                        boxShadow: isDarkMode ? 'var(--shadow-xl)' : 'var(--shadow-md)',
+                      }}>
                       {/* Interactive background effect */}
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-red-500/5 rounded-full blur-xl pointer-events-none" />
+                      <div className="absolute top-0 right-0 w-20 h-20 sm:w-24 sm:h-24 bg-red-500/5 rounded-full blur-xl pointer-events-none" />
 
-                      <div className="space-y-6">
+                      <div className="space-y-5 sm:space-y-6">
                         {/* Title Row */}
-                        <div className="flex items-center justify-between border-b border-slate-800/40 pb-3">
+                         <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
                           <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Sliders className="w-3.5 h-3.5" /> SMART TARGET ROUTER
                           </span>
-                          <span className={`text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border ${
-                            query.trim()
-                              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 animate-pulse'
-                              : 'bg-slate-900 border-slate-800 text-slate-500'
-                          }`}>
+                          <span className="text-[9px] px-2 py-0.5 rounded font-mono font-bold uppercase tracking-wider border"
+                            style={query.trim()
+                              ? { background: 'var(--color-pass-bg)', borderColor: 'var(--color-pass-border)', color: 'var(--color-pass)' }
+                              : { background: 'var(--bg-muted)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }
+                            }>
                             {query.trim() ? `${detectedType.toUpperCase()} DETECTED` : 'WAITING TARGET'}
                           </span>
                         </div>
 
                         {/* Dial Indicator */}
-                        <div className="flex items-center gap-4">
-                          <div className="relative shrink-0 flex items-center justify-center w-16 h-16">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className="relative shrink-0 flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16">
                             <svg className="w-full h-full transform -rotate-90">
                               <circle cx="32" cy="32" r="28" className="stroke-slate-850 fill-none" strokeWidth="4" />
                               <circle
@@ -1607,20 +960,20 @@ export default function App() {
                                 strokeLinecap="round"
                               />
                             </svg>
-                            <span className="absolute text-[10px] font-mono font-black text-white">
+                            <span className="absolute text-[10px] font-mono font-black" style={{ color: 'var(--text-primary)' }}>
                               {query.trim() ? '98%' : '0%'}
                             </span>
                           </div>
 
                           <div className="space-y-1">
-<h4 className={`text-sm font-bold tracking-tight ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
-                               {query.trim() ? `Recommended module: ${detectedType.toUpperCase()}` : 'Awaiting target analysis...'}
-                             </h4>
-                              <p className="text-[11px] text-slate-400 leading-normal">
-                                {query.trim()
-                                  ? `Target "${sanitizeText(query.slice(0, 20), 20)}..." analyzed. Optimal module: ${detectedType.toUpperCase()}.`
-                                  : 'Enter any target (domain, IP, email, username, hash, image) for intelligent routing.'}
-                              </p>
+                            <h4 className="text-sm font-bold tracking-tight" style={{ color: 'var(--text-primary)' }}>
+                              {query.trim() ? `Recommended module: ${detectedType.toUpperCase()}` : 'Awaiting target analysis...'}
+                            </h4>
+                            <p className="text-[11px] text-slate-400 leading-normal">
+                              {query.trim()
+                                ? `Target "${sanitizeText(query.slice(0, 20), 20)}..." analyzed. Optimal module: ${detectedType.toUpperCase()}.`
+                                : 'Enter any target (domain, IP, email, username, hash, image) for intelligent routing.'}
+                            </p>
                           </div>
                         </div>
 
@@ -1651,7 +1004,7 @@ export default function App() {
                       </div>
 
                       {/* Action Button */}
-                      <div className="pt-4 mt-4 border-t border-slate-850 flex items-center justify-between text-xs font-mono">
+                      <div className="pt-4 mt-4 border-t flex items-center justify-between text-xs font-mono" style={{ borderColor: 'var(--border-default)' }}>
                         <span className="text-slate-500 text-[10px]">◎ Open selected pathway directly</span>
                         <button
                           onClick={() => {
@@ -1672,28 +1025,28 @@ export default function App() {
                 </section>
 
                 {/* STATISTICS TICKER */}
-                <section className="grid grid-cols-2 lg:grid-cols-4 gap-6 border-y border-slate-850 py-8 text-center font-mono">
+                <section className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 border-y py-6 sm:py-8 text-center font-mono" style={{ borderColor: 'var(--border-default)' }}>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
-                     <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{QUICK_MODULES.length}+</span>
+                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>{QUICK_MODULES.length}+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>100+</span>
+                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>100+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Report Formats</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>5 Formats</span>
+                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>5 Formats</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Access Mode</span>
-                    <span className={`text-2xl sm:text-3xl font-black mt-1 block ${isLightMode ? 'text-slate-900' : 'text-white'}`}>100% Local</span>
+                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>100% Local</span>
                   </div>
                 </section>
 
                 {/* PLATFORM MODULES SECTION */}
-                <section id="module_grid" className="space-y-10">
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-slate-850 pb-4">
+                <section id="module_grid" className="space-y-8 sm:space-y-10">
+                  <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 sm:gap-4 border-b pb-3 sm:pb-4" style={{ borderColor: 'var(--border-default)' }}>
                     <div className="space-y-1">
                       <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
                         OSINTCS MODULES
@@ -1702,7 +1055,7 @@ export default function App() {
                         Full-spectrum reconnaissance arsenal
                       </h3>
                     </div>
-                    <p className="text-xs text-slate-400 max-w-sm">
+                    <p className="text-xs text-slate-400 max-w-md">
                         {QUICK_MODULES.length}+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, geolocation, technology fingerprinting, and attack-surface discovery.
                     </p>
                   </div>
@@ -1715,110 +1068,120 @@ export default function App() {
                   ].map((cat) => (
                     <div key={cat.category} className="space-y-4">
                       <h4 className={`text-[10px] font-mono font-bold uppercase tracking-widest ${cat.color}`}>{cat.category}</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        {cat.modules.map((modId) => {
-                          const mod = QUICK_MODULES.find(m => m.id === modId);
-                          if (!mod) return null;
-                          const Icon = mod.icon;
-                          return (
-                            <div key={modId} onClick={() => handleSelectModule(modId)} className={`border rounded-xl p-4 space-y-3 group transition-all cursor-pointer hover:-translate-y-0.5 ${isLightMode ? 'border-slate-200 bg-white hover:border-red-500' : 'border-slate-850 bg-[#0e1424]/20 hover:border-red-500/30'}`}>
-                              <div className="flex justify-between items-start">
-                                <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
-                                  <Icon className="w-4 h-4" />
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <h5 className={`font-bold text-sm ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{mod.label}</h5>
-                                <p className="text-[11px] text-slate-400 leading-normal line-clamp-2">{mod.description}</p>
-                              </div>
-                              <div className="text-[11px] font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
-                                Open module <ArrowRight className="w-3 h-3" />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+                         {cat.modules.map((modId) => {
+                           const mod = QUICK_MODULES.find(m => m.id === modId);
+                           if (!mod) return null;
+                           const Icon = mod.icon;
+                           return (
+                             <div key={modId} onClick={() => handleSelectModule(modId as TargetType | 'risk' | 'settings' | 'history')}
+                               className="border rounded-xl p-3.5 sm:p-4 space-y-3 group transition-all cursor-pointer hover:-translate-y-0.5"
+                               style={{
+                                 borderColor: 'var(--border-default)',
+                                 background: 'var(--bg-panel)',
+                                 boxShadow: isDarkMode ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+                               }}>
+                               <div className="flex justify-between items-start">
+                                 <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20" style={{ color: 'var(--text-accent)' }}>
+                                   <Icon className="w-4 h-4" />
+                                 </div>
+                               </div>
+                               <div className="space-y-1">
+                                 <h5 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>{mod.label}</h5>
+                                 <p className="text-[11px] text-slate-400 leading-normal line-clamp-2">{mod.description}</p>
+                               </div>
+                               <div className="text-[11px] font-semibold text-red-400 font-mono group-hover:underline flex items-center gap-1">
+                                 Open module <ArrowRight className="w-3 h-3" />
+                               </div>
+                             </div>
+                           );
+                         })}
+                       </div>
                     </div>
                   ))}
                 </section>
 
-                {/* ANALYSIS ENGINE STAGES (Details list) */}
-                <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start border-t border-slate-850 pt-12">
-                  <div className="lg:col-span-5 space-y-4">
-                    <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
-                      ANALYSIS PIPELINE
-                    </span>
-                    <h3 className="text-2xl font-black font-display tracking-tight">
-                      Intelligent Investigation Flow
-                    </h3>
-                    <p className={`text-xs leading-relaxed ${isLightMode ? 'text-slate-600' : 'text-slate-400'}`}>
-                      Multi-module intelligence processing with correlated results, real-time validation, and structured evidence output.
-                    </p>
-                  </div>
+                 {/* ANALYSIS ENGINE STAGES (Details list) */}
+                 <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-start border-t pt-8 sm:pt-12" style={{ borderColor: 'var(--border-default)' }}>
+                   <div className="lg:col-span-5 space-y-3 sm:space-y-4">
+                     <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">
+                       ANALYSIS PIPELINE
+                     </span>
+                     <h3 className="text-2xl font-black font-display tracking-tight">
+                       Intelligent Investigation Flow
+                     </h3>
+                     <p className="text-xs text-slate-400 leading-relaxed">
+                       Multi-module intelligence processing with correlated results, real-time validation, and structured evidence output.
+                     </p>
+                   </div>
 
-                  {/* Numbered Steps list matching the screenshot details */}
-                  <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                       {[
-                         { num: '01', title: 'DNS Intelligence Mapping', desc: 'Resolve MX, NS, SPF, DMARC, and TXT records for attack surface analysis.' },
-                         { num: '02', title: 'Website Security Scan', desc: 'Live headers, TLS, cookies, CORS, CMS, security header fingerprinting.' },
-                         { num: '03', title: 'Mail Server Audit', desc: 'Audit SMTP, open relays, spoofing vectors, and mailflow posture.' },
-                         { num: '04', title: 'WHOIS / RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
-                         { num: '05', title: 'SSL/TLS Audit', desc: 'Certificates, cipher suites, protocol versions, and chain trust.' },
-                         { num: '06', title: 'BGP / ASN Mapping', desc: 'Trace autonomous networks and physical hosting infrastructure.' },
-                         { num: '07', title: 'Reverse IP / Hostmap', desc: 'Co-hosted servers, shared hosting neighbors, and origin exposure.' },
-                         { num: '08', title: 'Security Headers Review', desc: 'CSP, HSTS, X-Frame, COOP/COEP, and secure transport options.' },
-                         { num: '09', title: 'Subdomain Enumeration', desc: 'Certificate transparency logs and passive recon coverage.' },
-                         { num: '10', title: 'Port & Service Profiling', desc: 'Top and deep port sweeps, service fingerprinting, and exposure triage.' },
-                         { num: '11', title: 'WAF Detection', desc: 'Identify CDN/WAF vendors, challenge pages, and header-based protections.' },
-                         { num: '12', title: 'Identity & People OSINT', desc: 'Email breach exposure, username footprinting, and entity correlation.' },
-                         { num: '13', title: 'Image & Metadata Forensics', desc: 'EXIF, GPS, AI-generation indicators, and ELA compression analysis.' },
-                         { num: '14', title: 'URL & Path Discovery', desc: 'Endpoint fuzzing, common admin paths, and parameter exposure.' },
-                         { num: '15', title: 'Webpage Resource Mapping', desc: 'Capture page load graph: domains, resources, redirects, cookies, third-party exposure, and risk scoring.' },
-                         { num: '16', title: 'Local Execution Mode', desc: 'Zero backend dependency. All scanning runs in-browser with fallback simulation.' },
-                       ].map((step, idx) => (
-                      <div key={idx} className={`border p-3 rounded-lg flex items-start gap-3 transition-all hover:border-red-500/20 hover:translate-y-0.5 ${
-                        isLightMode ? 'border-slate-100 bg-white/60' : 'border-slate-850 bg-slate-900/10'
-                      }`}>
-                        <span className="text-[10px] font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded shrink-0">
-                          {step.num}
-                        </span>
-                        <div className="space-y-0.5 min-w-0">
-                          <strong className={`block font-semibold truncate ${isLightMode ? 'text-slate-800' : 'text-white'}`}>{step.title}</strong>
-                          <p className="text-[10px] text-slate-500 leading-normal line-clamp-2">{step.desc}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                   {/* Numbered Steps list matching the screenshot details */}
+                   <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {[
+                          { num: '01', title: 'DNS Intelligence Mapping', desc: 'Resolve MX, NS, SPF, DMARC, and TXT records for attack surface analysis.' },
+                          { num: '02', title: 'Website Security Scan', desc: 'Live headers, TLS, cookies, CORS, CMS, security header fingerprinting.' },
+                          { num: '03', title: 'Mail Server Audit', desc: 'Audit SMTP, open relays, spoofing vectors, and mailflow posture.' },
+                          { num: '04', title: 'WHOIS / RDAP Records', desc: 'Evaluate registration age, registrars, and ownership intelligence.' },
+                          { num: '05', title: 'SSL/TLS Audit', desc: 'Certificates, cipher suites, protocol versions, and chain trust.' },
+                          { num: '06', title: 'BGP / ASN Mapping', desc: 'Trace autonomous networks and physical hosting infrastructure.' },
+                          { num: '07', title: 'Reverse IP / Hostmap', desc: 'Co-hosted servers, shared hosting neighbors, and origin exposure.' },
+                          { num: '08', title: 'Security Headers Review', desc: 'CSP, HSTS, X-Frame, COOP/COEP, and secure transport options.' },
+                          { num: '09', title: 'Subdomain Enumeration', desc: 'Certificate transparency logs and passive recon coverage.' },
+                          { num: '10', title: 'Port & Service Profiling', desc: 'Top and deep port sweeps, service fingerprinting, and exposure triage.' },
+                          { num: '11', title: 'WAF Detection', desc: 'Identify CDN/WAF vendors, challenge pages, and header-based protections.' },
+                          { num: '12', title: 'Identity & People OSINT', desc: 'Email breach exposure, username footprinting, and entity correlation.' },
+                          { num: '13', title: 'Image & Metadata Forensics', desc: 'EXIF, GPS, AI-generation indicators, and ELA compression analysis.' },
+                          { num: '14', title: 'URL & Path Discovery', desc: 'Endpoint fuzzing, common admin paths, and parameter exposure.' },
+                          { num: '15', title: 'Webpage Resource Mapping', desc: 'Capture page load graph: domains, resources, redirects, cookies, third-party exposure, and risk scoring.' },
+                          { num: '16', title: 'Local Execution Mode', desc: 'Zero backend dependency. All scanning runs in-browser with fallback simulation.' },
+                        ].map((step, idx) => (
+                       <div key={idx} className="border p-3 rounded-lg flex items-start gap-3 transition-all"
+                         style={{
+                           borderColor: 'var(--border-default)',
+                           background: 'var(--bg-panel)',
+                         }}>
+                         <span className="text-[10px] font-mono font-bold text-red-400 bg-red-500/10 px-2 py-0.5 rounded shrink-0">
+                           {step.num}
+                         </span>
+                         <div className="space-y-0.5 min-w-0">
+                           <strong className="block font-semibold truncate" style={{ color: 'var(--text-primary)' }}>{step.title}</strong>
+                           <p className="text-[10px] text-slate-500 leading-normal line-clamp-2">{step.desc}</p>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
+                 </section>
 
-                {/* BOTTOM CALL-TO-ACTION BANNER */}
-                <section className={`border rounded-2xl p-8 text-center relative overflow-hidden ${
-                  isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.06),transparent)]'
-                }`}>
-                  <div className="max-w-xl mx-auto space-y-4">
-                    <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
-                    <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full reconnaissance suite.</h3>
-                    <p className="text-xs text-slate-400">
-                      Audit DNS, SSL, headers, subdomains, WAF, open ports, virtual hosts, and known paths in a single synchronous workflow.
-                    </p>
-                    <button
-                      onClick={() => {
-                        setQuery('cloudflare.com');
-                        handleSelectModule('domain');
-                        triggerInvestigation({ value: 'cloudflare.com', type: 'domain' });
-                      }}
-                      className="px-6 py-2.5 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg shadow-red-600/10"
-                    >
-                      Launch Intelligence Scan
-                    </button>
-                  </div>
-                </section>
+                 {/* BOTTOM CALL-TO-ACTION BANNER */}
+                 <section className="border rounded-2xl p-6 sm:p-8 text-center relative overflow-hidden"
+                   style={{
+                     borderColor: 'var(--border-default)',
+                     background: 'var(--bg-panel)',
+                   }}>
+                   <div className="absolute top-0 right-0 w-40 h-40 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
+                   <div className="max-w-xl mx-auto space-y-4">
+                     <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest block">START WITH ONE TARGET</span>
+                     <h3 className="text-xl sm:text-2xl font-black tracking-tight font-display">Run a domain through the full reconnaissance suite.</h3>
+                     <p className="text-xs text-slate-400">
+                       Audit DNS, SSL, headers, subdomains, WAF, open ports, virtual hosts, and known paths in a single synchronous workflow.
+                     </p>
+                     <button
+                       onClick={() => {
+                         setQuery('cloudflare.com');
+                         handleSelectModule('domain');
+                         triggerInvestigation({ value: 'cloudflare.com', type: 'domain' });
+                       }}
+                       className="px-6 py-2.5 rounded-lg hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-1.5 shadow-lg"
+                       style={{ background: 'var(--accent)' }}
+                     >
+                       Launch Intelligence Scan
+                     </button>
+                   </div>
+                 </section>
 
-                {/* FOOTER */}
-                <footer className={`pt-12 border-t text-xs ${
-                  isLightMode ? 'border-slate-200 text-slate-600' : 'border-slate-850 text-slate-400'
-                }`}>
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-8 pb-8">
+                {/* FOOTER (home page) */}
+                <footer className="pt-10 sm:pt-12 border-t text-xs" style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}>
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-6 sm:gap-8 pb-6 sm:pb-8">
                     <div className="md:col-span-5 space-y-3">
                       <span className="text-base font-black font-display">osint<span className="text-red-400">cs</span></span>
                       <p className="text-[11px] text-slate-500 leading-relaxed max-w-sm">
@@ -1826,7 +1189,7 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-6 font-mono text-[10px] text-left">
+                    <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-6 font-mono text-[10px] text-left">
                       <div className="space-y-2">
                         <strong className="text-slate-500 uppercase tracking-wider font-black block">INFRASTRUCTURE</strong>
                         <ul className="space-y-1.5">
@@ -1835,7 +1198,7 @@ export default function App() {
                           <li><button onClick={() => handleSelectModule('websitescanner')} className="hover:text-red-400 cursor-pointer">Web Security</button></li>
                           <li><button onClick={() => handleSelectModule('subdomain')} className="hover:text-red-400 cursor-pointer">Subdomains</button></li>
                           <li><button onClick={() => handleSelectModule('portscan')} className="hover:text-red-400 cursor-pointer">Port Scanner</button></li>
-                          <li><button onClick={() => handleSelectModule('network')} className="hover:text-red-400 cursor-pointer">Network Scan</button></li>
+                          <li><button onClick={() => handleSelectModule('networkscan')} className="hover:text-red-400 cursor-pointer">Network Scan</button></li>
                         </ul>
                       </div>
                       <div className="space-y-2">
@@ -1879,44 +1242,48 @@ export default function App() {
                 className="space-y-8"
               >
                 {/* Tool Title Block */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-5">
-                  <div className="flex items-start gap-3">
-                    <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 shrink-0">
-                      {React.createElement(QUICK_MODULES.find(m => m.id === activeTab)?.icon || Shield, { className: "w-6 h-6" })}
-                    </div>
-                    <div>
-                      <h2 className={`text-xl font-black font-display flex items-center gap-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
-                        {QUICK_MODULES.find(m => m.id === activeTab)?.label}
-                      </h2>
-                      <p className="text-xs text-slate-400 font-medium">
-                        {QUICK_MODULES.find(m => m.id === activeTab)?.description}
-                      </p>
-                    </div>
-                  </div>
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-5" style={{ borderColor: 'var(--border-default)' }}>
+                   <div className="flex items-start gap-3">
+                     <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 shrink-0" style={{ color: 'var(--text-accent)' }}>
+                       {React.createElement(QUICK_MODULES.find(m => m.id === activeTab)?.icon || Shield, { className: "w-6 h-6" })}
+                     </div>
+                     <div>
+                       <h2 className="text-xl font-black font-display flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                         {QUICK_MODULES.find(m => m.id === activeTab)?.label}
+                       </h2>
+                       <p className="text-xs text-slate-400 font-medium">
+                         {QUICK_MODULES.find(m => m.id === activeTab)?.description}
+                       </p>
+                     </div>
+                   </div>
 
-                  {/* Return Home Button */}
-                  <button
-                    onClick={() => handleSelectModule('home')}
-                    className={`px-3.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                      isLightMode
-                        ? 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 shadow-sm'
-                        : 'border-slate-800 bg-[#0e1424]/80 text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    Back to Lobby
-                  </button>
-                </div>
+                   {/* Return Home Button */}
+                   <button
+                     onClick={() => handleSelectModule('home')}
+                     className="px-3.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer"
+                     style={{
+                       borderColor: 'var(--border-default)',
+                       background: 'var(--bg-panel)',
+                       color: 'var(--text-secondary)',
+                     }}
+                   >
+                     Back to Lobby
+                   </button>
+                 </div>
 
                 {/* Interactive Work Area */}
                 <div className="max-w-3xl mx-auto space-y-6">
                   {activeTab === 'image' ? (
                     /* Interactive Image Upload */
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-                      <div className={`flex flex-col justify-between border rounded-xl p-6 relative ${
-                        isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'
-                      }`}>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-stretch">
+                      <div className="flex flex-col justify-between border rounded-xl p-5 sm:p-6 relative"
+                        style={{
+                          borderColor: 'var(--border-default)',
+                          background: 'var(--bg-panel)',
+                          boxShadow: isDarkMode ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                        }}>
                         <div>
-                          <h3 className={`text-xs font-bold font-mono uppercase tracking-wider mb-4 flex items-center gap-1.5 ${isLightMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                          <h3 className="text-xs font-bold font-mono uppercase tracking-wider mb-3 sm:mb-4 flex items-center gap-1.5" style={{ color: 'var(--text-muted)' }}>
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" /> Target Image
                           </h3>
                           <div
@@ -1924,13 +1291,12 @@ export default function App() {
                             onDragLeave={handleDragLeave}
                             onDrop={handleDrop}
                             onClick={() => fileInputRef.current?.click()}
-                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5 ${
-                              isDragging
-                                ? 'border-red-500 bg-red-500/5 scale-[1.01]'
-                                : isLightMode
-                                ? 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/50'
-                                : 'border-slate-850 bg-slate-950/40 hover:border-slate-700 hover:bg-[#0e1424]/20'
-                            }`}
+                            className="border-2 border-dashed rounded-lg p-6 sm:p-8 text-center transition-all cursor-pointer flex flex-col items-center justify-center gap-2.5"
+                            style={{
+                              borderColor: isDragging ? 'var(--accent)' : 'var(--border-default)',
+                              background: isDragging ? 'var(--accent-bg)' : 'var(--bg-hover)',
+                              transform: isDragging ? 'scale(1.01)' : 'none',
+                            }}
                           >
                             <input
                               type="file"
@@ -1940,18 +1306,19 @@ export default function App() {
                               className="hidden"
                               id="image_file_picker"
                             />
-                            <Upload className={`w-8 h-8 ${isDragging ? 'text-red-500 animate-bounce' : 'text-slate-500'}`} />
+                            <Upload className="w-8 h-8" style={{ color: isDragging ? 'var(--accent)' : 'var(--text-muted)' }} />
                             <div className="space-y-1">
-                              <p className={`text-sm font-bold ${isLightMode ? 'text-slate-800' : 'text-white'}`}>Drop or choose an image</p>
+                              <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>Drop or choose an image</p>
                               <p className="text-xs text-slate-500 font-mono">JPEG, PNG, WebP, GIF, AVIF · max 20 MB</p>
                             </div>
                           </div>
                         </div>
 
-                        <div className="space-y-4 pt-6 mt-6 border-t border-slate-850">
+                        <div className="space-y-3 sm:space-y-4 pt-5 sm:pt-6 mt-4 sm:mt-6 border-t" style={{ borderColor: 'var(--border-default)' }}>
                           <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full py-3 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-500/10"
+                            className="w-full py-3 rounded-lg hover:bg-red-500 text-white font-bold text-xs tracking-wider uppercase transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg"
+                            style={{ background: 'var(--accent)' }}
                           >
                             <Eye className="w-4 h-4" /> Scan authenticity
                           </button>
@@ -1964,9 +1331,12 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className={`border rounded-xl p-6 flex flex-col justify-between ${
-                        isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-850 bg-slate-950/40'
-                      }`}>
+                      <div className="border rounded-xl p-5 sm:p-6 flex flex-col justify-between"
+                        style={{
+                          borderColor: 'var(--border-default)',
+                          background: 'var(--bg-panel)',
+                          boxShadow: isDarkMode ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+                        }}>
 <div className="space-y-4">
                        <h4 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>
                          From IOC to Actionable Intelligence
@@ -2066,7 +1436,7 @@ export default function App() {
                                   try {
                                     const result = await scanIpAdvance();
                                     setResults(makeIpAdvanceResults(result));
-                                    saveScanToHistory(makeIpAdvanceResults(result));
+                                    addRecentScan(makeIpAdvanceResults(result));
                                   } catch (e) {
                                     showToast('IP Advance scan failed. Please try again.', 'error');
                                   } finally {
@@ -2096,7 +1466,7 @@ export default function App() {
                               try {
                                 const result = await scanIpAdvance();
                                 setResults(makeIpAdvanceResults(result));
-                                saveScanToHistory(makeIpAdvanceResults(result));
+                                addRecentScan(makeIpAdvanceResults(result));
                                 setViewingReport(true);
                               } catch (e) {
                                 showToast('IP Advance scan failed. Please try again.', 'error');
@@ -2188,7 +1558,7 @@ export default function App() {
                                   try {
                                     const result = await scanTechnology(results.techlookup!.domain);
                                     setResults(makeTechLookupResults(result));
-                                    saveScanToHistory(makeTechLookupResults(result));
+                                    addRecentScan(makeTechLookupResults(result));
                                   } catch (e) {
                                     showToast('Technology lookup failed. Please try again.', 'error');
                                   } finally {
@@ -2220,7 +1590,7 @@ export default function App() {
                                   try {
                                     const result = await scanTechnology(query.trim());
                                     setResults(makeTechLookupResults(result));
-                                    saveScanToHistory(makeTechLookupResults(result));
+                                    addRecentScan(makeTechLookupResults(result));
                                     setViewingReport(true);
                                   } catch (err) {
                                     showToast('Technology lookup failed. Please try again.', 'error');
@@ -2270,7 +1640,7 @@ export default function App() {
                               try {
                                 const result = await scanTechnology(query.trim());
                                 setResults(makeTechLookupResults(result));
-                                saveScanToHistory(makeTechLookupResults(result));
+                                addRecentScan(makeTechLookupResults(result));
                                 setViewingReport(true);
                               } catch (e) {
                                 showToast('Technology lookup failed. Please try again.', 'error');
@@ -2350,7 +1720,7 @@ export default function App() {
                                   try {
                                     const result = await scanGeoLookup(results.geolookup!.target);
                                     setResults(makeGeoLookupResults(result));
-                                    saveScanToHistory(makeGeoLookupResults(result));
+                                    addRecentScan(makeGeoLookupResults(result));
                                   } catch (e) {
                                     showToast('Geo lookup failed. Please try again.', 'error');
                                   } finally {
@@ -2382,7 +1752,7 @@ export default function App() {
                                   try {
                                     const result = await scanGeoLookup(query.trim());
                                     setResults(makeGeoLookupResults(result));
-                                    saveScanToHistory(makeGeoLookupResults(result));
+                                    addRecentScan(makeGeoLookupResults(result));
                                     setViewingReport(true);
                                   } catch (err) {
                                     showToast('Geo lookup failed. Please try again.', 'error');
@@ -2432,7 +1802,7 @@ export default function App() {
                               try {
                                 const result = await scanGeoLookup(query.trim());
                                 setResults(makeGeoLookupResults(result));
-                                saveScanToHistory(makeGeoLookupResults(result));
+                                addRecentScan(makeGeoLookupResults(result));
                                 setViewingReport(true);
                               } catch (e) {
                                 showToast('Geo lookup failed. Please try again.', 'error');
@@ -2839,7 +2209,7 @@ export default function App() {
                                   try {
                                     const result = await scanPopoScan(trimmed);
                                     setResults(makePopoScanResults(result));
-                                    saveScanToHistory(makePopoScanResults(result));
+                                    addRecentScan(makePopoScanResults(result));
                                     setViewingReport(true);
                                   } catch (err) {
                                     showToast('PopoScan failed. Please check the URL and try again.', 'error');
@@ -2903,7 +2273,7 @@ export default function App() {
                                   try {
                                     const result = await scanPopoScan(query.trim());
                                     setResults(makePopoScanResults(result));
-                                    saveScanToHistory(makePopoScanResults(result));
+                                    addRecentScan(makePopoScanResults(result));
                                     setViewingReport(true);
                                   } catch (e) {
                                     showToast('PopoScan failed. Please check the URL and try again.', 'error');
@@ -2928,132 +2298,23 @@ export default function App() {
                       </div>
                     </div>
                   ) : activeTab === 'speedtest' ? (
-                    /* Internet Speed Test */
-                    <div className="space-y-6">
-                      <div className={`border rounded-xl p-6 space-y-6 ${isLightMode ? 'border-slate-200 bg-white shadow-sm text-slate-800' : 'border-slate-800 bg-[#0e1424]/40'}`}>
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 shrink-0">
-                              <Gauge className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Internet Speed Test</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Dual-source bandwidth · regional latency</p>
-                            </div>
-                          </div>
-                          {results?.speedtest && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Measured
-                            </span>
-                          )}
-                        </div>
-
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Measuring bandwidth and latency...</span>
-                          </div>
-                        ) : results?.speedtest ? (
-                          <div className="space-y-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              <div className={`p-5 rounded-xl border ${isLightMode ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-500/30 bg-emerald-500/10'}`}>
-                                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">Cloudflare Edge</div>
-                                <div className="mt-2 flex items-baseline gap-2">
-                                  <span className={`text-3xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.cloudflare.downloadMbps}</span>
-                                  <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
-                                </div>
-                                <div className="mt-1 flex items-baseline gap-2">
-                                  <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{results.speedtest.cloudflare.uploadMbps}</span>
-                                  <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
-                                </div>
-                                <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.cloudflare.node}</div>
-                              </div>
-                              <div className={`p-5 rounded-xl border ${isLightMode ? 'border-emerald-200 bg-emerald-50' : 'border-emerald-500/30 bg-emerald-500/10'}`}>
-                                <div className="text-[10px] font-mono uppercase tracking-wider text-slate-500">M-Lab (MSAK)</div>
-                                <div className="mt-2 flex items-baseline gap-2">
-                                  <span className={`text-3xl font-black font-mono ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.mlab.downloadMbps}</span>
-                                  <span className="text-xs font-mono text-slate-500">Mbps ↓</span>
-                                </div>
-                                <div className="mt-1 flex items-baseline gap-2">
-                                  <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-700' : 'text-slate-300'}`}>{results.speedtest.mlab.uploadMbps}</span>
-                                  <span className="text-[10px] font-mono text-slate-500">Mbps ↑</span>
-                                </div>
-                                <div className="text-[10px] font-mono text-slate-500 mt-2">{results.speedtest.mlab.node}</div>
-                              </div>
-                            </div>
-
-                            <div className={`border rounded-lg overflow-hidden ${isLightMode ? 'border-slate-200' : 'border-slate-850'}`}>
-                              <table className="w-full text-left border-collapse font-mono text-[11px]">
-                                <thead className={`${isLightMode ? 'bg-slate-50 text-slate-500' : 'bg-slate-900/40 text-slate-400'}`}>
-                                  <tr>
-                                    <th className="px-3 py-2 font-bold">Region</th>
-                                    <th className="px-3 py-2 font-bold">Latency</th>
-                                  </tr>
-                                </thead>
-                                <tbody className={`divide-y ${isLightMode ? 'divide-slate-100' : 'divide-slate-850'}`}>
-                                  {results.speedtest.latency.map((n, idx) => (
-                                    <tr key={idx}>
-                                      <td className={`px-3 py-2 ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{n.flag} {n.name}</td>
-                                      <td className={`px-3 py-2 ${n.latencyMs > 400 ? 'text-red-400' : n.latencyMs > 300 ? 'text-amber-400' : 'text-emerald-400'}`}>{n.latencyMs} ms</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-
-                            <div className={`p-3 rounded-lg border text-[11px] font-mono ${isLightMode ? 'border-slate-200 bg-slate-50' : 'border-slate-850 bg-slate-900/30'}`}>
-                              <div className="text-slate-500">Outgoing IP: <span className={`font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>{results.speedtest.outgoingIp}</span> · {results.speedtest.ipVersion}</div>
-                              <p className="text-slate-400 mt-1 leading-relaxed">{results.speedtest.note}</p>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                if (isScanning) return;
-                                setIsScanning(true);
-                                setQuery('Measuring bandwidth and latency...');
-                                try {
-                                  const result = await scanSpeedTest();
-                                  setResults(makeSpeedTestResults(result));
-                                  saveScanToHistory(makeSpeedTestResults(result));
-                                } catch (e) {
-                                  showToast('Speed test failed. Please try again.', 'error');
-                                } finally {
-                                  setIsScanning(false);
-                                }
-                              }}
-                              className="w-full py-3 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                            >
-                              <RefreshCw className="w-4 h-4" /> Run Again
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (isScanning) return;
-                              setIsScanning(true);
-                              setQuery('Measuring bandwidth and latency...');
-                              try {
-                                const result = await scanSpeedTest();
-                                setResults(makeSpeedTestResults(result));
-                                saveScanToHistory(makeSpeedTestResults(result));
-                                setViewingReport(true);
-                              } catch (e) {
-                                showToast('Speed test failed. Please try again.', 'error');
-                              } finally {
-                                setIsScanning(false);
-                              }
-                            }}
-                            className="w-full py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
-                          >
-                            <span className="flex items-center gap-2">
-                              <Gauge className="w-4 h-4" /> Run Speed Test
-                            </span>
-                          </button>
-                        )}
+                    <Suspense fallback={
+                      <div className="flex items-center justify-center gap-3 py-10">
+                        <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                        <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Loading speed test module...</span>
                       </div>
-                    </div>
+                    }>
+                      <SpeedTestWorkspace
+                        isLightMode={isLightMode}
+                        isScanning={isScanning}
+                        results={results}
+                        onScanComplete={(r) => {
+                          setResults(r);
+                          addRecentScan(r);
+                        }}
+                        showToast={showToast}
+                      />
+                    </Suspense>
                   ) : activeTab === 'myip' ? (
                     /* What is My IP — auto-detected, no manual search */
                     <div className="space-y-6">
@@ -3105,7 +2366,7 @@ export default function App() {
                                   try {
                                     const result = await scanMyIp();
                                     setResults(makeMyIpResults(result));
-                                    saveScanToHistory(makeMyIpResults(result));
+                                    addRecentScan(makeMyIpResults(result));
                                   } catch (e) {
                                     showToast('Failed to detect IP. Please try again.', 'error');
                                   } finally {
@@ -3165,7 +2426,7 @@ export default function App() {
                                 setSubdomainResult(result);
                                 const scanResults = makeSubdomainResults(result);
                                 setResults(scanResults);
-                                saveScanToHistory(scanResults);
+                                addRecentScan(scanResults);
                               } catch (err) {
                                 showToast('Subdomain scan failed. Please try again.', 'error');
                               } finally {
@@ -3472,9 +2733,21 @@ export default function App() {
                         <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
                       </label>
                     </div>
-                  </div>
+                   </div>
 
-                  {/* Sandbox Cache Clear */}
+                   {/* Appearance */}
+                   <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
+                     <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Appearance</h3>
+                     <div className="flex items-center justify-between">
+                       <div className="space-y-0.5 pr-4">
+                         <strong className="text-sm font-semibold block">Theme</strong>
+                         <p className="text-xs text-slate-500 leading-normal">Choose between light, dark, or system preference.</p>
+                       </div>
+                       <ThemeToggle />
+                     </div>
+                   </div>
+
+                   {/* Sandbox Cache Clear */}
                   <div className={`border rounded-xl p-5 space-y-4 border-red-500/20 bg-red-500/5`}>
                     <h3 className="text-xs font-bold font-mono uppercase text-red-400 tracking-wider">Data Management</h3>
                     <div className="flex items-center justify-between">
@@ -3584,23 +2857,24 @@ export default function App() {
 
         {/* --- GLOBAL PERSISTENT FOOTER (shown on every screen) --- */}
         <footer
-          className={`mt-auto shrink-0 border-t px-4 sm:px-6 lg:px-8 py-4 ${
-            isLightMode
-              ? 'border-slate-200 bg-white'
-              : 'border-slate-800 bg-black'
-          }`}
+          className="mt-auto shrink-0 border-t px-4 sm:px-6 lg:px-8 py-4"
+          style={{
+            borderColor: 'var(--border-default)',
+            backgroundColor: 'var(--bg-panel)',
+          }}
         >
-          <p className="text-center text-[11px] sm:text-xs font-medium leading-relaxed text-black">
-            Created by <span className="text-red-600 font-bold">Cyberswahili</span>
-            <span className="text-black/50"> : </span>
-            <span className="font-bold text-black">OSINTCS v2.0</span>
-            <span className="text-black/50"> · </span>
+          <p className="text-center text-[11px] sm:text-xs font-medium leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+            Created by <span className="font-bold" style={{ color: 'var(--text-accent)' }}>Cyberswahili</span>
+            <span style={{ color: 'var(--text-secondary)' }}> : </span>
+            <span className="font-bold" style={{ color: 'var(--text-primary)' }}>OSINTCS v2.0</span>
+            <span style={{ color: 'var(--text-secondary)' }}> · </span>
             Browser-Based Security Sandbox Intelligence
-            <span className="text-black/50"> · </span>
-            <span className="text-red-600 font-bold">Zero Telemetry</span>
+            <span style={{ color: 'var(--text-secondary)' }}> · </span>
+            <span className="font-bold" style={{ color: 'var(--text-accent)' }}>Zero Telemetry</span>
           </p>
         </footer>
       </main>
+      </ErrorBoundary>
 
       {/* --- HUD CONSOLE OVERLAY --- */}
       <ScanConsole isScanning={isScanning} scanLogs={scanLogs} />

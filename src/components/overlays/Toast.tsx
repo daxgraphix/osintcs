@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
@@ -10,27 +15,31 @@ const VARIANTS: Record<ToastType, {
   border: string;
   iconColor: string;
   bg: string;
+  text: string;
 }> = {
   success: {
     icon: <CheckCircle2 className="w-4 h-4" />,
-    bar: '#4ade80',
-    border: 'rgba(74,222,128,0.25)',
-    iconColor: '#4ade80',
-    bg: 'rgba(74,222,128,0.06)',
+    bar: '#22c55e',
+    border: 'rgba(34,197,94,0.35)',
+    iconColor: '#22c55e',
+    bg: 'rgba(34,197,94,0.12)',
+    text: 'var(--text-primary)',
   },
   error: {
     icon: <AlertCircle className="w-4 h-4" />,
     bar: '#ef4444',
-    border: 'rgba(239,68,68,0.3)',
+    border: 'rgba(239,68,68,0.35)',
     iconColor: '#f87171',
-    bg: 'rgba(239,68,68,0.06)',
+    bg: 'rgba(239,68,68,0.12)',
+    text: 'var(--text-primary)',
   },
   info: {
     icon: <Info className="w-4 h-4" />,
-    bar: '#a3a3a3',
-    border: 'rgba(163,163,163,0.2)',
-    iconColor: '#d4d4d4',
-    bg: 'rgba(163,163,163,0.05)',
+    bar: '#3b82f6',
+    border: 'rgba(59,130,246,0.35)',
+    iconColor: '#60a5fa',
+    bg: 'rgba(59,130,246,0.12)',
+    text: 'var(--text-primary)',
   },
 };
 
@@ -54,9 +63,9 @@ export default function Toast({
           transition={{ type: 'spring', stiffness: 320, damping: 28 }}
           className="fixed bottom-6 right-6 z-[60] w-80 overflow-hidden rounded-2xl"
           style={{
-            background: '#0a0a0a',
+            background: 'var(--bg-panel)',
             border: `1px solid ${variant.border}`,
-            boxShadow: `0 0 30px rgba(0,0,0,0.6), 0 0 12px ${variant.border}`,
+            boxShadow: `0 0 30px rgba(0,0,0,0.25), 0 0 12px ${variant.border}`,
           }}
           role="alert"
           aria-live="polite"
@@ -75,7 +84,7 @@ export default function Toast({
             </span>
 
             {/* Message */}
-            <p className="flex-1 text-xs font-semibold leading-relaxed text-slate-200 font-mono pt-0.5">
+            <p className="flex-1 text-xs font-semibold leading-relaxed font-mono pt-0.5" style={{ color: variant.text }}>
               {toast.message}
             </p>
 
@@ -83,7 +92,8 @@ export default function Toast({
             <button
               type="button"
               onClick={onDismiss}
-              className="shrink-0 p-1 rounded-lg transition-colors cursor-pointer text-slate-500 hover:text-slate-200 hover:bg-white/[0.05]"
+              className="shrink-0 p-1 rounded-lg transition-colors cursor-pointer hover:bg-white/[0.06]"
+              style={{ color: 'var(--text-muted)' }}
               aria-label="Dismiss notification"
             >
               <X className="w-3.5 h-3.5" />

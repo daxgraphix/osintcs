@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import pLimit from 'p-limit';
 import {
   InvestigationTarget,
   TargetType,
@@ -358,6 +359,7 @@ async function performScan(
   return {
     target: finalTarget,
     scanTime,
+    dataSource: 'mixed',
     recon: reconData,
     dns: dnsData,
     whois: whoisData,
@@ -458,27 +460,30 @@ export function useScanWorkflow({
     await log(`SYS-BATCH: Starting batch scan reconnaissance for ${targetValues.length} targets...`, 100);
 
     const compiledResults: ScanResults[] = [];
+    const limit = pLimit(5);
 
-    for (let i = 0; i < targetValues.length; i++) {
-      const rawVal = targetValues[i];
-      const finalTarget = resolveTarget(rawVal, activeTab);
-      await log(
-        `BATCH-RECON [${i + 1}/${targetValues.length}]: Commencing audits for "${finalTarget.value}" (${finalTarget.type.toUpperCase()})...`,
-        120
-      );
-      try {
-        const result = await performScan(finalTarget, undefined, async () => {});
-        compiledResults.push(result);
+    const promises = targetValues.map((rawVal, idx) => 
+      limit(async () => {
+        const finalTarget = resolveTarget(rawVal, activeTab);
         await log(
-          `BATCH-OK [${i + 1}/${targetValues.length}]: Scanned "${finalTarget.value}" (Risk Score: ${result.riskScore}/100).`,
-          80
+          `BATCH-RECON [${idx + 1}/${targetValues.length}]: Commencing audits for "${finalTarget.value}" (${finalTarget.type.toUpperCase()})...`,
+          120
         );
-      } catch (err) {
-        console.error(`Batch item failed: ${rawVal}`, err);
-        await log(`BATCH-ERROR [${i + 1}/${targetValues.length}]: Audit failed for "${rawVal}".`, 100);
-      }
-    }
+        try {
+          const result = await performScan(finalTarget, undefined, async () => {});
+          compiledResults.push(result);
+          await log(
+            `BATCH-OK [${idx + 1}/${targetValues.length}]: Scanned "${finalTarget.value}" (Risk Score: ${result.riskScore}/100).`,
+            80
+          );
+        } catch (err) {
+          console.error(`Batch item failed: ${rawVal}`, err);
+          await log(`BATCH-ERROR [${idx + 1}/${targetValues.length}]: Audit failed for "${rawVal}".`, 100);
+        }
+      })
+    );
 
+    await Promise.all(promises);
     await log('SYS-BATCH-COMPLETE: Compiled results for all targeted nodes.', 100);
     setTimeout(() => {
       onBatchComplete(compiledResults);

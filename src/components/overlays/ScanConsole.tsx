@@ -15,9 +15,9 @@ function classifyLog(line: string): { color: string; prefix: string } {
     return { color: '#f87171', prefix: '' }; // red – error
   }
   if (l.startsWith('---') || l.startsWith('===') || l.startsWith('>>')) {
-    return { color: '#a3a3a3', prefix: '' }; // muted – section header
+    return { color: '#94a3b8', prefix: '' }; // muted – section header
   }
-  return { color: '#d4d4d4', prefix: '' }; // white-ish – info
+  return { color: '#e2e8f0', prefix: '' }; // white-ish – info
 }
 
 export default function ScanConsole({
@@ -119,12 +119,12 @@ export default function ScanConsole({
             >
               <div className="flex items-center gap-1.5">
                 <Cpu className="w-3 h-3" style={{ color: '#ef4444' }} />
-                <span className="text-[9px] font-mono" style={{ color: '#525252' }}>ENGINES ACTIVE</span>
+                <span className="text-[9px] font-mono" style={{ color: '#64748b' }}>ENGINES ACTIVE</span>
               </div>
               <div className="h-3 w-px" style={{ background: '#1a1a1a' }} />
               <div className="flex items-center gap-1.5">
                 <Zap className="w-3 h-3" style={{ color: '#525252' }} />
-                <span className="text-[9px] font-mono" style={{ color: '#525252' }}>
+                <span className="text-[9px] font-mono" style={{ color: '#64748b' }}>
                   {scanLogs.length} CHECKS COMPLETED
                 </span>
               </div>
@@ -163,7 +163,7 @@ export default function ScanConsole({
                       className="flex items-start gap-2"
                     >
                       {/* Line number */}
-                      <span className="shrink-0 w-6 text-right select-none" style={{ color: '#2a2a2a' }}>
+                      <span className="shrink-0 w-6 text-right select-none" style={{ color: '#334155' }}>
                         {String(idx + 1).padStart(2, '0')}
                       </span>
                       <span style={{ color }} className="whitespace-pre-wrap break-all">
@@ -193,7 +193,7 @@ export default function ScanConsole({
               className="px-5 py-2 border-t flex items-center justify-between shrink-0"
               style={{ background: '#070707', borderColor: '#111' }}
             >
-              <span className="text-[9px] font-mono" style={{ color: '#2a2a2a' }}>
+              <span className="text-[9px] font-mono" style={{ color: '#334155' }}>
                 OSINTCS  v2.0  ·  CREATED BY CYBERSWAHILI  ·  LOCAL  EXECUTION  ·  ZERO  TELEMETRY
               </span>
               <span className="text-[9px] font-mono" style={{ color: '#ef4444' }}>

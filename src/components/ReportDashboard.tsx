@@ -348,42 +348,42 @@ export default function ReportDashboard({
   );
 
   return (
-    <div id="dashboard_root" className="min-h-screen font-sans bg-slate-50 text-slate-900">
+    <div id="dashboard_root" className="min-h-screen font-sans" style={{ background: 'var(--bg-base)', color: 'var(--text-primary)' }}>
       {/* Top Navigation Panel */}
-      <nav id="nav_container" className="border-b sticky top-0 z-50 bg-white/95 backdrop-blur border-slate-200" style={{ boxShadow: '0 1px 6px rgba(15,23,42,0.08)' }}>
+      <nav id="nav_container" className="border-b sticky top-0 z-50 backdrop-blur" style={{ borderColor: 'var(--border-subtle)', boxShadow: '0 1px 6px rgba(15,23,42,0.08)', background: 'var(--bg-panel)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               id="back_to_search_btn"
               onClick={onBack}
-              className="p-2 rounded-xl border transition-all flex items-center gap-2 cursor-pointer border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50"
-              style={{ boxShadow: '0 1px 3px rgba(15,23,42,0.08)' }}
+              className="p-2 rounded-xl border transition-all flex items-center gap-2 cursor-pointer"
+              style={{ boxShadow: '0 1px 3px rgba(15,23,42,0.08)', background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}
               title="Return to investigation lobby"
             >
               <ArrowLeft className="w-4 h-4" />
               <span className="text-sm font-medium hidden sm:inline">Back</span>
             </button>
-            <div className="h-5 w-px hidden sm:block bg-slate-200" />
+            <div className="h-5 w-px hidden sm:block" style={{ background: 'var(--border-subtle)' }} />
             <div className="flex flex-col">
               <div className="flex items-center gap-2">
-                <span className="text-[11px] px-2.5 py-0.5 rounded-lg font-mono font-bold uppercase tracking-wider" style={{ background: 'rgba(220,38,38,0.10)', border: '1.5px solid rgba(220,38,38,0.25)', color: '#b91c1c' }}>
+                <span className="text-[11px] px-2.5 py-0.5 rounded-lg font-mono font-bold uppercase tracking-wider" style={{ background: 'var(--accent-bg)', border: '1.5px solid var(--accent-border)', color: 'var(--accent-dim)' }}>
                   {target.type}
                 </span>
-                <span className="text-sm font-bold tracking-tight truncate max-w-[180px] sm:max-w-[320px] text-slate-900">
+                <span className="text-sm font-bold tracking-tight truncate max-w-[180px] sm:max-w-[320px]" style={{ color: 'var(--text-primary)' }}>
                   {target.value}
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500 font-mono mt-0.5">{scanTime}</span>
+              <span className="text-[11px] font-mono mt-0.5" style={{ color: 'var(--text-muted)' }}>{scanTime}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-[11px] font-mono hidden md:inline text-slate-500 font-semibold">SECURITY LEVEL:</span>
+            <span className="text-[11px] font-mono hidden md:inline font-semibold" style={{ color: 'var(--text-muted)' }}>SECURITY LEVEL:</span>
             <div
               className="flex items-center gap-2 px-3 py-1.5 rounded-full border"
               style={{
-                borderColor: riskScore > 60 ? 'rgba(220,38,38,0.30)' : riskScore > 30 ? 'rgba(217,119,6,0.30)' : 'rgba(22,163,74,0.30)',
-                background: riskScore > 60 ? 'rgba(220,38,38,0.08)' : riskScore > 30 ? 'rgba(217,119,6,0.08)' : 'rgba(22,163,74,0.08)',
+                borderColor: riskScore > 60 ? 'var(--color-critical-border)' : riskScore > 30 ? 'var(--color-medium-border)' : 'var(--color-pass-border)',
+                background: riskScore > 60 ? 'var(--color-critical-bg)' : riskScore > 30 ? 'var(--color-medium-bg)' : 'var(--color-pass-bg)',
               }}
             >
               <div
@@ -395,7 +395,7 @@ export default function ReportDashboard({
                     : 'bg-emerald-600'
                 }`}
               />
-              <span className="text-xs font-mono font-bold uppercase" style={{ color: riskScore > 60 ? '#b91c1c' : riskScore > 30 ? '#92400e' : '#15803d' }}>
+              <span className="text-xs font-mono font-bold uppercase" style={{ color: 'var(--text-primary)' }}>
                 {scoreDetails.grade} GRADE
               </span>
             </div>
@@ -408,7 +408,7 @@ export default function ReportDashboard({
         <div
           id="tabs_rail"
           className="flex items-center overflow-x-auto gap-1 border-b pb-0 mb-8 scrollbar-thin"
-          style={{ borderColor: '#e2e8f0' }}
+          style={{ borderColor: 'var(--border-subtle)' }}
         >
           {[
             { id: 'overview', label: 'Overview', icon: Shield },
@@ -454,15 +454,15 @@ export default function ReportDashboard({
                   onClick={() => setActiveTab(tab.id as TabType)}
                   className="flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-all cursor-pointer whitespace-nowrap"
                   style={isActive ? {
-                    borderColor: '#dc2626',
-                    color: '#dc2626',
-                    background: 'rgba(220,38,38,0.06)',
+                    borderColor: 'var(--accent)',
+                    color: 'var(--accent)',
+                    background: 'var(--accent-bg)',
                   } : {
                     borderColor: 'transparent',
-                    color: '#64748b',
+                    color: 'var(--text-muted)',
                   }}
-                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = '#334155'; (e.currentTarget as HTMLButtonElement).style.background = '#f8fafc'; } }}
-                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = '#64748b'; (e.currentTarget as HTMLButtonElement).style.background = ''; } }}
+                  onMouseEnter={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)'; } }}
+                  onMouseLeave={e => { if (!isActive) { (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; } }}
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>

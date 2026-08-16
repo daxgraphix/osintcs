@@ -1,48 +1,58 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X, Globe, Settings, Shield, History } from 'lucide-react';
 import { TargetType } from '../../types';
 import { QUICK_MODULES } from '../pages/moduleConfig';
+import { useInvestigationStore } from '../../stores/investigationStore';
+import ThemeToggle from '../ThemeToggle';
 
-export default function MobileHeader({
-  activeTab,
-  mobileMenuOpen,
-  setMobileMenuOpen,
-  onSelectModule,
-}: {
-  activeTab: TargetType | 'home' | 'risk' | 'settings' | 'history';
-  mobileMenuOpen: boolean;
-  setMobileMenuOpen: (v: boolean) => void;
-  isLightMode?: boolean;
-  onSelectModule: (id: typeof activeTab) => void;
-}) {
-  const navItem = (id: typeof activeTab, icon: React.ReactNode, label: string) => {
+export default function MobileHeader() {
+  const activeTab = useInvestigationStore(s => s.activeTab);
+  const mobileMenuOpen = useInvestigationStore(s => s.mobileMenuOpen);
+  const setMobileMenuOpen = useInvestigationStore(s => s.setMobileMenuOpen);
+  const setActiveTab = useInvestigationStore(s => s.setActiveTab);
+  const theme = useInvestigationStore(s => s.theme);
+  const setTheme = useInvestigationStore(s => s.setTheme);
+
+  const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+  const navItem = (id: TargetType | 'home' | 'risk' | 'settings' | 'history', icon: React.ReactNode, label: string) => {
     const isActive = activeTab === id;
     return (
       <button
         key={String(id)}
-        onClick={() => onSelectModule(id)}
+        onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
         className={`
           w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold
           transition-all duration-150 cursor-pointer
-          ${isActive
-            ? 'bg-red-50 text-red-700 border border-red-200'
-            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-transparent'
-          }
         `}
+        style={isActive ? {
+          background: 'var(--accent-bg-strong)',
+          color: 'var(--text-accent)',
+          border: '1px solid var(--accent-border)',
+        } : {
+          background: 'transparent',
+          color: 'var(--text-secondary)',
+          border: '1px solid transparent',
+        }}
       >
         <span
           className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg"
           style={isActive
-            ? { background: 'rgba(220,38,38,0.12)', color: '#dc2626' }
-            : { background: '#f1f5f9', color: '#64748b' }
+            ? { background: 'var(--accent-bg)', color: 'var(--accent-dim)' }
+            : { background: 'var(--bg-muted)', color: 'var(--text-muted)' }
           }
         >
           {icon}
         </span>
-        <span>{label}</span>
+        <span style={{ color: 'var(--text-primary)' }}>{label}</span>
         {isActive && (
-          <span className="ml-auto w-1.5 h-1.5 rounded-full bg-red-500" />
+          <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: 'var(--accent)' }} />
         )}
       </button>
     );
@@ -52,157 +62,86 @@ export default function MobileHeader({
     <>
       {/* ── Top Mobile Bar ──────────────────────────────── */}
       <header
-        className="md:hidden shrink-0 flex items-center justify-between h-14 px-4 border-b z-40 relative bg-white border-slate-200"
-        style={{ boxShadow: '0 1px 4px rgba(15,23,42,0.08)' }}
+        className="md:hidden shrink-0 flex items-center justify-between h-14 px-4 border-b z-40 relative"
+        style={{ boxShadow: '0 1px 4px rgba(15,23,42,0.08)', background: 'var(--bg-panel)', borderColor: 'var(--border-default)' }}
       >
         {/* Left: hamburger + logo */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-xl border transition-all cursor-pointer border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-            aria-label="Toggle navigation"
+            className="p-2 rounded-lg cursor-pointer border transition-colors"
+            style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}
           >
-            <AnimatePresence mode="wait">
-              {mobileMenuOpen
-                ? <motion.span key="close" initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.15 }}><X className="w-4.5 h-4.5" /></motion.span>
-                : <motion.span key="open" initial={{ rotate: 90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: -90, opacity: 0 }} transition={{ duration: 0.15 }}><Menu className="w-4.5 h-4.5" /></motion.span>
-              }
-            </AnimatePresence>
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
-
-           <button
-             onClick={() => onSelectModule('home')}
-             className="flex items-center gap-2 bg-transparent border-none p-0 cursor-pointer"
-           >
-             <div className="flex items-center gap-2">
-               <div
-                 className="w-7 h-7 flex items-center justify-center rounded-lg"
-                 style={{ background: 'rgba(220,38,38,0.10)', border: '1.5px solid rgba(220,38,38,0.28)' }}
-               >
-                 <Shield className="w-4 h-4" style={{ color: '#dc2626' }} />
-               </div>
-               <span className="text-[16px] font-black font-display tracking-tight text-slate-900">
-                 osint<span style={{ color: '#dc2626' }}>cs</span>
-               </span>
-             </div>
-           </button>
+          <span className="text-lg font-black font-display tracking-tight" style={{ color: 'var(--text-primary)' }}>
+            osint<span style={{ color: 'var(--accent-dim)' }}>cs</span>
+          </span>
         </div>
 
-        {/* Right: status badge */}
-        <div
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(220,38,38,0.08)', border: '1.5px solid rgba(220,38,38,0.22)' }}
-        >
-          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-          <span className="text-[10px] font-mono font-black tracking-widest uppercase" style={{ color: '#dc2626' }}>LIVE</span>
+        {/* Right: quick actions */}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => setActiveTab('history')}
+            className="p-2 rounded-lg cursor-pointer border transition-colors"
+            title="Scan History"
+            style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}
+          >
+            <History className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className="p-2 rounded-lg cursor-pointer border transition-colors"
+            title="Settings"
+            style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}
+          >
+            <Settings className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
-      {/* ── Slide-in Drawer ─────────────────────────────── */}
+      {/* ── Mobile Slide-down Menu ─────────────────────── */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
-              key="drawer-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              className="md:hidden fixed inset-0 bg-black/30 z-40"
               onClick={() => setMobileMenuOpen(false)}
-              className="md:hidden fixed inset-0 z-40"
-              style={{ background: 'rgba(15,23,42,0.35)', backdropFilter: 'blur(4px)' }}
             />
-
-            {/* Drawer panel */}
-            <motion.nav
-              key="drawer-panel"
-              initial={{ x: '-100%', opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '-100%', opacity: 0 }}
-              transition={{ type: 'spring', stiffness: 320, damping: 32 }}
-              className="md:hidden fixed inset-y-0 left-0 w-76 z-50 flex flex-col bg-white border-r border-slate-200"
-              style={{ boxShadow: '8px 0 40px rgba(15,23,42,0.12)', width: '288px' }}
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 24, stiffness: 260 }}
+              className="md:hidden fixed top-14 left-0 bottom-0 w-72 bg-white border-r border-slate-200 z-50 shadow-xl flex flex-col"
+              style={{ background: 'var(--bg-panel)', borderColor: 'var(--border-default)', boxShadow: 'var(--shadow-lg)' }}
             >
-              {/* Drawer header */}
-              <div
-                className="h-16 flex items-center justify-between px-5 border-b border-slate-200"
-                style={{ background: '#fafafa' }}
-              >
-              <button
-                onClick={() => onSelectModule('home')}
-                className="flex items-center gap-3 bg-transparent border-none p-0 cursor-pointer"
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-9 h-9 flex items-center justify-center rounded-xl"
-                    style={{ background: 'rgba(220,38,38,0.10)', border: '1.5px solid rgba(220,38,38,0.28)' }}
-                  >
-                    <Shield className="w-4.5 h-4.5" style={{ color: '#dc2626' }} />
-                  </div>
-                  <div>
-                    <span className="text-[16px] font-black font-display tracking-tight text-slate-900">
-                      osint<span style={{ color: '#dc2626' }}>cs</span>
-                    </span>
-                    <p className="text-[9px] font-mono tracking-widest mt-0.5 font-bold" style={{ color: '#64748b' }}>INTELLIGENCE SUITE</p>
-                  </div>
-                </div>
-              </button>
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-2 rounded-xl transition-colors cursor-pointer text-slate-400 hover:text-slate-700 hover:bg-slate-100 border border-slate-200"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Nav content */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-5 scrollbar-thin">
-                {/* Home */}
-                {navItem('home', <Globe className="w-4 h-4" />, 'Lobby Home')}
-
-                {/* Tools section */}
-                <div className="space-y-1">
-                  <p
-                    className="text-[10px] font-mono font-bold tracking-widest px-4 mb-2 mt-1 block uppercase"
-                    style={{ color: '#64748b' }}
-                  >
-                    RECON MODULES
-                  </p>
-                  <div className="space-y-0.5 overflow-y-auto max-h-[300px] scrollbar-thin">
-                    {QUICK_MODULES.map((mod) => {
-                      const Icon = mod.icon;
-                      return navItem(mod.id, <Icon className="w-4 h-4" />, mod.label);
-                    })}
-                  </div>
+              <div className="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+                <div>
+                  {navItem('home', <Globe className="w-4 h-4" />, 'Lobby Home')}
                 </div>
 
-                {/* Workspace */}
-                <div className="space-y-0.5 pt-2 border-t border-slate-200">
-                  <p
-                    className="text-[10px] font-mono font-bold tracking-widest px-4 mb-2 mt-3 block uppercase"
-                    style={{ color: '#64748b' }}
-                  >
-                    WORKSPACE
-                  </p>
+                 <div className="space-y-1">
+                   <span className="text-[10px] font-mono font-bold tracking-widest px-3 block mb-2" style={{ color: 'var(--text-muted)' }}>
+                     RECON MODULES
+                   </span>
+                  {QUICK_MODULES.map((mod) => {
+                    const Icon = mod.icon;
+                    return navItem(mod.id, <Icon className="w-4 h-4" />, mod.label);
+                  })}
+                </div>
+
+                <div className="space-y-1 pt-1">
+                   <div className="h-px mx-1 mb-3" style={{ background: 'var(--border-default)' }} />
                   {navItem('history', <History className="w-4 h-4" />, 'Scan History')}
                   {navItem('settings', <Settings className="w-4 h-4" />, 'Settings')}
                 </div>
               </div>
-
-              {/* Drawer footer */}
-              <div className="p-4 border-t border-slate-200" style={{ background: '#fafafa' }}>
-                <div
-                  className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl"
-                  style={{ background: 'rgba(220,38,38,0.06)', border: '1.5px solid rgba(220,38,38,0.20)' }}
-                >
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-[10px] font-mono font-bold tracking-widest" style={{ color: '#dc2626' }}>
-                    LOCAL SECURE SANDBOX · CYBERSWAHILI
-                  </span>
-                </div>
-              </div>
-            </motion.nav>
+            </motion.aside>
           </>
         )}
       </AnimatePresence>

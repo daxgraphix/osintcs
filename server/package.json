@@ -1,0 +1,23 @@
+{
+  "name": "osintcs-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:proxy": "tsx watch server/proxy.ts",
+    "start:proxy": "tsx server/proxy.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/http-proxy-middleware": "^0.19.3",
+    "@types/node": "^22.14.0",
+    "tsx": "^4.21.0"
+  }
+}

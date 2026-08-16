@@ -962,6 +962,7 @@ export interface ReconResult {
 export interface ScanResults {
   target: InvestigationTarget;
   scanTime: string;
+  dataSource: 'live' | 'simulated' | 'mixed';
   recon?: Record<string, ReconResult>;
   dns?: DNSResult;
   whois?: WHOISResult;
