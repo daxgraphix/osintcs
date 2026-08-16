@@ -85,9 +85,9 @@ export default function Sidebar() {
           background: accent ? accent.bg : 'rgba(220,38,38,0.10)',
           border: `1px solid ${accent ? accent.border : 'rgba(220,38,38,0.28)'}`,
           color: accent ? accent.text : 'var(--accent-dim)',
-          boxShadow: '0 1px 3px rgba(15,23,42,0.06)',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.55), 0 8px 18px rgba(15,23,42,0.04)',
         } : {
-          background: 'transparent',
+          background: 'rgba(148,163,184,0.02)',
           border: '1px solid transparent',
           color: 'var(--text-muted)',
         }}
@@ -149,26 +149,30 @@ export default function Sidebar() {
       id="sidebar_root"
       className={`
         hidden md:flex flex-col shrink-0 border-r transition-all duration-300 z-30
-        bg-white border-slate-200
         ${sidebarOpen ? 'w-64' : 'w-[68px]'}
       `}
-      style={{ boxShadow: '1px 0 0 0 var(--border-default), 2px 0 8px rgba(15,23,42,0.04)', background: 'var(--bg-panel)', borderColor: 'var(--border-default)' }}
+      style={{
+        boxShadow: '1px 0 0 0 var(--border-default), 0 18px 48px rgba(15,23,42,0.08)',
+        background: 'var(--sidebar-bg)',
+        borderColor: 'var(--border-default)',
+        backdropFilter: 'blur(18px)',
+      }}
       role="navigation"
       aria-label="Main navigation"
     >
        {/* ── Logo / Collapse Row ─────────────────────────── */}
-        <div className="h-16 flex items-center justify-between px-3 border-b border-slate-200 bg-white">
+        <div className="sidebar-header h-16 flex items-center justify-between px-3 border-b" style={{ borderColor: 'var(--border-default)', background: 'var(--sidebar-header-bg)' }}>
            <button
              onClick={() => setActiveTab('home')}
              className="flex items-center gap-2.5 overflow-hidden min-w-0 cursor-pointer bg-transparent border-none p-0"
            >
              <div className="flex items-center gap-2.5 overflow-hidden min-w-0">
-               {/* Shield logo mark */}
                <div
                  className="w-9 h-9 shrink-0 flex items-center justify-center rounded-xl"
                  style={{
-                   background: 'var(--accent-bg-strong)',
+                   background: 'linear-gradient(180deg, rgba(239,68,68,0.14), rgba(239,68,68,0.08))',
                    border: '1.5px solid var(--accent-border)',
+                   boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.6)',
                  }}
                >
                  <Shield className="w-4.5 h-4.5" style={{ color: 'var(--accent-dim)' }} />
@@ -183,7 +187,7 @@ export default function Sidebar() {
                      transition={{ duration: 0.15 }}
                      className="flex flex-col leading-none overflow-hidden"
                    >
-                     <span className="text-[16px] font-black font-display tracking-tight text-slate-900">
+                     <span className="text-[16px] font-black font-display tracking-tight" style={{ color: 'var(--text-primary)' }}>
                        osint<span style={{ color: 'var(--accent-dim)' }}>cs</span>
                      </span>
                      <span className="text-[9px] font-mono tracking-widest mt-0.5 font-bold" style={{ color: 'var(--text-muted)' }}>
@@ -197,8 +201,8 @@ export default function Sidebar() {
 
            <button
              onClick={() => setSidebarOpen(!sidebarOpen)}
-             className="p-1.5 rounded-lg transition-colors cursor-pointer shrink-0 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-             style={{ border: '1px solid var(--border-default)', color: 'var(--text-muted)' }}
+             className="p-1.5 rounded-lg transition-colors cursor-pointer shrink-0"
+             style={{ border: '1px solid var(--border-default)', color: 'var(--text-muted)', background: 'var(--bg-hover)' }}
            >
             {sidebarOpen
               ? <ChevronLeft className="w-3.5 h-3.5" />
@@ -208,7 +212,7 @@ export default function Sidebar() {
         </div>
 
       {/* ── Scrollable Nav Body ─────────────────────────── */}
-      <div className="flex-1 overflow-y-auto py-4 px-2.5 space-y-5 scrollbar-thin" style={{ background: 'var(--bg-panel)' }}>
+      <div className="sidebar-body flex-1 overflow-y-auto py-4 px-2.5 space-y-5 scrollbar-thin" style={{ background: 'var(--sidebar-body-bg)' }}>
 
         {/* Home */}
          <div>
@@ -328,10 +332,10 @@ export default function Sidebar() {
       </div>
 
       {/* ── Footer Status Badge ─────────────────────────── */}
-      <div className="p-3 border-t border-slate-200" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+      <div className="p-3 border-t" style={{ borderColor: 'var(--border-default)', background: 'rgba(255,255,255,0.12)' }}>
         <div
           className="flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{ background: 'var(--accent-bg)', border: '1.5px solid var(--accent-border)' }}
+          style={{ background: 'linear-gradient(180deg, rgba(239,68,68,0.08), rgba(239,68,68,0.04))', border: '1.5px solid var(--accent-border)' }}
         >
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
           <AnimatePresence>

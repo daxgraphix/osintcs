@@ -7,6 +7,20 @@ import React, { useState, useEffect, useRef, useCallback, lazy, Suspense, useMem
 import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import {
   Shield,
   Search,
   Globe,
@@ -131,6 +145,39 @@ export default function App() {
   const [rateLimitCountdown, setRateLimitCountdown] = useState<{ ms: number; type: 'single' | 'batch' } | null>(null);
   const activeModule = useMemo(() => getModule(activeTab), [activeTab]);
   const allModules = useMemo(() => getAllModules(), []);
+
+  const historyTrendData = useMemo(() => {
+    const source = [...recentScans].slice(0, 8).reverse();
+    return source.map((scan, index) => ({
+      index: source.length - index,
+      label: scan.target.type,
+      score: scan.riskScore,
+      grade: calculateRiskScore(scan.findings).grade,
+      value: scan.target.value,
+    }));
+  }, [recentScans]);
+
+  const moduleBreakdown = useMemo(() => {
+    const counts: Record<string, number> = {};
+    recentScans.forEach((scan) => {
+      counts[scan.target.type] = (counts[scan.target.type] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+  }, [recentScans]);
+
+  const avgRisk = recentScans.length
+    ? Math.round(recentScans.reduce((sum, scan) => sum + scan.riskScore, 0) / recentScans.length)
+    : 0;
+
+  const criticalHighCount = recentScans.reduce((count, scan) => {
+    const highValue = scan.findings.filter((finding) => finding.severity === 'critical' || finding.severity === 'high').length;
+    return count + highValue;
+  }, 0);
+
+  const historyChartColors = ['#ef4444', '#f97316', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
 
   const handleQueryChange = (value: string) => {
     setQuery(sanitizeText(value, 500));
@@ -744,23 +791,45 @@ export default function App() {
                    
                     {/* Left Column (Brand info & quick search bar) */}
                     <div className="lg:col-span-7 space-y-5 sm:space-y-6 text-left">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/5 border border-red-500/10">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border" style={{ background: 'var(--accent-bg)', borderColor: 'var(--accent-border)' }}>
                         <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
-                        <span className="text-[10px] font-mono tracking-widest text-red-400 font-bold uppercase">
+                        <span className="text-[10px] font-mono tracking-widest font-bold uppercase" style={{ color: 'var(--text-accent)' }}>
                           AI-POWERED OPEN-SOURCE INTELLIGENCE
                         </span>
                       </div>
 
-                      <div className="space-y-1">
-                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-black font-display tracking-tight leading-tighter">
-                          osint<span className="text-red-400">cs</span>
-                        </h1>
-                        <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight" style={{ color: 'var(--text-primary)' }}>
-                          Digital Verification &amp; Intelligence Platform
-                        </h2>
-                        <p className="muted-copy leading-relaxed text-sm sm:text-base">
-                          OSINTCS helps investigators, journalists, cybersecurity professionals, and researchers discover, analyze, and verify fragmented digital information.
-                        </p>
+                      <div className="editorial-shell rounded-[28px] border p-4 sm:p-5 md:p-6" style={{ borderColor: 'var(--border-default)' }}>
+                        <div className="relative space-y-3">
+                          <div className="flex flex-wrap items-center gap-2 text-[9px] font-mono font-bold uppercase tracking-[0.2em]" style={{ color: 'var(--text-muted)' }}>
+                            <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--accent-border)', background: 'var(--accent-bg)', color: 'var(--text-accent)' }}>Live Recon</span>
+                            <span className="rounded-full border px-2 py-1" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)' }}>Investigation OS</span>
+                          </div>
+
+                          <div className="space-y-1">
+                            <h1 className="text-4xl sm:text-5xl md:text-6xl font-black font-display tracking-tight leading-tighter">
+                              osint<span className="text-red-400">cs</span>
+                            </h1>
+                            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight" style={{ color: 'var(--text-primary)' }}>
+                              Digital Verification &amp; Intelligence Platform
+                            </h2>
+                            <p className="muted-copy leading-relaxed text-sm sm:text-base mt-2 max-w-2xl">
+                              OSINTCS helps investigators, journalists, cybersecurity professionals, and researchers discover, analyze, and verify fragmented digital information.
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2 pt-2 sm:pt-3">
+                            {[
+                              { label: 'Targets', value: '12.4k' },
+                              { label: 'Signals', value: '98%' },
+                              { label: 'Modules', value: '24' },
+                            ].map((metric) => (
+                              <div key={metric.label} className="editorial-metric">
+                                <strong>{metric.value}</strong>
+                                <span>{metric.label}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
                       </div>
 
                      {/* Integrated Quick Search Bar with Dual Mode */}
@@ -963,13 +1032,12 @@ export default function App() {
 
                 {/* Right Column (The interactive "Smart Target Router" card!) */}
                   <div className="lg:col-span-5">
-                    <div className="border rounded-2xl p-4 sm:p-6 relative flex flex-col justify-between min-h-[360px] sm:min-h-[380px] overflow-hidden"
+                    <div className="editorial-shell border rounded-[28px] p-4 sm:p-6 relative flex flex-col justify-between min-h-[360px] sm:min-h-[380px] overflow-hidden"
                       style={{
                         borderColor: 'var(--border-default)',
-                        background: 'radial-gradient(circle at top, rgba(239,68,68,0.08), transparent 35%), linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--bg-panel)',
                         boxShadow: isDarkMode ? '0 18px 42px rgba(2,8,23,0.50), inset 0 1px 0 rgba(255,255,255,0.04)' : '0 16px 32px rgba(15,23,42,0.08), inset 0 1px 0 rgba(255,255,255,0.7)',
                       }}>
-                      <div className="space-y-5 sm:space-y-6">
+                      <div className="space-y-5 sm:space-y-6 relative z-10">
                         {/* Title Row */}
                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b pb-3" style={{ borderColor: 'var(--border-subtle)' }}>
                           <span className="text-[10px] font-mono font-bold text-red-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -1030,7 +1098,7 @@ export default function App() {
                              ].map((m, idx) => (
                              <div
                                key={idx}
-                               className={`p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
+                               className={`signal-card p-2.5 rounded-lg border text-xs flex flex-col gap-0.5 transition-all ${
                                  m.active
                                    ? 'router-path-active'
                                    : 'router-path'
@@ -1044,7 +1112,7 @@ export default function App() {
                       </div>
 
                       {/* Action Button */}
-                      <div className="pt-4 mt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-mono" style={{ borderColor: 'var(--border-default)' }}>
+                      <div className="pt-4 mt-4 border-t flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs font-mono relative z-10" style={{ borderColor: 'var(--border-default)' }}>
                         <span className="data-label text-[10px]">Open selected pathway directly</span>
                         <button
                           onClick={() => {
@@ -2789,75 +2857,114 @@ export default function App() {
                 transition={{ duration: 0.15 }}
                 className="space-y-8"
               >
-                <div className="border-b border-slate-850 pb-4">
-                  <h2 className="text-xl font-black font-display flex items-center gap-2">
-                    <Sliders className="w-5 h-5 text-red-500" /> Workspace Settings
+                <div className="border-b pb-4" style={{ borderColor: 'var(--border-default)' }}>
+                  <h2 className="text-xl font-black font-display flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                    <Sliders className="w-5 h-5" style={{ color: 'var(--text-accent)' }} /> Workspace Settings
                   </h2>
-                  <p className="text-xs text-slate-400 font-medium">Tune the interface, scan behavior, and local data retention for cleaner reconnaissance workflows.</p>
+                  <p className="text-xs font-medium mt-1" style={{ color: 'var(--text-muted)' }}>
+                    Tune the interface, scan behavior, and local retention for a cleaner investigation workflow.
+                  </p>
                 </div>
 
-                <div className="max-w-2xl mx-auto space-y-6">
-                  <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
-                    <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Performance & scanning</h3>
-                    
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block">Realistic console delays</strong>
-                        <p className="text-xs text-slate-500 leading-normal">Add browser-like pacing so the scan HUD feels closer to a live investigation.</p>
+                <div className="max-w-5xl mx-auto grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
+                  <div className="space-y-6">
+                    <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-wider mb-5" style={{ color: 'var(--text-muted)' }}>Performance & scanning</h3>
+
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-4 p-3 rounded-xl border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="space-y-0.5 pr-4">
+                            <strong className="text-sm font-semibold block" style={{ color: 'var(--text-primary)' }}>Realistic console delays</strong>
+                            <p className="text-xs leading-normal" style={{ color: 'var(--text-secondary)' }}>Add browser-like pacing so the scan HUD feels closer to a live investigation.</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={simulateDelay} onChange={(e) => setSimulateDelay(e.target.checked)} className="sr-only peer" />
+                            <div className="w-9 h-5 rounded-full bg-slate-700 peer-focus:outline-none peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+                          </label>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-4 p-3 rounded-xl border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="space-y-0.5 pr-4">
+                            <strong className="text-sm font-semibold block" style={{ color: 'var(--text-primary)' }}>Deep validation mode</strong>
+                            <p className="text-xs leading-normal" style={{ color: 'var(--text-secondary)' }}>Slows concurrent scans and raises validation depth for high-risk recon modules.</p>
+                          </div>
+                          <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" checked={strictScans} onChange={(e) => setStrictScans(e.target.checked)} className="sr-only peer" />
+                            <div className="w-9 h-5 rounded-full bg-slate-700 peer-focus:outline-none peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
+                          </label>
+                        </div>
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={simulateDelay}
-                          onChange={(e) => setSimulateDelay(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
-                      </label>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 pt-4 border-t border-slate-800/40">
-                      <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block">Deep validation mode</strong>
-                        <p className="text-xs text-slate-500 leading-normal">Slows concurrent scans and raises validation depth for high-risk recon modules.</p>
+                    <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-wider mb-5" style={{ color: 'var(--text-muted)' }}>Interface</h3>
+                      <div className="flex items-center justify-between gap-4 p-3 rounded-xl border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                        <div className="space-y-0.5 pr-4">
+                          <strong className="text-sm font-semibold block" style={{ color: 'var(--text-primary)' }}>Theme</strong>
+                          <p className="text-xs leading-normal" style={{ color: 'var(--text-secondary)' }}>Switch between light, dark, or your system preference.</p>
+                        </div>
+                        <ThemeToggle />
                       </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={strictScans}
-                          onChange={(e) => setStrictScans(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-500"></div>
-                      </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-5">
+                      <h3 className="text-xs font-bold font-mono uppercase tracking-wider mb-4 text-red-400">Data management</h3>
+                      <div className="flex items-center justify-between gap-4 p-3 rounded-xl border border-red-500/20 bg-red-500/5">
+                        <div className="space-y-0.5 pr-4">
+                          <strong className="text-sm font-semibold block text-red-300">Clear investigation history</strong>
+                          <p className="text-xs text-red-500/70 leading-normal">Remove stored local scan history and recent results from the browser sandbox.</p>
+                        </div>
+                        <button
+                          onClick={clearHistory}
+                          disabled={recentScans.length === 0}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-900 disabled:text-slate-500 font-bold text-xs uppercase tracking-wider text-white rounded-lg transition-all cursor-pointer"
+                        >
+                          Clear All
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className={`border rounded-xl p-5 space-y-5 ${isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40'}`}>
-                    <h3 className="text-xs font-bold font-mono uppercase text-slate-400 tracking-wider">Interface</h3>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block">Theme</strong>
-                        <p className="text-xs text-slate-500 leading-normal">Switch between light mode, dark mode, or your system preference.</p>
+                  <div className="rounded-2xl border p-5" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                    <h3 className="text-xs font-bold font-mono uppercase tracking-wider mb-5" style={{ color: 'var(--text-muted)' }}>Workspace snapshot</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Scans</div>
+                          <div className="text-2xl font-black font-mono mt-1" style={{ color: 'var(--text-primary)' }}>{recentScans.length}</div>
+                        </div>
+                        <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Avg risk</div>
+                          <div className="text-2xl font-black font-mono mt-1" style={{ color: 'var(--text-primary)' }}>{avgRisk}</div>
+                        </div>
                       </div>
-                      <ThemeToggle />
-                    </div>
-                  </div>
 
-                  <div className={`border rounded-xl p-5 space-y-4 border-red-500/20 bg-red-500/5`}>
-                    <h3 className="text-xs font-bold font-mono uppercase text-red-400 tracking-wider">Data management</h3>
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="space-y-0.5 pr-4">
-                        <strong className="text-sm font-semibold block text-red-300">Clear investigation history</strong>
-                        <p className="text-xs text-red-500/70 leading-normal">Remove stored local scan history and recent results from the browser sandbox.</p>
+                      <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                        <div className="text-[9px] uppercase font-mono mb-2" style={{ color: 'var(--text-muted)' }}>Critical/high signals</div>
+                        <div className="text-2xl font-black font-mono" style={{ color: 'var(--text-accent)' }}>{criticalHighCount}</div>
                       </div>
-                      <button
-                        onClick={clearHistory}
-                        disabled={recentScans.length === 0}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:bg-slate-900 disabled:text-slate-500 font-bold text-xs uppercase tracking-wider text-white rounded-lg transition-all cursor-pointer"
-                      >
-                        Clear All
-                      </button>
+
+                      {moduleBreakdown.length > 0 && (
+                        <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-base)' }}>
+                          <div className="text-[9px] uppercase font-mono mb-3" style={{ color: 'var(--text-muted)' }}>Module mix</div>
+                          <div className="space-y-2">
+                            {moduleBreakdown.map((item, index) => (
+                              <div key={item.name}>
+                                <div className="flex justify-between text-[10px] font-mono mb-1" style={{ color: 'var(--text-secondary)' }}>
+                                  <span>{item.name}</span>
+                                  <span>{item.count}</span>
+                                </div>
+                                <div className="h-2 rounded-full" style={{ background: 'var(--bg-hover)' }}>
+                                  <div
+                                    className="h-full rounded-full"
+                                    style={{ width: `${(item.count / Math.max(...moduleBreakdown.map((entry) => entry.count), 1)) * 100}%`, background: historyChartColors[index % historyChartColors.length] }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2874,59 +2981,138 @@ export default function App() {
                 transition={{ duration: 0.15 }}
                 className="space-y-8"
               >
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-850 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4" style={{ borderColor: 'var(--border-default)' }}>
                   <div>
-                    <h2 className="text-xl font-black font-display flex items-center gap-2">
-                      <History className="w-5 h-5 text-red-400" /> Stored Local Investigations
+                    <h2 className="text-xl font-black font-display flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                      <History className="w-5 h-5" style={{ color: 'var(--text-accent)' }} /> Stored Local Investigations
                     </h2>
-                    <p className="text-xs text-slate-400 font-medium">Browse, review, and export findings from all sandbox runs.</p>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Browse, review, and compare findings from every local investigation run.</p>
                   </div>
 
                   {recentScans.length > 0 && (
                     <button
                       onClick={clearHistory}
-                      className="px-3.5 py-1.5 rounded-lg border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 text-red-400 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 rounded-lg border text-red-400 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      style={{ borderColor: 'rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.05)' }}
                     >
                       <Trash2 className="w-4 h-4" /> Clear All Scan Logs
                     </button>
                   )}
                 </div>
 
-                <div className="max-w-6xl mx-auto">
-                  {recentScans.length === 0 ? (
-                    <div className="border border-dashed border-slate-850 rounded-xl p-12 text-center text-xs text-slate-500 font-mono italic space-y-2">
-                      <History className="w-8 h-8 text-slate-600 mx-auto stroke-[1.2]" />
-                      <p>No investigations logged yet.</p>
-                      <p className="text-[10px] text-slate-600">Start from the Lobby Home to build your local findings cache.</p>
+                {recentScans.length === 0 ? (
+                  <div className="border border-dashed rounded-xl p-12 text-center text-xs font-mono italic space-y-2" style={{ borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}>
+                    <History className="w-8 h-8 mx-auto stroke-[1.2]" style={{ color: 'var(--text-secondary)' }} />
+                    <p>No investigations logged yet.</p>
+                    <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>Start from the lobby to build your local findings cache.</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Total scans</div>
+                        <div className="text-3xl font-black font-mono mt-2" style={{ color: 'var(--text-primary)' }}>{recentScans.length}</div>
+                      </div>
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Average risk</div>
+                        <div className="text-3xl font-black font-mono mt-2" style={{ color: 'var(--text-primary)' }}>{avgRisk}</div>
+                      </div>
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Critical/high</div>
+                        <div className="text-3xl font-black font-mono mt-2" style={{ color: 'var(--text-accent)' }}>{criticalHighCount}</div>
+                      </div>
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="text-[9px] uppercase font-mono" style={{ color: 'var(--text-muted)' }}>Top module</div>
+                        <div className="text-lg font-black font-mono mt-2" style={{ color: 'var(--text-primary)' }}>{moduleBreakdown[0]?.name ?? 'n/a'}</div>
+                      </div>
                     </div>
-                  ) : (
+
+                    <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.8fr] gap-5">
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-bold uppercase font-mono" style={{ color: 'var(--text-secondary)' }}>Risk trend</h3>
+                          <span className="text-[10px] font-mono" style={{ color: 'var(--text-muted)' }}>last {historyTrendData.length} scans</span>
+                        </div>
+                        <div className="h-64 w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={historyTrendData}>
+                              <defs>
+                                <linearGradient id="historyFill" x1="0" x2="0" y1="0" y2="1">
+                                  <stop offset="0%" stopColor="#ef4444" stopOpacity={0.45} />
+                                  <stop offset="100%" stopColor="#ef4444" stopOpacity={0.05} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid stroke="var(--border-subtle)" strokeDasharray="3 3" />
+                              <XAxis dataKey="index" stroke="var(--text-muted)" tickLine={false} axisLine={false} />
+                              <YAxis stroke="var(--text-muted)" tickLine={false} axisLine={false} />
+                              <Tooltip
+                                contentStyle={{
+                                  backgroundColor: 'var(--bg-base)',
+                                  border: '1px solid var(--border-default)',
+                                  borderRadius: 12,
+                                  color: 'var(--text-primary)',
+                                }}
+                              />
+                              <Area type="monotone" dataKey="score" stroke="#ef4444" fill="url(#historyFill)" strokeWidth={2.5} />
+                            </AreaChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <h3 className="text-sm font-bold uppercase font-mono mb-4" style={{ color: 'var(--text-secondary)' }}>Module share</h3>
+                        <div className="h-64">
+                          {moduleBreakdown.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={moduleBreakdown} dataKey="count" nameKey="name" innerRadius={42} outerRadius={72} paddingAngle={3}>
+                                  {moduleBreakdown.map((entry, index) => (
+                                    <Cell key={entry.name} fill={historyChartColors[index % historyChartColors.length]} />
+                                  ))}
+                                </Pie>
+                                <Tooltip
+                                  contentStyle={{
+                                    backgroundColor: 'var(--bg-base)',
+                                    border: '1px solid var(--border-default)',
+                                    borderRadius: 12,
+                                    color: 'var(--text-primary)',
+                                  }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="flex h-full items-center justify-center text-[11px] font-mono" style={{ color: 'var(--text-muted)' }}>No data</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                       {recentScans.map((scan, idx) => {
                         const scoreDetails = calculateRiskScore(scan.findings);
                         return (
                           <div
                             key={idx}
-                            className={`border rounded-xl p-4 transition-all relative group flex flex-col justify-between hover:-translate-y-0.5 ${
-                              isLightMode ? 'border-slate-200 bg-white' : 'border-slate-850 bg-[#0e1424]/40 hover:border-slate-700'
-                            }`}
+                            className="border rounded-xl p-4 transition-all relative group flex flex-col justify-between hover:-translate-y-0.5"
+                            style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}
                           >
                             <div onClick={() => { setResults(scan); setViewingReport(true); }} className="cursor-pointer space-y-3 pr-6 no-copy">
                               <div className="flex justify-between items-center text-[10px] font-mono">
-                                <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase">
+                                <span className="px-2 py-0.5 rounded border font-bold uppercase" style={{ borderColor: 'var(--border-default)', background: 'rgba(239,68,68,0.08)', color: 'var(--text-accent)' }}>
                                   {scan.target.type}
                                 </span>
                                 <div className="flex items-center gap-1.5">
                                   <div className={`w-1.5 h-1.5 rounded-full ${scan.riskScore > 60 ? 'bg-red-500' : scan.riskScore > 30 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                  <span className="font-bold text-slate-400 uppercase">{scoreDetails.grade} ({scan.riskScore})</span>
+                                  <span className="font-bold uppercase" style={{ color: 'var(--text-secondary)' }}>{scoreDetails.grade} ({scan.riskScore})</span>
                                 </div>
                               </div>
 
                               <div className="space-y-1">
                                 <h4 className="font-bold font-mono text-sm truncate" style={{ color: 'var(--text-primary)' }}>{sanitizeText(scan.target.value, 80)}</h4>
-                                <span className="text-[10px] text-slate-500 font-mono block">{scan.scanTime}</span>
+                                <span className="text-[10px] block" style={{ color: 'var(--text-muted)' }}>{scan.scanTime}</span>
                               </div>
 
-                              <div className="pt-2 border-t border-slate-850 flex items-center gap-4 text-[10px] font-mono text-slate-400">
+                              <div className="pt-2 border-t flex items-center gap-4 text-[10px] font-mono" style={{ borderColor: 'var(--border-default)', color: 'var(--text-muted)' }}>
                                 <span>Findings: {scan.findings.length}</span>
                                 <span>Timeline: {scan.timeline.length}</span>
                               </div>
@@ -2934,7 +3120,8 @@ export default function App() {
 
                             <button
                               onClick={() => removeHistoryItem(scan.target.value, scan.target.type)}
-                              className="absolute top-4 right-4 p-1 rounded hover:bg-red-500/10 text-slate-500 hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-4 right-4 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                              style={{ color: 'var(--text-secondary)' }}
                               title="Delete from cache"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -2943,8 +3130,8 @@ export default function App() {
                         );
                       })}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </motion.div>
             )}
 

@@ -53,7 +53,7 @@ import {
   Radar,
   Gauge,
 } from 'lucide-react';
-import { ScanResults, Finding, Recommendation, TimelineEvent, PopoScanResult } from '../types';
+import { ScanResults, Finding, Recommendation, TimelineEvent, PopoScanResult, Severity } from '../types';
 import { calculateRiskScore, generateReportDocument } from '../engines/osintEngines';
 import { TabErrorBoundary } from './TabErrorBoundary';
 
@@ -66,6 +66,7 @@ interface ReportDashboardProps {
 
 type TabType =
   | 'overview'
+  | 'recon'
   | 'evidence'
   | 'image_verify'
   | 'dns'
@@ -197,6 +198,7 @@ export default function ReportDashboard({
 
   const { target, scanTime, riskScore, findings, recommendations, timeline } = results;
   const scoreDetails = calculateRiskScore(findings);
+  const reconEntries = Object.entries(results.recon ?? {});
 
   const moduleCoverage = [
     { label: 'DNS', active: Boolean(results.dns) },
@@ -437,6 +439,7 @@ export default function ReportDashboard({
         >
           {[
             { id: 'overview', label: 'Overview', icon: Shield },
+            reconEntries.length > 0 ? { id: 'recon', label: `Recon (${reconEntries.length})`, icon: Network } : null,
             results.image?.authenticity
               ? { id: 'image_verify', label: 'Image Authenticity', icon: Eye }
               : null,
@@ -526,8 +529,8 @@ export default function ReportDashboard({
                 className="dashboard-surface lg:col-span-1 p-6 flex flex-col items-center justify-between min-h-[360px]"
               >
                 <div className="w-full text-left">
-                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono" style={{ color: 'var(--text-secondary)' }}>RISK SCORE GAUGE</h3>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Calculated via deterministic rule severity aggregation</p>
+                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono" style={{ color: 'var(--text-primary)' }}>RISK SCORE GAUGE</h3>
+                  <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>Calculated via deterministic rule severity aggregation</p>
                 </div>
 
                 <div className="relative flex items-center justify-center my-6">
@@ -563,16 +566,16 @@ export default function ReportDashboard({
 
                 <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t text-center" style={{ borderColor: 'var(--border-subtle)' }}>
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-muted)' }}>RISK ASSESSMENT</span>
+                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-secondary)' }}>RISK ASSESSMENT</span>
                     <span
                       className="text-sm font-bold font-mono"
-                      style={{ color: riskScore > 65 ? '#dc2626' : riskScore > 35 ? '#d97706' : '#16a34a' }}
+                      style={{ color: riskScore > 65 ? '#b91c1c' : riskScore > 35 ? '#b45309' : '#166534' }}
                     >
                       {riskScore > 65 ? 'CRITICAL RISK' : riskScore > 35 ? 'MODERATE RISK' : 'SECURE'}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-muted)' }}>SECURITY LEVEL</span>
+                    <span className="text-[10px] font-mono font-bold uppercase block mb-1" style={{ color: 'var(--text-secondary)' }}>SECURITY LEVEL</span>
                     <span className="text-sm font-bold font-mono" style={{ color: 'var(--text-primary)' }}>
                       {scoreDetails.grade}
                     </span>
@@ -585,10 +588,10 @@ export default function ReportDashboard({
                 {/* Findings Breakdown Metrics */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { label: 'CRITICAL', count: scoreDetails.criticalCount, bg: 'rgba(220,38,38,0.09)', border: 'rgba(220,38,38,0.25)', text: '#991b1b', big: '#dc2626' },
-                    { label: 'HIGH', count: scoreDetails.highCount, bg: 'rgba(234,88,12,0.09)', border: 'rgba(234,88,12,0.25)', text: '#9a3412', big: '#ea580c' },
-                    { label: 'MEDIUM', count: scoreDetails.mediumCount, bg: 'rgba(217,119,6,0.09)', border: 'rgba(217,119,6,0.25)', text: '#92400e', big: '#d97706' },
-                    { label: 'LOW', count: scoreDetails.lowCount, bg: 'rgba(37,99,235,0.09)', border: 'rgba(37,99,235,0.25)', text: '#1e40af', big: '#2563eb' },
+                    { label: 'CRITICAL', count: scoreDetails.criticalCount, bg: 'rgba(220,38,38,0.12)', border: 'rgba(220,38,38,0.33)', text: '#7f1d1d', big: '#b91c1c' },
+                    { label: 'HIGH', count: scoreDetails.highCount, bg: 'rgba(234,88,12,0.12)', border: 'rgba(234,88,12,0.32)', text: '#7c2d12', big: '#c2410c' },
+                    { label: 'MEDIUM', count: scoreDetails.mediumCount, bg: 'rgba(217,119,6,0.12)', border: 'rgba(217,119,6,0.32)', text: '#78350f', big: '#b45309' },
+                    { label: 'LOW', count: scoreDetails.lowCount, bg: 'rgba(37,99,235,0.12)', border: 'rgba(37,99,235,0.30)', text: '#1e3a8a', big: '#1d4ed8' },
                   ].map((stat) => (
                     <div
                       key={stat.label}
@@ -614,15 +617,15 @@ export default function ReportDashboard({
                         Our deterministic OSINT analysis of the endpoint <code className="px-1.5 py-0.5 rounded font-mono text-xs" style={{ background: 'rgba(148,163,184,0.10)', color: 'var(--text-accent)', border: '1px solid var(--border-default)' }}>{target.value}</code> has concluded with a security grade of <strong className="font-mono text-base" style={{ color: 'var(--text-primary)' }}>{scoreDetails.grade}</strong>.
                       </p>
                       {scoreDetails.criticalCount > 0 || scoreDetails.highCount > 0 ? (
-                        <p style={{ color: '#fca5a5', background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.22)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: 'var(--color-critical)', background: 'var(--color-critical-bg)', border: '1px solid var(--color-critical-border)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Immediate Intervention Required:</strong> The presence of {scoreDetails.criticalCount} critical and {scoreDetails.highCount} high-risk vulnerabilities compromises the perimeter integrity. Unauthenticated spoofing, downgrade exploits, or unencrypted session tracking may be viable threat scenarios.
                         </p>
                       ) : scoreDetails.mediumCount > 0 ? (
-                        <p style={{ color: '#fcd34d', background: 'rgba(217,119,6,0.12)', border: '1px solid rgba(217,119,6,0.22)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: 'var(--color-medium)', background: 'var(--color-medium-bg)', border: '1px solid var(--color-medium-border)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Advisory Action Recommended:</strong> The investigation flagged {scoreDetails.mediumCount} moderate anomalies. Hardening server configuration values (like HTTP security headers) and aligning SPF/DMARC policies are advised to reduce overall risk posture.
                         </p>
                       ) : (
-                        <p style={{ color: '#86efac', background: 'rgba(22,163,74,0.12)', border: '1px solid rgba(22,163,74,0.22)', padding: '12px 16px', borderRadius: 10 }}>
+                        <p style={{ color: 'var(--color-pass)', background: 'var(--color-pass-bg)', border: '1px solid var(--color-pass-border)', padding: '12px 16px', borderRadius: 10 }}>
                           <strong>Excellent Security Hygiene:</strong> Our evaluation identified zero critical or medium-risk anomalies. Standard security configurations are properly synchronized, showing outstanding posture.
                         </p>
                       )}
@@ -649,6 +652,66 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+
+            {reconEntries.length > 0 && (
+              <div className="dashboard-surface mt-8 p-6">
+                <div className="flex items-center justify-between gap-3 mb-6">
+                  <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
+                    <Radar className="w-4 h-4" style={{ color: 'var(--text-accent)' }} /> RECON INTELLIGENCE SUMMARY
+                  </h3>
+                  <button
+                    onClick={() => setActiveTab('recon')}
+                    className="px-3 py-1.5 rounded-lg border text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer"
+                    style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}
+                  >
+                    Open recon board
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                  {reconEntries.slice(0, 6).map(([moduleName, reconResult]) => {
+                    const keySignals = reconResult.items.filter((item) => item.status === 'open' || item.status === 'found' || item.status === 'detected').length;
+                    const severityOrder: Record<string, number> = { critical: 5, high: 4, medium: 3, low: 2, info: 1, pass: 0 };
+                    const highestSeverity = reconResult.items.reduce<Severity | 'pass'>((current, item) => {
+                      const next: Severity | 'pass' = item.severity || 'pass';
+                      return (severityOrder[next] ?? 0) > (severityOrder[current] ?? 0) ? next : current;
+                    }, 'pass');
+                    const severityTone = highestSeverity === 'critical' ? 'rgba(239,68,68,0.12)' : highestSeverity === 'high' ? 'rgba(249,115,22,0.10)' : highestSeverity === 'medium' ? 'rgba(245,158,11,0.10)' : 'rgba(16,185,129,0.10)';
+
+                    return (
+                      <div key={moduleName} className="rounded-xl border p-4" style={{ borderColor: 'var(--border-default)', background: severityTone }}>
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div>
+                            <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{moduleName}</div>
+                            <div className="text-sm font-bold mt-1" style={{ color: 'var(--text-primary)' }}>{reconResult.target}</div>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full border uppercase" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)', color: 'var(--text-secondary)' }}>
+                            {highestSeverity}
+                          </span>
+                        </div>
+
+                        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>{reconResult.summary}</p>
+
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                          <div className="rounded-lg p-2 border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                            <div className="text-[9px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>signals</div>
+                            <div className="text-sm font-black font-mono" style={{ color: 'var(--text-primary)' }}>{reconResult.items.length}</div>
+                          </div>
+                          <div className="rounded-lg p-2 border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                            <div className="text-[9px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>open</div>
+                            <div className="text-sm font-black font-mono" style={{ color: 'var(--text-primary)' }}>{keySignals}</div>
+                          </div>
+                          <div className="rounded-lg p-2 border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                            <div className="text-[9px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>risk</div>
+                            <div className="text-sm font-black font-mono" style={{ color: 'var(--text-primary)' }}>{highestSeverity}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Historical Trend Analysis Card */}
             <div className="dashboard-surface mt-8 p-6">
@@ -1176,6 +1239,61 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
+          )}
+
+          {/* RECON TAB */}
+          {activeTab === 'recon' && reconEntries.length > 0 && (
+            <TabErrorBoundary tabName="Recon">
+              <div id="recon_panel" className="space-y-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+                  {reconEntries.map(([moduleName, reconResult]) => {
+                    const signalCount = reconResult.items.length;
+                    const filteredItems = reconResult.items.slice(0, 5);
+                    return (
+                      <div key={moduleName} className="rounded-2xl border p-4" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-panel)' }}>
+                        <div className="flex items-start justify-between gap-3 pb-3 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                          <div>
+                            <div className="text-[10px] font-mono uppercase tracking-[0.16em]" style={{ color: 'var(--text-muted)' }}>{moduleName}</div>
+                            <h3 className="text-lg font-black mt-2" style={{ color: 'var(--text-primary)' }}>{reconResult.target}</h3>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-full border" style={{ borderColor: 'var(--border-default)', background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}>
+                            {signalCount} signals
+                          </span>
+                        </div>
+
+                        <p className="text-xs leading-relaxed my-4" style={{ color: 'var(--text-secondary)' }}>{reconResult.summary}</p>
+
+                        <div className="space-y-2">
+                          {filteredItems.map((item, idx) => (
+                            <div key={`${moduleName}-${idx}`} className="rounded-lg border p-2.5" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-base)' }}>
+                              <div className="flex items-center justify-between gap-2 mb-1.5">
+                                <span className="text-[11px] font-semibold" style={{ color: 'var(--text-primary)' }}>{item.label}</span>
+                                <span className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border" style={{ borderColor: 'var(--border-default)', color: 'var(--text-secondary)' }}>
+                                  {item.status ?? 'unknown'}
+                                </span>
+                              </div>
+                              {item.value && <div className="text-[10px] break-all" style={{ color: 'var(--text-secondary)' }}>{item.value}</div>}
+                              {item.detail && <div className="text-[9px] mt-1" style={{ color: 'var(--text-muted)' }}>{item.detail}</div>}
+                            </div>
+                          ))}
+                        </div>
+
+                        {reconResult.extra && Object.keys(reconResult.extra).length > 0 && (
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            {Object.entries(reconResult.extra).slice(0, 4).map(([key, value]) => (
+                              <div key={key} className="rounded-lg border p-2" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-base)' }}>
+                                <div className="text-[9px] font-mono uppercase" style={{ color: 'var(--text-muted)' }}>{key}</div>
+                                <div className="text-[11px] font-semibold mt-1" style={{ color: 'var(--text-primary)' }}>{String(value)}</div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </TabErrorBoundary>
           )}
 

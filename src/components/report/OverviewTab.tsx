@@ -40,71 +40,95 @@ interface OverviewTabProps {
 }
 
 const RiskGauge = memo(({ riskScore, grade }: { riskScore: number; grade: string }) => {
-  const securityGrade = 100 - riskScore;
-  const strokeColor = useMemo(() => {
-    if (riskScore > 65) return '#dc2626'; // Red-600
-    if (riskScore > 35) return '#d97706'; // Amber-600
-    return '#16a34a'; // Green-600
-  }, [riskScore]);
+  const clampedScore = Math.max(0, Math.min(100, Number.isFinite(riskScore) ? riskScore : 0));
 
-  const dashArray = 465;
-  const dashOffset = useMemo(() =>
-    dashArray - (dashArray * securityGrade) / 100
-  , [securityGrade]);
+  const strokeColor = useMemo(() => {
+    if (clampedScore >= 75) return '#dc2626';
+    if (clampedScore >= 45) return '#d97706';
+    return '#16a34a';
+  }, [clampedScore]);
+
+  const posture = useMemo(() => {
+    if (clampedScore >= 75) return { label: 'CRITICAL', detail: 'High exploitability risk' };
+    if (clampedScore >= 45) return { label: 'MODERATE', detail: 'Elevated exposure' };
+    return { label: 'LOW', detail: 'Controlled posture' };
+  }, [clampedScore]);
+
+  const radius = 74;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference * (1 - clampedScore / 100);
 
   return (
-    <div className="lg:col-span-1 rounded-2xl p-6 flex flex-col items-center justify-between min-h-[360px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
+    <div className="lg:col-span-1 rounded-2xl p-6 flex flex-col items-center justify-between min-h-[360px] bg-white/95 dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 shadow-sm transition-colors">
       <div className="w-full text-left">
-        <h3 className="text-sm font-bold tracking-wider uppercase font-mono text-slate-600 dark:text-slate-400">RISK SCORE GAUGE</h3>
-        <p className="text-xs mt-1 text-slate-500 dark:text-slate-500">Calculated via deterministic rule severity aggregation</p>
+        <h3 className="text-sm font-bold tracking-wider uppercase font-mono text-slate-800 dark:text-slate-400">RISK SCORE GAUGE</h3>
+        <p className="text-xs mt-1 text-slate-600 dark:text-slate-500">Calculated via deterministic rule severity aggregation</p>
       </div>
 
-      <div className="relative flex items-center justify-center my-6" role="img" aria-label={`Security grade: ${securityGrade}%`}>
+      <div className="relative flex items-center justify-center my-6" role="img" aria-label={`Risk score: ${clampedScore} out of 100`}>
         <svg className="w-44 h-44 transform -rotate-90" viewBox="0 0 176 176">
+          <defs>
+            <linearGradient id="riskGaugeFill" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#16a34a" />
+              <stop offset="45%" stopColor="#d97706" />
+              <stop offset="100%" stopColor="#dc2626" />
+            </linearGradient>
+          </defs>
+
           <circle
             cx="88"
             cy="88"
-            r="74"
+            r={radius}
             fill="none"
             className="stroke-slate-100 dark:stroke-slate-800"
             strokeWidth="12"
           />
+
           <circle
             cx="88"
             cy="88"
-            r="74"
-            className="fill-none transition-all duration-1000"
-            stroke={strokeColor}
+            r={radius}
+            fill="none"
+            stroke="url(#riskGaugeFill)"
             strokeWidth="12"
-            strokeDasharray={dashArray}
-            strokeDashoffset={dashOffset}
             strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            className="transition-all duration-1000 ease-out"
           />
         </svg>
+
         <div className="absolute text-center">
-          <span className="text-5xl font-black font-mono tracking-tighter text-slate-900 dark:text-white">
-            {securityGrade}
-          </span>
-          <span className="block font-mono text-xs font-bold mt-1 text-slate-500 dark:text-slate-400">SECURITY GRADE</span>
+          <div className="flex items-end justify-center gap-1">
+            <span className="text-5xl font-black font-mono tracking-tighter text-slate-900 dark:text-white leading-none">
+              {Math.round(clampedScore)}
+            </span>
+            <span className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400 pb-2">/100</span>
+          </div>
+          <span className="block font-mono text-[10px] font-bold mt-2 uppercase tracking-[0.22em] text-slate-500 dark:text-slate-400">RISK INDEX</span>
         </div>
       </div>
 
-      <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800 text-center">
+      <div className="w-full grid grid-cols-2 gap-4 pt-4 border-t border-slate-200 dark:border-slate-800 text-center">
         <div>
-          <span className="text-[10px] font-mono font-bold uppercase block mb-1 text-slate-500 dark:text-slate-400">RISK ASSESSMENT</span>
+          <span className="text-[10px] font-mono font-bold uppercase block mb-1 text-slate-700 dark:text-slate-400">POSTURE</span>
           <span
             className="text-sm font-bold font-mono"
             style={{ color: strokeColor }}
           >
-            {riskScore > 65 ? 'CRITICAL RISK' : riskScore > 35 ? 'MODERATE RISK' : 'SECURE'}
+            {posture.label}
           </span>
         </div>
         <div>
-          <span className="text-[10px] font-mono font-bold uppercase block mb-1 text-slate-500 dark:text-slate-400">SECURITY LEVEL</span>
+          <span className="text-[10px] font-mono font-bold uppercase block mb-1 text-slate-700 dark:text-slate-400">GRADE</span>
           <span className="text-sm font-bold font-mono text-slate-900 dark:text-white">
             {grade}
           </span>
         </div>
+      </div>
+
+      <div className="mt-3 w-full text-center text-[10px] font-mono uppercase tracking-[0.15em] text-slate-700 dark:text-slate-400">
+        {posture.detail}
       </div>
     </div>
   );
@@ -153,15 +177,15 @@ const ExecutiveSummary = memo(({ target, scoreDetails, setActiveTab }: any) => {
   return (
     <div className="rounded-2xl p-6 flex-1 flex flex-col justify-between bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm transition-colors">
       <div>
-        <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2 text-slate-600 dark:text-slate-400">
-          <FileCheck className="w-4 h-4 text-red-500" /> EXECUTIVE INTELLIGENCE SUMMARY
+        <h3 className="text-sm font-bold tracking-wider uppercase font-mono flex items-center gap-2 text-slate-800 dark:text-slate-400">
+          <FileCheck className="w-4 h-4 text-red-600" /> EXECUTIVE INTELLIGENCE SUMMARY
         </h3>
         <div className="text-sm leading-relaxed space-y-4 mt-4 text-slate-700 dark:text-slate-300">
           <p>
-            Our deterministic OSINT analysis of the endpoint <code className="px-1.5 py-0.5 rounded font-mono text-xs bg-slate-100 dark:bg-slate-800 text-red-600 dark:text-red-400 border border-slate-200 dark:border-slate-700 transition-colors">{target.value}</code> has concluded with a security grade of <strong className="font-mono text-base text-slate-900 dark:text-white">{grade}</strong>.
+            Our deterministic OSINT analysis of the endpoint <code className="px-1.5 py-0.5 rounded font-mono text-xs bg-slate-100 dark:bg-slate-800 text-red-700 dark:text-red-400 border border-slate-200 dark:border-slate-700 transition-colors">{target.value}</code> has concluded with a security grade of <strong className="font-mono text-base text-slate-900 dark:text-white">{grade}</strong>.
           </p>
           {statusContent}
-          <p className="text-xs text-slate-500 dark:text-slate-500">
+          <p className="text-xs text-slate-600 dark:text-slate-500">
             This summary is structured through automated client-side rules evaluating raw network signatures. No personal identifiers or data logs have left the browser.
           </p>
         </div>

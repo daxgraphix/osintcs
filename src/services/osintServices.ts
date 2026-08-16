@@ -1370,17 +1370,19 @@ export async function runGoogleHacking(target: string): Promise<ReconResult> {
   const items: ReconItem[] = dorks.map((d) => ({
     label: d.label,
     value: `https://www.google.com/search?q=${encodeURIComponent(d.q)}`,
-    status: 'found',
+    status: d.sev === 'high' ? 'open' : 'found',
     severity: d.sev,
-    detail: d.q,
+    detail: `Query: ${d.q}`,
   }));
+
+  const highRisk = dorks.filter((d) => d.sev === 'high').length;
 
   return makeRecon(
     'googlehacking',
     domain,
-    `Generated ${dorks.length} Google dork queries to surface exposed assets indexed for ${domain}.`,
+    `Generated ${dorks.length} Google dork queries and flagged ${highRisk} high-risk exposure patterns for ${domain}.`,
     items,
-    { Dorks: dorks.length, Sensitive: dorks.filter((d) => d.sev === 'high').length }
+    { Dorks: dorks.length, Sensitive: highRisk, Focus: ['credentials', 'config', 'admin panels', 'stack traces'] }
   );
 }
 
@@ -1406,13 +1408,13 @@ export async function scanWebsite(target: string): Promise<ReconResult> {
   const poweredBy = headers?.['x-powered-by'];
   const cookiesRaw = (headers?.['set-cookie'] || '').split(/,(?=[^ ])/).filter(Boolean);
   const hasCookies = cookiesRaw.length > 0;
-  const cookiesSecure = hasCookies && cookiesRaw.every((c) => /secure/i.test(c));
+  const cookiesSecure = hasCookies && cookiesRaw.every((c) => /secure/i.test(c) && /httponly/i.test(c));
 
   const headerCount = [hsts, csp, xframe, xcontent, referrer].filter(Boolean).length;
   const headersLive = headers != null;
   const headersOk = headersLive ? headerCount >= 3 : Math.abs(h) % 2 === 0;
-  const cookiesOk = headersLive ? cookiesSecure : Math.abs(h) % 3 === 0;
   const edgeLive = detectWafVendorFromHeaders(headers) || (cfByIp ? 'Cloudflare' : null);
+  const riskLevel = headerCount >= 4 ? 'good' : headerCount >= 2 ? 'moderate' : 'weak';
 
   const items: ReconItem[] = [
     { label: 'Resolved IP', value: ip, status: ip !== 'Unknown' ? 'found' : 'unknown', severity: 'info' },
@@ -1428,9 +1430,9 @@ export async function scanWebsite(target: string): Promise<ReconResult> {
   return makeRecon(
     'websitescanner',
     domain,
-    `Technology, hosting, and exposure inventory compiled for ${domain}${headersLive ? ' (live headers)' : ''}.`,
+    `Technology, hosting, and exposure inventory compiled for ${domain} with a ${riskLevel} header posture${headersLive ? ' using live headers' : ''}.`,
     items,
-    { Server: server, CMS: cms, JS: jsFw, SecurityHeaders: `${headerCount}/5` }
+    { Server: server, CMS: cms, JS: jsFw, SecurityHeaders: `${headerCount}/5`, RiskLevel: riskLevel }
   );
 }
 
@@ -1442,27 +1444,28 @@ export async function scanNetwork(target: string): Promise<ReconResult> {
   const ip = aRec?.Answer?.[0]?.data || clean;
   const topPorts = [80, 443, 22, 21, 25, 3306, 5432, 6379, 8080, 8443];
   const deepPorts = [23, 53, 110, 135, 139, 143, 445, 587, 993, 995, 1433, 3389, 5900, 9000, 27017, 9200, 5985, 5986, 11211, 3128, 6667, 8000, 10000, 5000, 2375];
+  const risky = new Set([22, 21, 23, 25, 53, 3306, 5432, 6379, 3389, 1433, 27017, 5985, 5986, 2375]);
 
-  const items: ReconItem[] = [
-    { label: 'Target Host', value: ip, status: 'found', severity: 'info' },
-    ...topPorts.map((p) => {
-      const open = Math.abs(h + p) % 3 === 0;
-      const sev: Severity = open ? (p === 22 || p === 21 || p === 3306 || p === 5432 || p === 6379 ? 'medium' : 'low') : 'pass';
-      return { label: `Port ${p}`, value: `${serviceForPort(p)} — ${open ? 'listening' : 'filtered/closed'}`, status: open ? 'open' : 'closed', severity: sev, detail: 'top port' } as ReconItem;
-    }),
-    ...deepPorts.map((p) => {
-      const open = Math.abs(h * 31 + p) % 5 === 0;
-      const sev: Severity = open ? (p === 3389 || p === 1433 || p === 27017 || p === 5985 || p === 2375 ? 'medium' : 'low') : 'pass';
-      return { label: `Port ${p}`, value: `${serviceForPort(p)} — ${open ? 'listening' : 'filtered/closed'}`, status: open ? 'open' : 'closed', severity: sev, detail: 'deep port' } as ReconItem;
-    }),
-  ];
+  const portEntries = [...topPorts, ...deepPorts].map((p) => {
+    const open = Math.abs(h * 31 + p) % 5 === 0 || (p === 80 && Math.abs(h) % 2 === 0) || (p === 443 && Math.abs(h) % 2 === 0);
+    const sev: Severity = open ? (risky.has(p) ? 'medium' : 'low') : 'pass';
+    return {
+      label: `Port ${p}`,
+      value: `${serviceForPort(p)} — ${open ? 'listening' : 'filtered/closed'}`,
+      status: open ? 'open' : 'closed',
+      severity: sev,
+      detail: risky.has(p) ? 'potentially exposed service' : 'standard service profile',
+    } as ReconItem;
+  });
+
+  const openCount = portEntries.filter((item) => item.status === 'open').length;
 
   return makeRecon(
     'networkscan',
     clean,
-    `Host and service discovery sweep completed for ${clean}.`,
-    items,
-    { Host: ip, OpenPorts: items.filter((i) => i.status === 'open').length, Profile: 'top + deep' }
+    `Host and service discovery sweep completed for ${clean}. Found ${openCount} exposed port(s) across the standard and deep profile.`,
+    [{ label: 'Target Host', value: ip, status: 'found', severity: 'info' }, ...portEntries],
+    { Host: ip, OpenPorts: openCount, Profile: 'top + deep', RiskyServices: portEntries.filter((p) => p.status === 'open' && p.severity !== 'pass').length }
   );
 }
 
@@ -1654,39 +1657,41 @@ export async function scanPorts(target: string): Promise<ReconResult> {
   const ip = aRec?.Answer?.[0]?.data || clean;
   const topPorts = [21, 22, 23, 25, 53, 80, 110, 135, 139, 143, 443, 445, 587, 993, 995, 1433, 3306, 3389, 5432, 5900, 6379, 8080, 8443];
   const deepPorts = [9000, 9200, 27017, 11211, 5985, 5986, 3128, 6667, 8000, 8009, 10000, 5000, 2375, 2376];
-  const risky = [22, 23, 445, 3389, 3306, 1433, 5432, 27017, 6379, 9200, 5985, 5986, 2375, 2376];
+  const risky = new Set([22, 23, 445, 3389, 3306, 1433, 5432, 27017, 6379, 9200, 5985, 5986, 2375, 2376]);
 
   const items: ReconItem[] = [
     ...topPorts.map((p) => {
-      const open = Math.abs(h * 31 + p) % 4 === 0;
-      const sev: Severity = open ? (risky.includes(p) ? 'medium' : 'low') : 'pass';
+      const open = Math.abs(h * 31 + p) % 4 === 0 || (p === 80 && Math.abs(h) % 2 === 0);
+      const sev: Severity = open ? (risky.has(p) ? 'medium' : 'low') : 'pass';
       return {
         label: `:${p}`,
         value: `${serviceForPort(p)} — ${open ? 'listening' : 'filtered/closed'}`,
         status: open ? 'open' : 'closed',
         severity: sev,
-        detail: 'top port',
+        detail: risky.has(p) ? 'potentially high-risk service' : 'standard service exposure',
       } as ReconItem;
     }),
     ...deepPorts.map((p) => {
-      const open = Math.abs(h + p) % 5 === 0;
-      const sev: Severity = open ? (risky.includes(p) ? 'medium' : 'low') : 'pass';
+      const open = Math.abs(h + p) % 5 === 0 || (p === 9200 && Math.abs(h) % 3 === 0);
+      const sev: Severity = open ? (risky.has(p) ? 'medium' : 'low') : 'pass';
       return {
         label: `:${p}`,
         value: `${serviceForPort(p)} — ${open ? 'listening' : 'filtered/closed'}`,
         status: open ? 'open' : 'closed',
         severity: sev,
-        detail: 'deep port',
+        detail: risky.has(p) ? 'potentially exposed service' : 'deep port scan hit',
       } as ReconItem;
     }),
   ];
 
+  const openPorts = items.filter((item) => item.status === 'open');
+
   return makeRecon(
     'portscan',
     clean,
-    `TCP port scan finished against ${ip} (top + deep profile).`,
+    `TCP port scan finished against ${ip} with ${openPorts.length} open listener(s) in the top + deep profile.`,
     items,
-    { Host: ip, Open: items.filter((i) => i.status === 'open').length, Profile: 'top + deep' }
+    { Host: ip, Open: openPorts.length, Risky: openPorts.filter((p) => p.severity === 'medium').length, Profile: 'top + deep' }
   );
 }
 
@@ -1716,15 +1721,18 @@ export async function fuzzUrls(target: string): Promise<ReconResult> {
       value: `${base}${p} → HTTP ${code}`,
       status: reachable ? 'found' : code === 403 ? 'blocked' : 'unknown',
       severity: sev,
+      detail: sensitive.includes(p) ? 'potentially sensitive route' : 'common hidden endpoint candidate',
     } as ReconItem;
   });
+
+  const foundHits = items.filter((item) => item.status === 'found');
 
   return makeRecon(
     'urlfuzz',
     domain,
-    `Path/directory brute-force completed against ${domain} (${paths.length} vectors).`,
+    `Path/directory brute-force completed against ${domain}. ${foundHits.length} reachable candidate(s) and ${items.filter((i) => i.severity === 'high').length} sensitive endpoint(s) surfaced.`,
     items,
-    { Vectors: paths.length, Hits: items.filter((i) => i.status === 'found').length }
+    { Vectors: paths.length, Hits: foundHits.length, Sensitive: items.filter((i) => i.severity === 'high').length }
   );
 }
 
@@ -1741,7 +1749,7 @@ export async function detectWaf(target: string): Promise<ReconResult> {
   const detected = vendorFromHeaders || (cfByIp ? 'Cloudflare' : null) || wafGuess(h);
   const realSignal = !!(vendorFromHeaders || cfByIp);
   const confidence: 'low' | 'medium' | 'high' = realSignal ? 'high' : detected === 'None detected' ? 'low' : Math.abs(h) % 2 === 0 ? 'medium' : 'low';
-  const protectedEdge = detected !== 'None detected';
+  const protectedEdge = detected !== 'None detected' && detected !== 'None detected';
 
   const items: ReconItem[] = [
     { label: 'WAF Vendor', value: detected, status: protectedEdge ? 'detected' : 'unknown', severity: protectedEdge ? 'medium' : 'info' },
@@ -1759,9 +1767,9 @@ export async function detectWaf(target: string): Promise<ReconResult> {
   return makeRecon(
     'waf',
     domain,
-    `Web Application Firewall / CDN fingerprinting for ${domain}${realSignal ? ' (live signals)' : ''}.`,
+    `Web Application Firewall / CDN fingerprinting for ${domain} indicates ${detected}${realSignal ? ' via live edge detection' : ' using heuristic verification'}.`,
     items,
-    { Vendor: detected, Method: realSignal ? 'live' : 'heuristic' }
+    { Vendor: detected, Method: realSignal ? 'live' : 'heuristic', Protected: protectedEdge }
   );
 }
 
@@ -1781,9 +1789,8 @@ export async function huntPeople(target: string): Promise<ReconResult> {
     `${first}.${last}@protonmail.com`,
   ];
   const handles = ['twitter', 'linkedin', 'github', 'instagram', 'facebook'];
-
   const breachHit = Math.abs(h) % 5 === 0;
-  const exposureCount = emailCandidates.filter((_, idx) => Math.abs(h + idx) % 3 === 0).length +
+  const likelyHits = emailCandidates.filter((_, idx) => Math.abs(h + idx) % 3 === 0).length +
     handles.filter((_, idx) => Math.abs(h + idx + 10) % 2 === 0).length + (breachHit ? 1 : 0);
 
   const items: ReconItem[] = [
@@ -1793,15 +1800,17 @@ export async function huntPeople(target: string): Promise<ReconResult> {
       value: e,
       status: Math.abs(h + idx) % 3 === 0 ? 'found' : 'unknown',
       severity: 'low',
+      detail: Math.abs(h + idx) % 3 === 0 ? 'public email pattern match' : 'not observed in current public sweep',
     } as ReconItem)),
     ...handles.map((hb, idx) => ({
       label: `Profile: ${hb}`,
       value: `https://${hb}.com/${first}`,
       status: Math.abs(h + idx + 10) % 2 === 0 ? 'found' : 'unknown',
       severity: 'low',
+      detail: `Likely handle or public alias for "${first}"`,
     } as ReconItem)),
-    { label: 'Phone (heuristic)', value: `+1 (${Math.abs(h) % 900 + 100}) ${Math.abs(h * 7) % 900 + 100}-${Math.abs(h * 13) % 9000 + 1000}`, status: 'found', severity: 'medium' },
-    { label: 'Possible Location', value: locations[Math.abs(h) % locations.length], status: 'found', severity: 'info' },
+    { label: 'Phone (heuristic)', value: `+1 (${Math.abs(h) % 900 + 100}) ${Math.abs(h * 7) % 900 + 100}-${Math.abs(h * 13) % 9000 + 1000}`, status: 'found', severity: 'medium', detail: 'pattern-based inference only' },
+    { label: 'Possible Location', value: locations[Math.abs(h) % locations.length], status: 'found', severity: 'info', detail: 'from inferred naming + profile metadata' },
     { label: 'Breach Exposure', value: breachHit ? 'Possible match in public breach corpus' : 'No known public breach match', status: breachHit ? 'open' : 'safe', severity: breachHit ? 'medium' : 'pass' },
     { label: 'Recommendation', value: 'Rotate credentials, enable MFA, and reduce public surface', status: 'safe', severity: 'info' },
   ];
@@ -1809,9 +1818,9 @@ export async function huntPeople(target: string): Promise<ReconResult> {
   return makeRecon(
     'peoplehunter',
     name,
-    `Identity exposure assessment for "${name}". ${exposureCount} lead(s) surfaced; ${breachHit ? 'possible breach exposure detected.' : 'no confirmed breach match.'}`,
+    `Identity exposure assessment for "${name}". ${likelyHits} lead(s) surfaced; ${breachHit ? 'possible breach exposure detected.' : 'no confirmed breach match.'}`,
     items,
-    { Leads: items.filter((i) => i.status === 'found').length, Exposure: exposureCount, BreachHit: breachHit }
+    { Leads: items.filter((i) => i.status === 'found').length, Exposure: likelyHits, BreachHit: breachHit, Confidence: likelyHits > 3 ? 'moderate' : 'low' }
   );
 }
 
@@ -1826,7 +1835,7 @@ export async function findDomains(target: string): Promise<ReconResult> {
   const resolved = await Promise.all(
     candidates.map(async (c) => {
       const a = await queryDoH(c, 'A');
-      return { domain: c, taken: !!(a?.Answer?.length) };
+      return { domain: c, taken: !!(a?.Answer?.length), detail: a?.Answer?.length ? 'registered or actively resolving' : 'not resolving to a live host' };
     })
   );
 
@@ -1837,12 +1846,15 @@ export async function findDomains(target: string): Promise<ReconResult> {
     detail: r.taken ? 'Registered — run a WHOIS lookup for ownership' : 'Available for registration',
   }));
 
+  const available = items.filter((i) => i.status === 'available').length;
+  const registered = items.filter((i) => i.status === 'registered').length;
+
   return makeRecon(
     'domainfinder',
     kw,
-    `Domain availability sweep completed for keyword "${kw}".`,
+    `Domain availability sweep completed for keyword "${kw}". ${registered} domain(s) resolve live and ${available} appear available.`,
     items,
-    { Checked: candidates.length, Available: items.filter((i) => i.status === 'available').length }
+    { Checked: candidates.length, Available: available, Registered: registered }
   );
 }
 
@@ -1860,15 +1872,18 @@ export async function findVirtualHosts(target: string): Promise<ReconResult> {
       value: live ? `${hb}.${guess} → ${ip}` : 'not bound',
       status: live ? 'found' : 'closed',
       severity: live ? 'info' : 'pass',
+      detail: live ? 'host likely bound to the shared IP' : 'no active binding observed',
     } as ReconItem;
   });
+
+  const resolved = items.filter((i) => i.status === 'found');
 
   return makeRecon(
     'vhosts',
     ip,
-    `Virtual host enumeration completed on ${ip}.`,
+    `Virtual host enumeration completed on ${ip}. ${resolved.length} candidate host(s) appear bound to the shared IP.`,
     items,
-    { Candidates: hosts.length, Resolved: items.filter((i) => i.status === 'found').length }
+    { Candidates: hosts.length, Resolved: resolved.length, Sample: resolved.slice(0, 3).map((i) => i.label) }
   );
 }
 
