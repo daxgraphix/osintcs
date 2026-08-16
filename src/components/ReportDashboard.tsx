@@ -55,6 +55,7 @@ import {
 } from 'lucide-react';
 import { ScanResults, Finding, Recommendation, TimelineEvent, PopoScanResult } from '../types';
 import { calculateRiskScore, generateReportDocument } from '../engines/osintEngines';
+import { TabErrorBoundary } from './TabErrorBoundary';
 
 interface ReportDashboardProps {
   results: ScanResults;
@@ -481,8 +482,9 @@ export default function ReportDashboard({
         >
           {/* OVERVIEW TAB */}
           {activeTab === 'overview' && (
-            <>
-              <div id="overview_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Overview">
+              <>
+                <div id="overview_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Score Circular Gauge Widget */}
               <div
                 className="lg:col-span-1 rounded-2xl p-6 flex flex-col items-center justify-between min-h-[360px]"
@@ -686,11 +688,13 @@ export default function ReportDashboard({
               </div>
             </div>
             </>
+            </TabErrorBoundary>
           )}
 
           {/* IMAGE AUTHENTICITY AND INTEGRITY FORENSIC DASHBOARD */}
           {activeTab === 'image_verify' && results.image && results.image.authenticity && (
-            <div id="image_verify_panel" className="space-y-8">
+            <TabErrorBoundary tabName="Image Authenticity">
+              <div id="image_verify_panel" className="space-y-8">
               {/* Executive Indicators Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
                 {/* Forensic Image Viewer Card */}
@@ -1138,11 +1142,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* EVIDENCE / FINDINGS TAB */}
           {activeTab === 'evidence' && (
-            <div id="evidence_panel" className="space-y-6">
+            <TabErrorBoundary tabName="Evidence">
+              <div id="evidence_panel" className="space-y-6">
               {/* Finding Filters */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border border-slate-200 bg-white rounded-xl">
                 <div className="flex flex-wrap items-center gap-4">
@@ -1298,11 +1304,13 @@ export default function ReportDashboard({
                 </AnimatePresence>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* DNS EXPLORER TAB */}
           {activeTab === 'dns' && results.dns && (
-            <div id="dns_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="DNS">
+              <div id="dns_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Policy Badges & Stats */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -1476,11 +1484,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* SUBDOMAINS PANEL - IMPROVED SUBDOMAIN FINDER MODULE */}
           {activeTab === 'subdomains' && results.dns && results.dns.subdomains && (
-            <div id="subdomains_panel" className="space-y-8">
+            <TabErrorBoundary tabName="Subdomains">
+              <div id="subdomains_panel" className="space-y-8">
               {/* Header */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1579,11 +1589,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* WHOIS PANEL TAB */}
           {activeTab === 'whois' && results.whois && (
-            <div id="whois_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="WHOIS">
+              <div id="whois_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* WHOIS Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -1646,11 +1658,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* SSL CRYPTOGRAPHIC TAB */}
           {activeTab === 'ssl' && results.ssl && (
-            <div id="ssl_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="SSL">
+              <div id="ssl_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* SSL Quick Specs Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -1750,11 +1764,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* RESPONSE HEADERS TAB */}
           {activeTab === 'headers' && results.headers && (
-            <div id="headers_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Headers">
+              <div id="headers_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Security Headers Summary Badges */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -1817,12 +1833,14 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
 
           {/* MY IP PANEL TAB */}
           {activeTab === 'myip' && results.myip && (
-            <div id="myip_panel" className="space-y-6">
+            <TabErrorBoundary tabName="My IP">
+              <div id="myip_panel" className="space-y-6">
               {/* Hero IP */}
               <div className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
                 <div className="space-y-1 min-w-0">
@@ -1904,11 +1922,13 @@ export default function ReportDashboard({
                 Scan captured at {results.scanTime} · All lookups performed locally against public IP geolocation endpoints.
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* IP LOOKUP PANEL TAB */}
           {activeTab === 'ip' && results.ip && (
-            <div id="ip_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="IP Lookup">
+              <div id="ip_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* IP Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -2040,11 +2060,13 @@ export default function ReportDashboard({
                 )}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* IP ADVANCE PANEL TAB */}
           {activeTab === 'ipadvance' && results.ipadvance && (
-            <div id="ipadvance_panel" className="space-y-6">
+            <TabErrorBoundary tabName="IP Advance">
+              <div id="ipadvance_panel" className="space-y-6">
               {/* Hero IP */}
               <div className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
                 <div className="space-y-1 min-w-0">
@@ -2304,11 +2326,13 @@ export default function ReportDashboard({
                 Scan captured at {results.scanTime} · Geolocation fetched against public IP endpoints; risk scoring, source voting, BGP model, neighbour scan, and fingerprint checks are computed locally in your browser.
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* TECHNOLOGY LOOKUP PANEL TAB */}
           {activeTab === 'techlookup' && results.techlookup && (
-            <div id="techlookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Technology Lookup">
+              <div id="techlookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Tech Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -2377,11 +2401,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* POPOSCAN PANEL TAB */}
           {activeTab === 'poplenscan' && results.poplenscan && (
-            <div id="poplenscan_panel" className="space-y-6">
+            <TabErrorBoundary tabName="PopoScan">
+              <div id="poplenscan_panel" className="space-y-6">
               {/* Summary Hero Card */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="border border-slate-200 bg-white rounded-xl p-5">
@@ -2982,11 +3008,13 @@ export default function ReportDashboard({
                 Scan captured at {results.poplenscan.scanTime} · Webpage fetched via CORS proxy; resource extraction via DOM parsing; redirects tracked; third-party classification by domain comparison.
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* GEO LOOKUP PANEL TAB */}
           {activeTab === 'geolookup' && results.geolookup && (
-            <div id="geolookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Geo Lookup">
+              <div id="geolookup_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Geo Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -3048,11 +3076,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* SPEED TEST PANEL TAB */}
           {activeTab === 'speedtest' && results.speedtest && (
-            <div id="speedtest_panel" className="space-y-6">
+            <TabErrorBoundary tabName="Speed Test">
+              <div id="speedtest_panel" className="space-y-6">
               {/* Hero result */}
               <div className="border border-slate-200 bg-white rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.07)' }}>
                 <div className="space-y-1 min-w-0">
@@ -3117,11 +3147,13 @@ export default function ReportDashboard({
                 {results.speedtest.note}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* EMAIL AUDIT PANEL TAB */}
           {activeTab === 'email' && results.email && (
-            <div id="email_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Email Audit">
+              <div id="email_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Email Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -3223,11 +3255,13 @@ export default function ReportDashboard({
                 )}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* USERNAME FOOTPRINT PANEL TAB */}
           {activeTab === 'username' && results.username && (
-            <div id="username_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Username Footprint">
+              <div id="username_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Username Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -3288,11 +3322,13 @@ export default function ReportDashboard({
                 </div>
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* HASH INTEL PANEL TAB */}
           {activeTab === 'hash' && results.hash && (
-            <div id="hash_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <TabErrorBoundary tabName="Hash Intel">
+              <div id="hash_panel" className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Hash Quick Details Card */}
               <div className="lg:col-span-1 space-y-6">
                 <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-4">
@@ -3374,11 +3410,13 @@ export default function ReportDashboard({
                 )}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* TIMELINE PANEL TAB */}
           {activeTab === 'timeline' && timeline && (
-            <div id="timeline_panel" className="max-w-3xl mx-auto border border-slate-200 bg-slate-50 rounded-xl p-8 space-y-8">
+            <TabErrorBoundary tabName="Timeline">
+              <div id="timeline_panel" className="max-w-3xl mx-auto border border-slate-200 bg-slate-50 rounded-xl p-8 space-y-8">
               <div>
                 <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">TARGET SECURITY TIMELINE</h3>
                 <p className="text-xs text-slate-500 mt-1">Chronological mapping of domain registration cycles and cryptographic key updates</p>
@@ -3408,11 +3446,13 @@ export default function ReportDashboard({
                 ))}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* RECOMMENDATIONS REMEDIATION TAB */}
           {activeTab === 'recommendations' && (
-            <div id="recommendations_panel" className="space-y-6">
+            <TabErrorBoundary tabName="Remediation">
+              <div id="recommendations_panel" className="space-y-6">
               <div>
                 <h3 className="text-sm font-bold text-slate-600 tracking-wider font-mono uppercase">REMEDIATION ACTION ROADMAP</h3>
                 <p className="text-xs text-slate-500 mt-1">Actionable instructions compiled to patch detected vulnerabilities</p>
@@ -3461,11 +3501,13 @@ export default function ReportDashboard({
                 })}
               </div>
             </div>
+            </TabErrorBoundary>
           )}
 
           {/* EXPORT WORKSPACE TAB */}
           {activeTab === 'export' && (
-            <div id="export_panel" className={`max-w-2xl mx-auto border rounded-xl p-8 space-y-6 ${
+            <TabErrorBoundary tabName="Export">
+              <div id="export_panel" className={`max-w-2xl mx-auto border rounded-xl p-8 space-y-6 ${
               isLightMode ? 'border-slate-200 bg-white shadow-sm' : 'border-slate-200 bg-white'
             }`}>
               <div className="text-center">
@@ -3575,9 +3617,10 @@ export default function ReportDashboard({
                        <span>{copiedExport ? 'Copied Payload!' : 'Copy to Clipboard'}</span>
                      </button>
                    </div>
-                </div>
-              </div>
+                 </div>
+               </div>
             </div>
+            </TabErrorBoundary>
           )}
         </motion.div>
       </div>

@@ -7,7 +7,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Menu, X, Globe, Settings, Shield, History } from 'lucide-react';
 import { TargetType } from '../../types';
-import { QUICK_MODULES } from '../pages/moduleConfig';
+import { getAllModules } from '../pages/moduleRegistry';
 import { useInvestigationStore } from '../../stores/investigationStore';
 import ThemeToggle from '../ThemeToggle';
 
@@ -27,6 +27,7 @@ export default function MobileHeader() {
       <button
         key={String(id)}
         onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+        aria-label={label}
         className={`
           w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold
           transition-all duration-150 cursor-pointer
@@ -129,7 +130,7 @@ export default function MobileHeader() {
                    <span className="text-[10px] font-mono font-bold tracking-widest px-3 block mb-2" style={{ color: 'var(--text-muted)' }}>
                      RECON MODULES
                    </span>
-                  {QUICK_MODULES.map((mod) => {
+                   {getAllModules().map((mod) => {
                     const Icon = mod.icon;
                     return navItem(mod.id, <Icon className="w-4 h-4" />, mod.label);
                   })}

@@ -12,7 +12,7 @@ import {
   Network,
 } from 'lucide-react';
 import { TargetType } from '../../types';
-import { QUICK_MODULES } from '../pages/moduleConfig';
+import { getAllModules } from '../pages/moduleRegistry';
 import { useInvestigationStore } from '../../stores/investigationStore';
 import ThemeToggle from '../ThemeToggle';
 
@@ -70,6 +70,8 @@ export default function Sidebar() {
         key={String(id)}
         onClick={() => setActiveTab(id)}
         title={!sidebarOpen ? label : undefined}
+        aria-current={isActive ? 'page' : undefined}
+        aria-label={label}
         className={`
           w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-semibold
           transition-all duration-150 cursor-pointer relative group
@@ -146,6 +148,8 @@ export default function Sidebar() {
         ${sidebarOpen ? 'w-64' : 'w-[68px]'}
       `}
       style={{ boxShadow: '1px 0 0 0 var(--border-default), 2px 0 8px rgba(15,23,42,0.04)', background: 'var(--bg-panel)', borderColor: 'var(--border-default)' }}
+      role="navigation"
+      aria-label="Main navigation"
     >
        {/* ── Logo / Collapse Row ─────────────────────────── */}
         <div className="h-16 flex items-center justify-between px-3 border-b border-slate-200 bg-white">
@@ -222,7 +226,7 @@ export default function Sidebar() {
           )}
            {!sidebarOpen && <div className="h-px mx-2 mb-2" style={{ background: 'var(--border-subtle)' }} />}
 
-          {QUICK_MODULES.map((mod) => {
+          {getAllModules().map((mod) => {
             const accent = MODULE_ACCENTS[mod.id] ?? MODULE_ACCENTS.hash;
             const Icon = mod.icon;
             return navBtn(mod.id, <Icon className="w-4 h-4" />, mod.label, accent);

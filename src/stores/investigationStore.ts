@@ -5,6 +5,7 @@
 
 import { create } from 'zustand';
 import { InvestigationTarget, TargetType, ScanResults } from '../types';
+import { idbGet, idbSet, idbRemove, idbClear } from '../utils/idb';
 
 interface InvestigationStore {
   // Navigation
@@ -61,9 +62,17 @@ interface InvestigationStore {
 
   // Actions
   resetForNewScan: () => void;
+  hydrate: () => Promise<void>;
 }
 
 const MAX_RECENT_SCANS = 20;
+
+function sanitizeScanForStorage(scan: ScanResults): ScanResults {
+  if (scan.image && scan.image.previewUrl && scan.image.previewUrl.length > 200000) {
+    return { ...scan, image: { ...scan.image, previewUrl: undefined } };
+  }
+  return scan;
+}
 
 export const useInvestigationStore = create<InvestigationStore>((set, get) => ({
   // Navigation
@@ -106,7 +115,8 @@ export const useInvestigationStore = create<InvestigationStore>((set, get) => ({
   setResults: (results) => {
     try {
       if (results) {
-        sessionStorage.setItem('osintcs_current_results', JSON.stringify(results));
+        const sanitized = sanitizeScanForStorage(results);
+        sessionStorage.setItem('osintcs_current_results', JSON.stringify(sanitized));
       } else {
         sessionStorage.removeItem('osintcs_current_results');
       }
@@ -124,7 +134,8 @@ export const useInvestigationStore = create<InvestigationStore>((set, get) => ({
   setBatchResults: (batchResults) => {
     try {
       if (batchResults) {
-        sessionStorage.setItem('osintcs_current_batch_results', JSON.stringify(batchResults));
+        const sanitized = batchResults.map(sanitizeScanForStorage);
+        sessionStorage.setItem('osintcs_current_batch_results', JSON.stringify(sanitized));
       } else {
         sessionStorage.removeItem('osintcs_current_batch_results');
       }
@@ -155,58 +166,48 @@ export const useInvestigationStore = create<InvestigationStore>((set, get) => ({
   },
 
   // History
-  recentScans: (() => {
+  recentScans: [],
+  setRecentScans: async (recentScans) => {
     try {
-      const stored = localStorage.getItem('osintcs_recent_scans');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
+      await idbSet('recentScans', recentScans);
+    } catch (e) {
+      console.error('Failed to save recent scans to IndexedDB:', e);
     }
-  })(),
-  setRecentScans: (recentScans) => {
-    try { localStorage.setItem('osintcs_recent_scans', JSON.stringify(recentScans)); } catch {}
     set({ recentScans });
   },
-  addRecentScan: (scan) => {
+  addRecentScan: async (scan) => {
     const { recentScans, setRecentScans } = get();
     const filtered = recentScans.filter(
       (s) => !(s.target.value === scan.target.value && s.target.type === scan.target.type)
     );
-    const updated = [scan, ...filtered].slice(0, MAX_RECENT_SCANS);
+    const updated = [sanitizeScanForStorage(scan), ...filtered].slice(0, MAX_RECENT_SCANS);
     try {
-      const sanitized = updated.map((s) => {
-        if (s.image && s.image.previewUrl && s.image.previewUrl.length > 200000) {
-          return { ...s, image: { ...s.image, previewUrl: undefined } };
-        }
-        return s;
-      });
-      localStorage.setItem('osintcs_recent_scans', JSON.stringify(sanitized));
+      await idbSet('recentScans', updated);
     } catch (e) {
-      console.error('Failed to save to localStorage', e);
-      try {
-        const thoroughlySanitized = updated.map((s) => ({
-          ...s,
-          image: s.image ? { ...s.image, previewUrl: undefined } : undefined,
-        }));
-        localStorage.setItem('osintcs_recent_scans', JSON.stringify(thoroughlySanitized));
-      } catch (err) {
-        console.error('LocalStorage write failed fully', err);
-      }
+      console.error('Failed to save recent scan to IndexedDB:', e);
     }
     set({ recentScans: updated });
   },
-  removeRecentScan: (value, type) => {
+  removeRecentScan: async (value, type) => {
     const { recentScans, setRecentScans } = get();
     const updated = recentScans.filter((s) => !(s.target.value === value && s.target.type === type));
     try {
-      localStorage.setItem('osintcs_recent_scans', JSON.stringify(updated));
-    } catch (err) {
-      console.error('Failed to update history local storage', err);
+      if (updated.length === 0) {
+        await idbRemove('recentScans');
+      } else {
+        await idbSet('recentScans', updated);
+      }
+    } catch (e) {
+      console.error('Failed to remove recent scan from IndexedDB:', e);
     }
     set({ recentScans: updated });
   },
-  clearRecentScans: () => {
-    localStorage.removeItem('osintcs_recent_scans');
+  clearRecentScans: async () => {
+    try {
+      await idbRemove('recentScans');
+    } catch (e) {
+      console.error('Failed to clear recent scans from IndexedDB:', e);
+    }
     set({ recentScans: [] });
   },
 
@@ -249,4 +250,15 @@ export const useInvestigationStore = create<InvestigationStore>((set, get) => ({
     viewingReport: false,
     viewingBatch: false,
   }),
+
+  hydrate: async () => {
+    try {
+      const stored = await idbGet<ScanResults[]>('recentScans');
+      if (stored && Array.isArray(stored)) {
+        set({ recentScans: stored });
+      }
+    } catch (e) {
+      console.error('Failed to hydrate recent scans from IndexedDB:', e);
+    }
+  },
 }));

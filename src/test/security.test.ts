@@ -112,4 +112,42 @@ describe('sanitizeFilename', () => {
     const long = 'a'.repeat(250) + '.txt';
     expect(sanitizeFilename(long)).toHaveLength(200);
   });
+
+  it('handles empty string', () => {
+    expect(sanitizeFilename('')).toBe('');
+  });
+
+  it('preserves valid characters', () => {
+    expect(sanitizeFilename('report_2024.v1.pdf')).toBe('report_2024.v1.pdf');
+  });
+});
+
+describe('escapeHtml', () => {
+  it('escapes angle brackets', () => {
+    expect(escapeHtml('<div>')).toBe('&lt;div&gt;');
+  });
+
+  it('escapes ampersands', () => {
+    expect(escapeHtml('a&b')).toBe('a&amp;b');
+  });
+
+  it('escapes quotes', () => {
+    expect(escapeHtml('say "hello"')).toBe('say &quot;hello&quot;');
+    expect(escapeHtml("it's")).toBe("it&#39;s");
+  });
+});
+
+describe('sanitizeText', () => {
+  it('trims whitespace', () => {
+    expect(sanitizeText('  hello  ')).toBe('hello');
+  });
+
+  it('defaults to 2000 char limit', () => {
+    const long = 'a'.repeat(3000);
+    expect(sanitizeText(long)).toHaveLength(2000);
+  });
+
+  it('escapes HTML in sanitized text', () => {
+    expect(sanitizeText('<script>')).toBe('&lt;script&gt;');
+  });
 });

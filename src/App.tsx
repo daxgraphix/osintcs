@@ -54,14 +54,13 @@ import {
 import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResult, TechLookupResult, GeoLookupResult, SpeedTestResult, Finding, PopoScanResult, ReconResult } from './types';
 import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanPopoScan, findSubdomains } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
-import { QUICK_MODULES } from './components/pages/moduleConfig';
+import { getAllModules, getModule } from './components/pages/moduleRegistry';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
 import Toast from './components/overlays/Toast';
 import ScanConsole from './components/overlays/ScanConsole';
 import QrScannerModal from './components/overlays/QrScannerModal';
 import Sidebar from './components/layout/Sidebar';
 import MobileHeader from './components/layout/MobileHeader';
-import ReportDashboard from './components/ReportDashboard';
 import { sanitizeText, sanitizeFilename, escapeHtml } from './utils/security';
 import { processBatchFile } from './utils/batchFileParser';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -79,6 +78,7 @@ import {
 } from './utils/resultBuilders';
 
 const SpeedTestWorkspace = lazy(() => import('./features/speedtest/SpeedTestWorkspace').then(m => ({ default: m.default })));
+const ReportDashboard = lazy(() => import('./components/ReportDashboard').then(m => ({ default: m.default })));
 
 export default function App() {
   const store = useInvestigationStore();
@@ -122,6 +122,7 @@ export default function App() {
   const addRecentScan = store.addRecentScan;
   const removeHistoryItem = store.removeRecentScan;
   const clearHistory = store.clearRecentScans;
+  const hydrateStore = store.hydrate;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
@@ -159,6 +160,16 @@ export default function App() {
       return () => mq.removeEventListener('change', handler);
     }
   }, [theme]);
+
+  useEffect(() => {
+    hydrateStore();
+  }, [hydrateStore]);
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
 
   const handleBatchQueryChange = (value: string) => {
     setBatchQuery(sanitizeText(value, 5000));
@@ -547,10 +558,11 @@ export default function App() {
 
       {/* --- MAIN CONTENT CANVAS WORKSPACE --- */}
       <ErrorBoundary>
-        <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto">
+        <main className="flex-1 min-h-0 flex flex-col min-w-0 z-10 relative overflow-y-auto" role="main" aria-label="OSINT.CS main content">
+          <a href="#main_content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-red-600 focus:text-white focus:rounded-lg focus:text-sm focus:font-bold">Skip to main content</a>
           
           {/* Dynamic page/module views container */}
-          <div className="flex-1 p-4 sm:p-6 lg:p-8">
+          <div id="main_content" className="flex-1 p-4 sm:p-6 lg:p-8">
             <AnimatePresence mode="wait">
               
               {/* --- ACTIVE REPORT OVERLAY --- */}
@@ -561,14 +573,16 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -15 }}
                 transition={{ duration: 0.2 }}
-                className="space-y-8"
-              >
-                <ReportDashboard
-                  results={results}
-                  onBack={() => setViewingReport(false)}
-                  isLightMode={isLightMode}
-                  showToast={showToast}
-                />
+                 className="space-y-8"
+               >
+                 <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="text-sm font-mono" style={{ color: 'var(--text-muted)' }}>Loading report dashboard...</div></div>}>
+                  <ReportDashboard
+                    results={results}
+                    onBack={() => setViewingReport(false)}
+                    isLightMode={isLightMode}
+                    showToast={showToast}
+                  />
+                </Suspense>
               </motion.div>
             )}
 
@@ -1028,7 +1042,7 @@ export default function App() {
                 <section className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 border-y py-6 sm:py-8 text-center font-mono" style={{ borderColor: 'var(--border-default)' }}>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Modules</span>
-                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>{QUICK_MODULES.length}+</span>
+                    <span className="text-2xl sm:text-3xl font-black mt-1 block" style={{ color: 'var(--text-primary)' }}>{getAllModules().length}+</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block uppercase tracking-wider">Checks Per Scan</span>
@@ -1056,7 +1070,7 @@ export default function App() {
                       </h3>
                     </div>
                     <p className="text-xs text-slate-400 max-w-md">
-                        {QUICK_MODULES.length}+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, geolocation, technology fingerprinting, and attack-surface discovery.
+                        {getAllModules().length}+ integrated modules covering DNS, SSL, email, identity, forensics, network mapping, geolocation, technology fingerprinting, and attack-surface discovery.
                     </p>
                   </div>
 
@@ -1069,9 +1083,9 @@ export default function App() {
                     <div key={cat.category} className="space-y-4">
                       <h4 className={`text-[10px] font-mono font-bold uppercase tracking-widest ${cat.color}`}>{cat.category}</h4>
                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-                         {cat.modules.map((modId) => {
-                           const mod = QUICK_MODULES.find(m => m.id === modId);
-                           if (!mod) return null;
+                          {cat.modules.map((modId) => {
+                             const mod = getModule(modId as TargetType | 'risk');
+                             if (!mod) return null;
                            const Icon = mod.icon;
                            return (
                              <div key={modId} onClick={() => handleSelectModule(modId as TargetType | 'risk' | 'settings' | 'history')}
@@ -1245,14 +1259,14 @@ export default function App() {
                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b pb-4 sm:pb-5" style={{ borderColor: 'var(--border-default)' }}>
                    <div className="flex items-start gap-3">
                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 shrink-0" style={{ color: 'var(--text-accent)' }}>
-                       {React.createElement(QUICK_MODULES.find(m => m.id === activeTab)?.icon || Shield, { className: "w-6 h-6" })}
+                        {React.createElement(getModule(activeTab)?.icon || Shield, { className: "w-6 h-6" })}
                      </div>
                      <div>
                        <h2 className="text-xl font-black font-display flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
-                         {QUICK_MODULES.find(m => m.id === activeTab)?.label}
+                          {getModule(activeTab)?.label}
                        </h2>
                        <p className="text-xs text-slate-400 font-medium">
-                         {QUICK_MODULES.find(m => m.id === activeTab)?.description}
+                          {getModule(activeTab)?.description}
                        </p>
                      </div>
                    </div>
@@ -2590,7 +2604,7 @@ export default function App() {
                           type="text"
                           value={query}
                           onChange={(e) => setQuery(e.target.value)}
-                          placeholder={QUICK_MODULES.find(m => m.id === activeTab)?.placeholder}
+                           placeholder={getModule(activeTab)?.placeholder}
                           className={`w-full bg-transparent border-none outline-none py-3.5 px-3 text-sm focus:ring-0 ${
                             isLightMode ? 'text-slate-900' : 'text-white'
                           }`}
@@ -2621,7 +2635,7 @@ export default function App() {
 
                       {/* Helper Hint line */}
                       <div className="flex items-center justify-between text-xs font-mono text-slate-500">
-                        <span>* {QUICK_MODULES.find(m => m.id === activeTab)?.helpHint}</span>
+                         <span>* {getModule(activeTab)?.helpHint}</span>
                         {query.trim() && (
                           <span className="px-2 py-0.5 rounded bg-red-500/10 text-red-400 border border-red-500/20 font-bold uppercase">
                             MATCH: {detectedType}
@@ -2634,7 +2648,7 @@ export default function App() {
                   {/* Focused Module recent activity */}
                   <div className="space-y-3 pt-6 border-t border-dashed border-slate-850">
                     <h4 className="text-xs font-bold font-mono text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <History className="w-4 h-4 text-slate-500" /> Recent {QUICK_MODULES.find(m => m.id === activeTab)?.label} scans
+                      <History className="w-4 h-4 text-slate-500" /> Recent {getModule(activeTab)?.label} scans
                     </h4>
                     
                     {recentScans.filter(s => s.target.type === activeTab || (activeTab === 'risk' && s.target.type !== 'image' && s.target.type !== 'metadata')).length === 0 ? (

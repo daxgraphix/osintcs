@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsQR from 'jsqr';
 import { QrCode, X, CameraOff, ScanLine } from 'lucide-react';
@@ -12,8 +12,73 @@ export default function QrScannerModal({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
   const [cameraError, setCameraError] = useState(false);
   const [scanning, setScanning] = useState(true);
+
+  useEffect(() => {
+    previousActiveElement.current = document.activeElement as HTMLElement | null;
+  }, []);
+
+  const getFocusableElements = useCallback(() => {
+    if (!modalRef.current) return [];
+    return Array.from(
+      modalRef.current.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+    ).filter((el): el is HTMLElement => {
+      const element = el as HTMLElement;
+      return !element.hasAttribute('disabled') && element.offsetParent !== null;
+    });
+  }, []);
+
+  const trapFocus = useCallback((e: KeyboardEvent) => {
+    if (e.key !== 'Tab') return;
+    const focusable = getFocusableElements();
+    if (focusable.length === 0) return;
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else {
+      if (document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  }, [getFocusableElements]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      trapFocus(e);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, trapFocus]);
+
+  useEffect(() => {
+    const focusable = getFocusableElements();
+    if (focusable.length > 0) {
+      setTimeout(() => focusable[0].focus(), 50);
+    }
+  }, [getFocusableElements, cameraError]);
+
+  useEffect(() => {
+    return () => {
+      if (previousActiveElement.current && typeof previousActiveElement.current.focus === 'function') {
+        previousActiveElement.current.focus();
+      }
+    };
+  }, [onClose]);
 
   useEffect(() => {
     let active = true;
@@ -88,8 +153,12 @@ export default function QrScannerModal({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="QR Code Scanner"
     >
       <motion.div
+        ref={modalRef}
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}

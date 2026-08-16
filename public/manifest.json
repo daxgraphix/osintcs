@@ -1,0 +1,16 @@
+{
+  "name": "OSINT.CS",
+  "short_name": "OSINTCS",
+  "description": "Browser-based OSINT reconnaissance suite for infrastructure intelligence, digital forensics, and security assessments.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050505",
+  "theme_color": "#dc2626",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
