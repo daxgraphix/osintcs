@@ -58,6 +58,7 @@ export interface ModuleConfig {
   placeholder: string;
   description: string;
   helpHint: string;
+  guide: string[];
   icon: React.ComponentType<any>;
 }
 
@@ -68,6 +69,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter any domain, website, IP, email, username or hash...',
     description: 'Perform parallel OSINT checks and evaluate structural security scoring.',
     helpHint: 'Full system check prioritizing SPF, DMARC, SSL handshakes, and port exposures.',
+    guide: [
+      'Type or paste any target into the search box (domain, website URL, IP address, email, username, or file hash).',
+      'Click the Analyze button to start the scan.',
+      'Wait for the system to run all checks in parallel — this usually takes a few seconds.',
+      'Review your overall risk score and grade on the results page.',
+      'Click through each tab (DNS, WHOIS, SSL, etc.) to see detailed findings and fix recommendations.',
+    ],
     icon: Shield,
   },
   {
@@ -76,6 +84,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Choose or drag & drop an image to verify integrity...',
     description: 'Inspect generator traces, metadata gaps, file-container consistency, and visual forensic signals.',
     helpHint: 'Reveal AI traces, stripped EXIF, container mismatches, and compression metrics.',
+    guide: [
+      'Click the upload area or drag and drop an image file (JPG, PNG, WebP, GIF, AVIF) into the box.',
+      'Make sure the file is under 20 MB.',
+      'Click Scan authenticity to start the forensic analysis.',
+      'View the authenticity score, AI-generation probability, and banner warnings if any.',
+      'Check the forensic metrics tab for compression ratios, noise patterns, and metadata details.',
+    ],
     icon: Eye,
   },
   {
@@ -84,6 +99,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter domain name (e.g., example.com)...',
     description: 'Query active DNS zone files, SPF policies, and DMARC configurations.',
     helpHint: 'Resolves live MX, A, AAAA, NS, and TXT lines via secure Cloudflare servers.',
+    guide: [
+      'Type a domain name (like example.com) into the search box.',
+      'Click Analyze to query live DNS records.',
+      'Review the DNS records table for A, AAAA, MX, TXT, NS, and other record types.',
+      'Check the SPF and DMARC policy sections to see if email authentication is configured.',
+      'Look at the findings tab for any DNS security issues or misconfigurations.',
+    ],
     icon: Globe,
   },
   {
@@ -93,6 +115,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     description: 'Inspect TLS handshakes, response security headers, and session cookie secure flags.',
     helpHint: 'Analyzes HSTS, CSP, X-Frame-Options, and active certificate expiry calendars.',
     icon: Server,
+    guide: [
+      'Enter a website URL (e.g., https://example.com) or just the hostname.',
+      'Click Analyze to inspect the SSL/TLS certificate and HTTP security headers.',
+      'Check the certificate details: issuer, validity dates, protocol version, and cipher suite.',
+      'Review security headers like HSTS, CSP, X-Frame-Options, and cookie flags.',
+      'Look for any warnings in the findings tab, such as missing headers or weak ciphers.',
+    ],
   },
   {
     id: 'ip',
@@ -100,6 +129,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter IPv4 or IPv6 address...',
     description: 'Map physical geolocation coordinates, ASN networks, and Tor/VPN/proxy nodes.',
     helpHint: 'Performs deep geolocational matches and audits port exposures (SSH, FTP).',
+    guide: [
+      'Type an IP address (IPv4 or IPv6) into the search box.',
+      'Click Analyze to look up geolocation and network information.',
+      'Review the location details: country, region, city, and coordinates.',
+      'Check the ASN and ISP information to understand the network operator.',
+      'Look at the threat indicators section for Tor, VPN, proxy, or hosting provider flags.',
+    ],
     icon: Database,
   },
   {
@@ -108,6 +144,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter email address (e.g., user@domain.com)...',
     description: 'Resolve RFC 5322 syntax validity, active domain MX paths, and disposable provider affiliations.',
     helpHint: 'Detects temporary/spam addresses and validates deliverability via DNS headers.',
+    guide: [
+      'Type an email address (e.g., user@company.com) into the search box.',
+      'Click Analyze to check the email format and domain configuration.',
+      'Review the syntax check — make sure the email is properly formatted.',
+      'Check the MX records section to see if the domain can receive emails.',
+      'Look for disposable email warnings and SPF/DKIM/DMARC policy findings.',
+    ],
     icon: Mail,
   },
   {
@@ -116,6 +159,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter unique username...',
     description: 'Reconnaissance of digital identities across standard web, social, and developer platforms.',
     helpHint: 'Queries GitHub profiles, dev communities, and public social registries in parallel.',
+    guide: [
+      'Type a username (e.g., johndoe) into the search box.',
+      'Click Analyze to search for this username across multiple platforms.',
+      'Review the exposure count — how many sites have accounts with this username.',
+      'Check the platform list to see exactly where the username was found.',
+      'If the exposure count is high, review the findings tab for identity correlation warnings.',
+    ],
     icon: User,
   },
   {
@@ -124,6 +174,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter MD5, SHA-1, or SHA-256 signature hash...',
     description: 'Match file checksum digests against standard ransomware or trojan signatures.',
     helpHint: 'Cross-checks with threat databases for malicious signatures (e.g. WannaCry, Mimikatz).',
+    guide: [
+      'Paste a file hash (MD5, SHA-1, or SHA-256) into the search box.',
+      'Click Analyze to identify the hash type and check for known threats.',
+      'Review the hash family — confirm it matches the expected algorithm.',
+      'Check if the hash matches any known malware or ransomware signatures.',
+      'Look at the entropy estimate to assess if the file might be encrypted or packed.',
+    ],
     icon: Key,
   },
   {
@@ -132,6 +189,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Drag & drop any office document, PDF, or media file...',
     description: 'Deconstruct internal document headers, creation dates, and author software tools.',
     helpHint: 'Saves your file securely in sandbox memory. Zero server uploads occur.',
+    guide: [
+      'Drag and drop a file (PDF, Word, Excel, image, etc.) into the upload area, or click to browse.',
+      'Wait for the file to be processed — everything happens locally in your browser.',
+      'Review the extracted metadata: creation date, modification date, author name, and software tools.',
+      'Check the file hashes (MD5 and SHA-256) for integrity verification.',
+      'Look for any sensitive information in the metadata that might need to be removed before sharing.',
+    ],
     icon: FileCode,
   },
   {
@@ -140,6 +204,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Detecting your public IP address...',
     description: 'Discover your current public IP, network provider, and connection fingerprint.',
     helpHint: 'Resolves external IPv4/IPv6, ASN, ISP, and estimated geolocation from your browser.',
+    guide: [
+      'Open this module — it automatically detects your public IP address.',
+      'Review your IP address, version (IPv4 or IPv6), and network type.',
+      'Check the geolocation details: country, region, city, and approximate coordinates.',
+      'Look at the ISP and organization information to confirm your network provider.',
+      'Review the privacy findings for any IP leak warnings or security recommendations.',
+    ],
     icon: Network,
   },
   {
@@ -148,6 +219,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Query any IP (leave blank to analyze your own)...',
     description: 'Deep multi-source IP intelligence: risk purity scoring, ASN/BGP topology, /24 neighbour scan, browser fingerprint, and WebRTC/DNS leak detection.',
     helpHint: 'Cross-validates 5 data sources, maps upstream/downstream relations, and checks AI/streaming regional availability.',
+    guide: [
+      'Enter an IP address to investigate, or leave the box empty to analyze your own public IP.',
+      'Click Analyze to run the multi-source intelligence scan.',
+      'Review the risk purity score — residential IPs score higher than datacenter IPs.',
+      'Check the multi-source consensus to see what multiple databases say about this IP.',
+      'Explore the ASN/BGP topology, /24 neighbour scan, and WebRTC/DNS leak detection results.',
+    ],
     icon: Radar,
   },
   {
@@ -156,6 +234,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a website URL or hostname (e.g., example.com)...',
     description: 'Check out the technologies used on any website — web server, CMS, JS framework, analytics, CDN/WAF, and hosting.',
     helpHint: 'Fingerprints server, frameworks, CDN/WAF vendor, and security-header posture of the target site.',
+    guide: [
+      'Type a website URL or hostname (e.g., example.com) into the search box.',
+      'Click Analyze to fingerprint the web technologies used by the site.',
+      'Review the detected technologies organized by category: server, CMS, JS framework, CDN/WAF, hosting.',
+      'Check the posture summary for an overall security assessment.',
+      'Use this information to understand the technology stack before a deeper security assessment.',
+    ],
     icon: Cpu,
   },
   {
@@ -164,6 +249,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter an IP address or domain...',
     description: 'Find the geolocation of an IP address or a domain including city, region, and country.',
     helpHint: 'Resolves domain A records, then maps ASN, ISP, coordinates, and Tor/VPN/proxy indicators.',
+    guide: [
+      'Type an IP address or domain name into the search box.',
+      'Click Analyze to resolve the geolocation information.',
+      'Review the location details: city, region, country, and approximate coordinates.',
+      'Check the ASN, ISP, and organization information.',
+      'Look at the threat indicators for Tor exit nodes, VPNs, proxies, or hosting providers.',
+    ],
     icon: MapPin,
   },
   {
@@ -172,6 +264,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Click Run to measure your current network...',
     description: 'Re-measurement of speed: dual-source bandwidth (Cloudflare edge + M-Lab) and round-trip latency to regional cloud vantage points.',
     helpHint: 'Only runs on click; results shown only to you. M-Lab is an open research platform and logs test results server-side.',
+    guide: [
+      'Click the Run Speed Test button to start measuring your internet speed.',
+      'Wait for the test to complete — it measures both download and upload speeds.',
+      'Review the results from Cloudflare edge and M-Lab sources.',
+      'Check the latency table to see round-trip times to different regional cloud points.',
+      'Note that M-Lab logs test results server-side as part of their open research platform.',
+    ],
     icon: Gauge,
   },
   {
@@ -180,6 +279,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a domain (e.g., example.com)...',
     description: 'Use Google advanced search operators to uncover exposed private data and security vulnerabilities indexed by the search engine.',
     helpHint: 'Leverage filetype, ext, intitle/inurl, and quote operators to surface attacker-useful content.',
+    guide: [
+      'Type a domain name (e.g., example.com) into the search box.',
+      'Click Analyze to generate Google dork queries for that domain.',
+      'Review the generated search queries — each one targets a different type of exposed content.',
+      'Click the links to run the searches on Google and see what information is publicly indexed.',
+      'Use the results to identify and remove sensitive data that should not be public.',
+    ],
     icon: Search,
   },
   {
@@ -188,6 +294,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter website URL or hostname (e.g., example.com)...',
     description: 'Inventory web technologies, hosting, CMS, and exposure signals of a target site.',
     helpHint: 'Fingerprints server, frameworks, CDN/WAF, and security-header posture of the website.',
+    guide: [
+      'Type a website URL or hostname into the search box.',
+      'Click Analyze to scan the website\'s headers and technology stack.',
+      'Review the detected server software, CMS platform, and JavaScript frameworks.',
+      'Check the security headers section for HSTS, CSP, X-Frame-Options, and other protections.',
+      'Look at the findings tab for any security misconfigurations or missing headers.',
+    ],
     icon: Globe,
   },
   {
@@ -196,30 +309,58 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a domain or IP address...',
     description: 'Discover hosts and enumerate listening services across common TCP ports.',
     helpHint: 'Resolves target address and sweeps well-known ports to map the live service surface.',
+    guide: [
+      'Type a domain name or IP address into the search box.',
+      'Click Analyze to scan for open ports and services.',
+      'Review the discovered hosts and their IP addresses.',
+      'Check the open ports list and the associated services (SSH, HTTP, MySQL, etc.).',
+      'Look for any unexpected or high-risk open ports that should be closed.',
+    ],
     icon: Network,
   },
   {
     id: 'subdomain',
     label: 'Subdomain Finder',
     placeholder: 'Enter a domain (e.g., example.com)...',
-    description: 'Discover hidden, forgotten, or misconfigured subdomains that reveal critical vulnerabilities. Multi-source enumeration with certificate transparency logs, expanded DNS wordlist, CNAME/AAAA validation, wildcard filtering, and sensitive-path detection.',
+    description: 'Discover hidden, forgotten, or misconfigured subdomains that reveal critical vulnerabilities.',
     helpHint: 'Certificate transparency + 80+ prefix wordlist with CNAME/AAAA validation, wildcard DNS filtering, and sensitive subdomain triage.',
+    guide: [
+      'Type a domain name (e.g., example.com) into the search box.',
+      'Click Analyze to discover subdomains using certificate transparency logs and wordlists.',
+      'Review the list of discovered subdomains and their validation status.',
+      'Check the sensitivity flags — subdomains like admin, dev, staging, or internal may be high-risk.',
+      'Expand individual entries to see DNS records and validation details.',
+    ],
     icon: Boxes,
   },
   {
     id: 'portscan',
     label: 'Port Scanner',
     placeholder: 'Enter a domain or IP address...',
-    description: 'Scan and discover open TCP and UDP ports with speed and accuracy. Run fast top-port sweeps or deep full-range analysis and get validated, exportable results ready for follow-up vulnerability assessments.',
+    description: 'Scan and discover open TCP and UDP ports with speed and accuracy.',
     helpHint: 'Nmap-style discovery: switch between fast top ports and deep full-range scans — validated, export-ready results.',
+    guide: [
+      'Type a domain name or IP address into the search box.',
+      'Choose between a quick top-ports scan or a deep full-range scan.',
+      'Click Analyze to start the port scan.',
+      'Review the list of open ports and the services running on them.',
+      'Check the findings tab for any concerning open ports that should be investigated.',
+    ],
     icon: ScanLine,
   },
   {
     id: 'urlfuzz',
     label: 'URL Fuzzer',
     placeholder: 'Enter a domain (e.g., example.com)...',
-    description: 'Quickly identify hidden attack surfaces by fuzz testing for unlinked or obscure directories, parameters, and hidden files on web applications.',
+    description: 'Quickly identify hidden attack surfaces by fuzz testing for unlinked or obscure directories, parameters, and hidden files.',
     helpHint: 'Reveals unlinked endpoints, obscure parameters, and hidden files to map the true attack surface.',
+    guide: [
+      'Type a domain name (e.g., example.com) into the search box.',
+      'Click Analyze to fuzz common paths, directories, and parameters.',
+      'Review the discovered endpoints — look for admin panels, backup files, or debug pages.',
+      'Check the severity ratings — medium and high findings should be investigated.',
+      'Use the results to harden your web application by removing or protecting sensitive endpoints.',
+    ],
     icon: FlaskConical,
   },
   {
@@ -228,14 +369,28 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a domain (e.g., example.com)...',
     description: 'Detect and fingerprint the Web Application Firewall or CDN protecting a site.',
     helpHint: 'Inspects edge IP ranges and response signatures to name the protecting vendor.',
+    guide: [
+      'Type a domain name into the search box.',
+      'Click Analyze to detect any Web Application Firewall or CDN protecting the site.',
+      'Review the detected WAF/CDN vendor name and version if available.',
+      'Check the response headers for WAF fingerprints and challenge page indicators.',
+      'Use this information to understand what protections are in place and what bypass techniques might be relevant.',
+    ],
     icon: ShieldAlert,
   },
   {
     id: 'peoplehunter',
     label: 'People Hunter',
     placeholder: 'Enter a person name (e.g., Jane Doe)...',
-    description: 'Secure identity data before attackers exploit it. People Hunter surfaces exploitable identity exposures and exactly where to harden your security.',
+    description: 'Secure identity data before attackers exploit it. People Hunter surfaces exploitable identity exposures.',
     helpHint: 'Goes beyond basic search — highlights exploitable identity leaks and the specific fixes to apply.',
+    guide: [
+      'Type a person\'s name (e.g., Jane Doe) into the search box.',
+      'Click Analyze to search for identity exposures across public sources.',
+      'Review the exposure count and the types of data found (emails, usernames, affiliations).',
+      'Check the findings tab for specific identity leaks and breach exposures.',
+      'Apply the recommended fixes to remove or secure exposed personal information.',
+    ],
     icon: Users,
   },
   {
@@ -244,6 +399,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a keyword (e.g., acme)...',
     description: 'Sweep domain registries to surface available and taken names for a keyword.',
     helpHint: 'Checks dozens of TLD and prefix combinations and reports registration status.',
+    guide: [
+      'Type a keyword or brand name (e.g., acme) into the search box.',
+      'Click Analyze to search across multiple domain registries.',
+      'Review the discovered domains and their registration status (available or taken).',
+      'Check different TLDs (.com, .org, .io, etc.) to find the best available option.',
+      'Use the results to register a new domain or identify similar domains that might be impersonating your brand.',
+    ],
     icon: Globe2,
   },
   {
@@ -252,6 +414,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter an IP address...',
     description: 'Enumerate virtual hosts bound to a single IP address.',
     helpHint: 'Reverse-style heuristic that maps common hostnames back to the target IP.',
+    guide: [
+      'Type an IP address into the search box.',
+      'Click Analyze to enumerate virtual hosts associated with that IP.',
+      'Review the discovered hostnames and their HTTP response validation status.',
+      'Check which virtual hosts are confirmed (verified) versus unconfirmed.',
+      'Use this information to map the full scope of websites sharing the same server.',
+    ],
     icon: Server,
   },
   {
@@ -260,6 +429,13 @@ export const QUICK_MODULES: ModuleConfig[] = [
     placeholder: 'Enter a website URL (e.g., https://example.com)...',
     description: 'Capture a webpage and map every domain, resource, redirect, and third-party connection involved in loading it.',
     helpHint: 'Visualizes request waterfalls, domain trees, redirect chains, cookies, and external dependencies for forensic analysis.',
+    guide: [
+      'Type a website URL (e.g., https://example.com) into the search box.',
+      'Click Analyze to capture the webpage and trace all its resources.',
+      'Review the statistics: total requests, domains, third-party connections, and redirects.',
+      'Explore the domain tree, resource tree, and redirect chain to understand the page load flow.',
+      'Check the risk score and third-party reports for privacy and security concerns.',
+    ],
     icon: Layers,
   },
 ];

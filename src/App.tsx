@@ -55,6 +55,7 @@ import { InvestigationTarget, TargetType, ScanResults, MyIpResult, IpAdvanceResu
 import { detectTargetType, parseInvestigationTarget, scanMyIp, scanIpAdvance, scanTechnology, scanGeoLookup, scanPopoScan, findSubdomains } from './services/osintServices';
 import { calculateRiskScore } from './engines/osintEngines';
 import { getAllModules, getModule } from './components/pages/moduleRegistry';
+import ModuleGuide from './components/pages/ModuleGuide';
 import { useScanWorkflow } from './hooks/useScanWorkflow';
 import Toast from './components/overlays/Toast';
 import ScanConsole from './components/overlays/ScanConsole';
@@ -1318,7 +1319,9 @@ export default function App() {
                 {/* Interactive Work Area */}
                 <div className="max-w-3xl mx-auto space-y-6">
                   {activeTab === 'image' ? (
-                    /* Interactive Image Upload */
+                    <>
+                      <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+                      Interactive Image Upload 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 items-stretch">
                       <div className="flex flex-col justify-between border rounded-xl p-5 sm:p-6 relative"
                         style={{
@@ -1408,6 +1411,7 @@ export default function App() {
                         </div>
                       </div>
                     </div>
+                    </>
                   ) : activeTab === 'ipadvance' ? (
                     /* IP Advance — multi-source intelligence */
                     <div className="space-y-6">
@@ -1415,24 +1419,26 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
-                              <Radar className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Advance</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Multi-source intelligence · risk purity · BGP · neighbour scan</p>
-                            </div>
-                          </div>
-                          {results?.ipadvance && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
-                            </span>
-                          )}
-                        </div>
+                               <Radar className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Advance</h3>
+                               <p className="text-[11px] font-mono text-slate-400">Multi-source intelligence · risk purity · BGP · neighbour scan</p>
+                             </div>
+                           </div>
+                           {results?.ipadvance && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
+                             </span>
+                           )}
+                         </div>
 
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Running multi-source IP intelligence...</span>
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         {isScanning ? (
+                           <div className="flex items-center justify-center gap-3 py-10">
+                             <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                             <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Running multi-source IP intelligence...</span>
                           </div>
                         ) : results?.ipadvance ? (
                           <div className="space-y-6">
@@ -1534,24 +1540,26 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-500 shrink-0">
-                              <Cpu className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Technology Lookup</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Web stack · CMS · framework · CDN/WAF</p>
-                            </div>
-                          </div>
-                          {results?.techlookup && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
-                            </span>
-                          )}
-                        </div>
+                               <Cpu className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Technology Lookup</h3>
+                               <p className="text-[11px] font-mono text-slate-400">Web stack · CMS · framework · CDN/WAF</p>
+                             </div>
+                           </div>
+                           {results?.techlookup && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Scanned
+                             </span>
+                           )}
+                         </div>
 
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Fingerprinting website stack...</span>
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         {isScanning ? (
+                           <div className="flex items-center justify-center gap-3 py-10">
+                             <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
+                             <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Fingerprinting website stack...</span>
                           </div>
                         ) : results?.techlookup ? (
                           <div className="space-y-6">
@@ -1708,24 +1716,26 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-500 shrink-0">
-                              <MapPin className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Geo Lookup</h3>
-                              <p className="text-[11px] font-mono text-slate-400">City · region · country · ASN</p>
-                            </div>
-                          </div>
-                          {results?.geolookup && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Resolved
-                            </span>
-                          )}
-                        </div>
+                               <MapPin className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>IP Geo Lookup</h3>
+                               <p className="text-[11px] font-mono text-slate-400">City · region · country · ASN</p>
+                             </div>
+                           </div>
+                           {results?.geolookup && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Resolved
+                             </span>
+                           )}
+                         </div>
 
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-cyan-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Resolving geolocation...</span>
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         {isScanning ? (
+                           <div className="flex items-center justify-center gap-3 py-10">
+                             <RefreshCw className="w-6 h-6 animate-spin text-cyan-500" />
+                             <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Resolving geolocation...</span>
                           </div>
                         ) : results?.geolookup ? (
                           <div className="space-y-6">
@@ -1870,24 +1880,26 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-violet-500/10 border border-violet-500/20 text-violet-500 shrink-0">
-                              <Layers className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>PopoScan</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Capture webpage · map resources · trace redirects · identify third parties</p>
-                            </div>
-                          </div>
-                          {results?.poplenscan && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Mapped
-                            </span>
-                          )}
-                        </div>
+                               <Layers className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>PopoScan</h3>
+                               <p className="text-[11px] font-mono text-slate-400">Capture webpage · map resources · trace redirects · identify third parties</p>
+                             </div>
+                           </div>
+                           {results?.poplenscan && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Mapped
+                             </span>
+                           )}
+                         </div>
 
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Capturing webpage and mapping connections...</span>
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         {isScanning ? (
+                           <div className="flex items-center justify-center gap-3 py-10">
+                             <RefreshCw className="w-6 h-6 animate-spin text-violet-500" />
+                             <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Capturing webpage and mapping connections...</span>
                           </div>
                         ) : results?.poplenscan ? (
                           <div className="space-y-6">
@@ -2342,23 +2354,26 @@ export default function App() {
                       </div>
                     </div>
                   ) : activeTab === 'speedtest' ? (
-                    <Suspense fallback={
-                      <div className="flex items-center justify-center gap-3 py-10">
-                        <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
-                        <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Loading speed test module...</span>
-                      </div>
-                    }>
-                      <SpeedTestWorkspace
-                        isLightMode={isLightMode}
-                        isScanning={isScanning}
-                        results={results}
-                        onScanComplete={(r) => {
-                          setResults(r);
-                          addRecentScan(r);
-                        }}
-                        showToast={showToast}
-                      />
-                    </Suspense>
+                    <>
+                      <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+                      <Suspense fallback={
+                        <div className="flex items-center justify-center gap-3 py-10">
+                          <RefreshCw className="w-6 h-6 animate-spin text-emerald-500" />
+                          <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Loading speed test module...</span>
+                        </div>
+                      }>
+                        <SpeedTestWorkspace
+                          isLightMode={isLightMode}
+                          isScanning={isScanning}
+                          results={results}
+                          onScanComplete={(r) => {
+                            setResults(r);
+                            addRecentScan(r);
+                          }}
+                          showToast={showToast}
+                        />
+                      </Suspense>
+                    </>
                   ) : activeTab === 'myip' ? (
                     /* What is My IP — auto-detected, no manual search */
                     <div className="space-y-6">
@@ -2366,24 +2381,26 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-500 shrink-0">
-                              <Network className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>What is My IP</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Your public IP is detected automatically</p>
-                            </div>
-                          </div>
-                          {results?.myip && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Detected
-                            </span>
-                          )}
-                        </div>
+                               <Network className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>What is My IP</h3>
+                               <p className="text-[11px] font-mono text-slate-400">Your public IP is detected automatically</p>
+                             </div>
+                           </div>
+                           {results?.myip && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Detected
+                             </span>
+                           )}
+                         </div>
 
-                        {isScanning ? (
-                          <div className="flex items-center justify-center gap-3 py-10">
-                            <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-                            <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Detecting your public IP...</span>
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         {isScanning ? (
+                           <div className="flex items-center justify-center gap-3 py-10">
+                             <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
+                             <span className={`text-sm font-mono font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Detecting your public IP...</span>
                           </div>
                         ) : results?.myip ? (
                           <div className="space-y-6">
@@ -2444,28 +2461,30 @@ export default function App() {
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
                             <div className="p-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20 text-indigo-500 shrink-0">
-                              <Boxes className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Subdomain Finder</h3>
-                              <p className="text-[11px] font-mono text-slate-400">Certificate transparency + active DNS validation</p>
-                            </div>
-                          </div>
-                          {subdomainResult && (
-                            <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Complete
-                            </span>
-                          )}
-                        </div>
+                               <Boxes className="w-5 h-5" />
+                             </div>
+                             <div>
+                               <h3 className={`text-sm font-bold ${isLightMode ? 'text-slate-900' : 'text-white'}`}>Subdomain Finder</h3>
+                               <p className="text-[11px] font-mono text-slate-400">Certificate transparency + active DNS validation</p>
+                             </div>
+                           </div>
+                           {subdomainResult && (
+                             <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 text-[10px] font-mono font-bold uppercase">
+                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Complete
+                             </span>
+                           )}
+                         </div>
 
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!query.trim() || isScanning) return;
-                            (async () => {
-                              setIsScanning(true);
-                              setQuery('Enumerating subdomains...');
-                              try {
+                         <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
+
+                         <form
+                           onSubmit={(e) => {
+                             e.preventDefault();
+                             if (!query.trim() || isScanning) return;
+                             (async () => {
+                               setIsScanning(true);
+                               setQuery('Enumerating subdomains...');
+                               try {
                                 const result = await findSubdomains(query.trim());
                                 setSubdomainResult(result);
                                 const scanResults = makeSubdomainResults(result);
@@ -2609,6 +2628,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="space-y-4">
+                      <ModuleGuide module={getModule(activeTab)!} isLightMode={isLightMode} />
                       <form
                         onSubmit={(e) => {
                           e.preventDefault();
