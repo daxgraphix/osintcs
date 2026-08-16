@@ -51,8 +51,14 @@ export function validateUsername(value: string): boolean {
   return cleaned.length >= 1 && cleaned.length <= 100 && /^[a-zA-Z0-9._-]+$/.test(cleaned);
 }
 
+const WINDOWS_RESERVED = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$/i;
+
 export function sanitizeFilename(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200);
+  const cleaned = name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 200);
+  if (WINDOWS_RESERVED.test(cleaned)) {
+    return `_${cleaned}`;
+  }
+  return cleaned;
 }
 
 export function computeChecksum(data: string): string {

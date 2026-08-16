@@ -62,21 +62,22 @@ export const ForensicViewer: React.FC<ForensicViewerProps> = memo(({
   }, [imagePreviewMode]);
 
   const authenticityConfig = useMemo(() => {
-    const score = results.image!.authenticity.overallScore;
+    const score = results.image?.authenticity?.overallScore ?? 0;
     if (score >= 75) return { stroke: 'stroke-emerald-500', label: 'GENUINE', color: 'text-emerald-500' };
     if (score >= 45) return { stroke: 'stroke-amber-500', label: 'DEGRADED', color: 'text-amber-500' };
     return { stroke: 'stroke-red-500', label: 'SUSPECT', color: 'text-red-500' };
-  }, [results.image?.authenticity.overallScore]);
+  }, [results.image?.authenticity?.overallScore]);
 
   const aiRiskConfig = useMemo(() => {
-    const risk = results.image!.authenticity.aiProbability;
+    const risk = results.image?.authenticity?.aiProbability ?? 0;
     if (risk >= 60) return { stroke: 'stroke-red-500', label: 'HIGH RISK', color: 'text-red-500' };
     if (risk >= 30) return { stroke: 'stroke-amber-500', label: 'MODERATE', color: 'text-amber-500' };
     return { stroke: 'stroke-emerald-500', label: 'SECURE', color: 'text-emerald-500' };
-  }, [results.image?.authenticity.aiProbability]);
+  }, [results.image?.authenticity?.aiProbability]);
 
   const bannerConfig = useMemo(() => {
-    const auth = results.image!.authenticity;
+    const auth = results.image?.authenticity;
+    if (!auth) return null;
     if (auth.isAiGenerated) {
       return {
         styles: 'border-red-500/20 bg-red-500/5 text-red-700 dark:text-red-300',
@@ -237,17 +238,19 @@ export const ForensicViewer: React.FC<ForensicViewerProps> = memo(({
             </div>
 
             {/* Prominent Heuristics Banner */}
-            <div className={`p-5 rounded-2xl border text-sm flex items-start gap-4 leading-relaxed transition-all shadow-sm ${bannerConfig.styles}`}>
-              <AlertCircle className={`w-6 h-6 shrink-0 mt-0.5 ${bannerConfig.iconColor}`} />
-              <div className="space-y-1.5">
-                <h5 className="block font-mono font-black text-[11px] uppercase tracking-widest">
-                  {bannerConfig.title}
-                </h5>
-                <p className="text-xs leading-relaxed opacity-90">
-                  {bannerConfig.desc}
-                </p>
+            {bannerConfig && (
+              <div className={`p-5 rounded-2xl border text-sm flex items-start gap-4 leading-relaxed transition-all shadow-sm ${bannerConfig.styles}`}>
+                <AlertCircle className={`w-6 h-6 shrink-0 mt-0.5 ${bannerConfig.iconColor}`} />
+                <div className="space-y-1.5">
+                  <h5 className="block font-mono font-black text-[11px] uppercase tracking-widest">
+                    {bannerConfig.title}
+                  </h5>
+                  <p className="text-xs leading-relaxed opacity-90">
+                    {bannerConfig.desc}
+                  </p>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="pt-6 border-t border-slate-100 dark:border-slate-800/60 mt-6 flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-500 dark:text-slate-500">

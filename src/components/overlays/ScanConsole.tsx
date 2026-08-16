@@ -179,7 +179,7 @@ export default function ScanConsole({
                 <span className="w-6 shrink-0" />
                 <motion.span
                   animate={{ opacity: [1, 0] }}
-                  transition={{ duration: 0.8, repeat: Infinity, ease: 'steps(1)' }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: [1, 0] as any }}
                   className="w-2 h-[13px] rounded-sm inline-block"
                   style={{ background: '#ef4444' }}
                 />

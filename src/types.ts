@@ -119,6 +119,7 @@ export interface WHOISResult {
   domainAgeDays?: number;
   daysToExpiry?: number;
   status?: string[];
+  nameservers?: string[];
   raw?: string;
 }
 

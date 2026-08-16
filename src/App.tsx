@@ -127,6 +127,8 @@ export default function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const batchFileInputRef = useRef<HTMLInputElement>(null);
 
+  const [rateLimitCountdown, setRateLimitCountdown] = useState<{ ms: number; type: 'single' | 'batch' } | null>(null);
+
   const handleQueryChange = (value: string) => {
     setQuery(sanitizeText(value, 500));
   };
@@ -170,6 +172,20 @@ export default function App() {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    if (!rateLimitCountdown) return;
+    const interval = setInterval(() => {
+      setRateLimitCountdown((prev) => {
+        if (!prev || prev.ms <= 1000) {
+          setRateLimitCountdown(null);
+          return null;
+        }
+        return { ...prev, ms: prev.ms - 1000 };
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [rateLimitCountdown]);
 
   const handleBatchQueryChange = (value: string) => {
     setBatchQuery(sanitizeText(value, 5000));
@@ -313,6 +329,10 @@ export default function App() {
       setBatchResults(results);
       setViewingBatch(true);
       setViewingReport(false);
+    },
+    onRateLimited: (resetMs, type) => {
+      setRateLimitCountdown({ ms: resetMs, type });
+      showToast(`Rate limit reached. Please wait ${Math.ceil(resetMs / 1000)}s before retrying.`, 'error');
     },
   });
 
@@ -832,7 +852,12 @@ export default function App() {
                               >
                                 Analyze
                               </button>
-                          </div>
+                              {rateLimitCountdown && (
+                                <div className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-wider animate-pulse">
+                                  Retry in {Math.ceil(rateLimitCountdown.ms / 1000)}s
+                                </div>
+                              )}
+                           </div>
                         </form>
                       ) : (
                         <div className="space-y-3.5">
@@ -902,10 +927,15 @@ export default function App() {
                                     opacity: (!batchQuery.trim() || isScanning) ? 0.5 : 1,
                                     cursor: (!batchQuery.trim() || isScanning) ? 'not-allowed' : 'pointer',
                                   }}
-                                >
-                                  <Play className="w-3.5 h-3.5" />
-                                  <span>Run Batch Scan</span>
-                                </button>
+                                 >
+                                   <Play className="w-3.5 h-3.5" />
+                                   <span>Run Batch Scan</span>
+                                 </button>
+                                 {rateLimitCountdown && rateLimitCountdown.type === 'batch' && (
+                                   <div className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-wider animate-pulse">
+                                     Retry in {Math.ceil(rateLimitCountdown.ms / 1000)}s
+                                   </div>
+                                 )}
                             </div>
                           </div>
                         </div>

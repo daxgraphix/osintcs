@@ -46,18 +46,18 @@ export const SslTab: React.FC<SslTabProps> = memo(({ results, handleCopy, copied
           </h4>
 
           <div className="space-y-4">
-            <CertificateDetail label="ISSUING AUTHORITY (CA)" value={results.issuer} />
+            <CertificateDetail label="ISSUING AUTHORITY (CA)" value={results.issuer ?? '—'} />
 
             <div className="grid grid-cols-2 gap-4">
               <CertificateDetail
                 label="PROTOCOL VERSION"
-                value={results.protocol}
+                value={results.protocol ?? '—'}
                 colorClass="text-red-600 dark:text-red-400 font-mono"
               />
               <div>
                 <span className="text-[10px] text-slate-500 dark:text-slate-500 block font-mono font-bold uppercase tracking-tight">CIPHER SUITE</span>
                 <span className="text-[10px] text-slate-700 dark:text-slate-300 font-mono block break-all leading-tight mt-0.5">
-                  {results.cipher}
+                  {results.cipher ?? '—'}
                 </span>
               </div>
             </div>
@@ -70,19 +70,19 @@ export const SslTab: React.FC<SslTabProps> = memo(({ results, handleCopy, copied
                   <Calendar className="w-3 h-3" />
                   <span className="font-mono">Valid From</span>
                 </div>
-                <span className="text-slate-700 dark:text-slate-300 font-mono">{results.validFrom}</span>
+                <span className="text-slate-700 dark:text-slate-300 font-mono">{results.validFrom ?? '—'}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
                   <Calendar className="w-3 h-3" />
                   <span className="font-mono">Valid To</span>
                 </div>
-                <span className="text-slate-700 dark:text-slate-300 font-mono">{results.validTo}</span>
+                <span className="text-slate-700 dark:text-slate-300 font-mono">{results.validTo ?? '—'}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-500 dark:text-slate-400 font-mono">Remaining Days</span>
-                <span className={`font-mono font-bold ${results.daysRemaining < 30 ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
-                  {results.daysRemaining} days
+                <span className={`font-mono font-bold ${(results.daysRemaining ?? 0) < 30 ? 'text-red-500' : 'text-slate-700 dark:text-slate-300'}`}>
+                  {results.daysRemaining ?? '—'} days
                 </span>
               </div>
             </div>
@@ -98,9 +98,9 @@ export const SslTab: React.FC<SslTabProps> = memo(({ results, handleCopy, copied
                 <span className="text-slate-700 dark:text-slate-300 font-mono font-bold">{results.keyExchange || 'N/A'}</span>
               </div>
 
-              <SslStatusRow label="Forward Secrecy" isEnabled={results.hasPerfectForwardSecrecy} warning={!results.hasPerfectForwardSecrecy} />
+              <SslStatusRow label="Forward Secrecy" isEnabled={!!results.hasPerfectForwardSecrecy} warning={!results.hasPerfectForwardSecrecy} />
 
-              <SslStatusRow label="Certificate Transparency" isEnabled={results.certificateTransparency} />
+              <SslStatusRow label="Certificate Transparency" isEnabled={!!results.certificateTransparency} />
 
               <div>
                 <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 mb-1">

@@ -74,13 +74,18 @@ type TabType =
   | 'ssl'
   | 'headers'
   | 'myip'
+  | 'ip'
   | 'ipadvance'
   | 'techlookup'
   | 'geolookup'
   | 'speedtest'
   | 'timeline'
   | 'recommendations'
-  | 'export';
+  | 'export'
+  | 'email'
+  | 'username'
+  | 'hash'
+  | 'poplenscan';
 
 export default function ReportDashboard({
   results,
@@ -219,7 +224,7 @@ export default function ReportDashboard({
           showToast('PDF print dialog opened. Choose "Save as PDF" to download.', 'success');
         }
       } else {
-        showToast('Please allow popups to export as PDF', 'error');
+        if (showToast) showToast('Please allow popups to export as PDF', 'error');
       }
       return;
     }
@@ -2153,13 +2158,13 @@ export default function ReportDashboard({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {[
-                      { label: 'Proxy Users', value: results.ipadvance.proxyUsersEstimate, danger: results.ipadvance.proxyUsersEstimate === '50+' },
-                      { label: 'Native IP', value: results.ipadvance.isNativeIp ? 'Yes' : 'No', danger: !results.ipadvance.isNativeIp },
-                      { label: 'Anonymity', value: `${results.ipadvance.anonymityScore}/100`, danger: results.ipadvance.anonymityScore < 80 },
-                      { label: 'WebRTC Leak', value: results.ipadvance.webrtcLeak ? 'Yes' : 'No', danger: results.ipadvance.webrtcLeak },
-                    ].map((field, idx) => (
+                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                     {[
+                       { label: 'Proxy Users', value: results.ipadvance.proxyUsersEstimate ?? '—', danger: results.ipadvance.proxyUsersEstimate === '50+' },
+                       { label: 'Native IP', value: results.ipadvance.isNativeIp ? 'Yes' : 'No', danger: !results.ipadvance.isNativeIp },
+                       { label: 'Anonymity', value: `${results.ipadvance.anonymityScore ?? 0}/100`, danger: (results.ipadvance.anonymityScore ?? 0) < 80 },
+                       { label: 'WebRTC Leak', value: results.ipadvance.webrtcLeak ? 'Yes' : 'No', danger: !!results.ipadvance.webrtcLeak },
+                     ].map((field, idx) => (
                       <div key={idx} className={`p-3 rounded-lg border ${isLightMode ? 'border-slate-200 bg-slate-50/50' : 'border-slate-850 bg-slate-900/30'}`}>
                         <span className="text-[10px] text-slate-500 block mb-1">{field.label}</span>
                         <span className={`text-sm font-mono font-bold ${field.danger ? 'text-red-400' : isLightMode ? 'text-slate-900' : 'text-white'}`}>{field.value}</span>
@@ -3226,25 +3231,25 @@ export default function ReportDashboard({
                   </div>
                 )}
 
-                {results.email.spfRecord && (
+                {results.email?.spfRecord && (
                   <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">SPF RECORD</span>
-                      <button onClick={() => handleCopy(results.email.spfRecord || '', 'email_spf')} className="p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer">
+                      <button onClick={() => handleCopy(results.email?.spfRecord || '', 'email_spf')} className="p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer">
                         {copiedText === 'email_spf' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                     <code className="text-[10px] font-mono p-2.5 bg-white rounded border border-slate-200/80 block break-all text-red-300">
-                      {results.email.spfRecord}
+                      {results.email?.spfRecord}
                     </code>
                   </div>
                 )}
 
-                {results.email.dkimRecord && (
+                {results.email?.dkimRecord && (
                   <div className="border border-slate-200 bg-white rounded-xl p-5 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-slate-600 tracking-wider font-mono uppercase">DKIM RECORD</span>
-                      <button onClick={() => handleCopy(results.email.dkimRecord || '', 'email_dkim')} className="p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer">
+                      <button onClick={() => handleCopy(results.email?.dkimRecord || '', 'email_dkim')} className="p-1 rounded text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer">
                         {copiedText === 'email_dkim' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                       </button>
                     </div>

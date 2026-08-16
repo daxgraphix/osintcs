@@ -79,7 +79,7 @@ export const WhoisTab: React.FC<WhoisTabProps> = memo(({ results, handleCopy, co
                 <div className="space-y-2">
                    <span className="text-[10px] text-slate-500 dark:text-slate-500 block font-mono font-bold uppercase tracking-tight">Nameservers</span>
                    <div className="flex flex-col gap-1.5">
-                      {results.nameservers.map((ns, idx) => (
+                       {results.nameservers?.map((ns: string, idx: number) => (
                         <code key={idx} className="text-[10px] p-1.5 bg-slate-50 dark:bg-slate-950 rounded border border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-mono break-all">
                           {ns}
                         </code>

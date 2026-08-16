@@ -5,6 +5,7 @@ import {
   TargetType,
   ScanResults,
   Finding,
+  DNSResult,
 } from '../types';
 import {
   scanDomain,
@@ -84,7 +85,7 @@ async function performScan(
   const findings: Finding[] = [];
   const scanTime = new Date().toLocaleString();
 
-  let dnsData = undefined;
+  let dnsData: DNSResult | undefined = undefined;
   let whoisData = undefined;
   let sslData = undefined;
   let headersData = undefined;
@@ -338,7 +339,9 @@ async function performScan(
           status: it.status === 'wildcard' ? 'unresolved' : 'verified',
           sensitivity: it.severity === 'medium' ? 'high' : 'low',
         }));
-        dnsData = dnsData || { records: {}, subdomains: [] };
+        if (!dnsData) {
+          dnsData = { records: {}, spf: { present: false, valid: false }, dmarc: { present: false }, dnssec: { enabled: false }, subdomains: [] };
+        }
         dnsData.subdomains = [...(dnsData.subdomains || []), ...subItems];
       }
     }
@@ -388,11 +391,13 @@ export function useScanWorkflow({
   activeTab,
   onInvestigationComplete,
   onBatchComplete,
+  onRateLimited,
 }: {
   simulateDelay: boolean;
   activeTab: string;
   onInvestigationComplete: (result: ScanResults) => void;
   onBatchComplete: (results: ScanResults[]) => void;
+  onRateLimited?: (resetMs: number, type: 'single' | 'batch') => void;
 }) {
   const [isScanning, setIsScanning] = useState(false);
   const [scanLogs, setScanLogs] = useState<string[]>([]);
@@ -413,6 +418,7 @@ export function useScanWorkflow({
     const rateLimit = checkRateLimit(rateLimitKey, 10, 60000);
     if (!rateLimit.allowed) {
       console.warn(`Rate limit exceeded. Try again in ${rateLimit.resetMs}ms.`);
+      if (onRateLimited) onRateLimited(rateLimit.resetMs, 'single');
       return;
     }
 
@@ -445,6 +451,7 @@ export function useScanWorkflow({
     const rateLimit = checkRateLimit(rateLimitKey, 3, 60000);
     if (!rateLimit.allowed) {
       console.warn(`Batch rate limit exceeded. Try again in ${rateLimit.resetMs}ms.`);
+      if (onRateLimited) onRateLimited(rateLimit.resetMs, 'batch');
       return;
     }
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Finding, Severity } from '../types';
+import { Finding, Severity, SubdomainResult } from '../types';
 
 /**
  * Creates a standard Finding structure.
@@ -149,10 +149,10 @@ export function analyzeDnsRules(dns: any, domain: string): Finding[] {
      );
    }
 
-   // Subdomain Enumeration Findings
-   const subdomains = dns.subdomains || [];
-   const validatedSubs = subdomains.filter((s) => s.validated);
-   const unvalidatedSubs = subdomains.filter((s) => !s.validated);
+    // Subdomain Enumeration Findings
+    const subdomains = dns.subdomains || [];
+    const validatedSubs = subdomains.filter((s: SubdomainResult) => s.validated);
+    const unvalidatedSubs = subdomains.filter((s: SubdomainResult) => !s.validated);
 
    if (subdomains.length > 0) {
      findings.push(
@@ -169,16 +169,16 @@ export function analyzeDnsRules(dns: any, domain: string): Finding[] {
 
      // Flag high-risk subdomains commonly associated with sensitive services
      const sensitivePrefixes = ['admin', 'dev', 'staging', 'test', 'internal', 'intranet', 'vpn', 'remote', 'portal', 'backup', 'db', 'database', 'api', 'secret', 'private'];
-     const sensitiveSubs = subdomains.filter((s) =>
-       sensitivePrefixes.some((p) => s.subdomain.startsWith(p + '.'))
-     );
+      const sensitiveSubs = subdomains.filter((s: SubdomainResult) =>
+        sensitivePrefixes.some((p) => s.subdomain.startsWith(p + '.'))
+      );
      if (sensitiveSubs.length > 0) {
        findings.push(
          createFinding(
            'DNS_SENSITIVE_SUBDOMAINS',
            'dns',
            `Sensitive Subdomains Exposed`,
-           `Found ${sensitiveSubs.length} subdomain(s) with sensitive naming patterns (admin, dev, staging, vpn, db, internal, etc.): ${sensitiveSubs.map((s) => s.subdomain).join(', ')}. These may expose internal infrastructure or development environments to the public internet.`,
+            `Found ${sensitiveSubs.length} subdomain(s) with sensitive naming patterns (admin, dev, staging, vpn, db, internal, etc.): ${sensitiveSubs.map((s: SubdomainResult) => s.subdomain).join(', ')}. These may expose internal infrastructure or development environments to the public internet.`,
            'high',
            'Subdomain Discovery',
            'Audit sensitive subdomains for authentication, authorization, and encryption. Restrict access to internal subdomains via network-level controls and ensure they are not indexed by search engines.'

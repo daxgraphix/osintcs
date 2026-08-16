@@ -3657,7 +3657,7 @@ export async function scanPopoScan(target: string): Promise<PopoScanResult> {
   const fuzzyHashes: PopoScanFuzzyHash[] = [];
   resources.forEach((resource, idx) => {
     const hashes = generateResourceHash(resource.url);
-    const hits = simulateHashlookupMatches(hashes.sha256, resource.url, resource.type);
+    const hits = simulateHashlookupMatches(hashes.sha256 || '', resource.url, resource.type);
     hashlookupHits.push(...hits);
 
     if (resource.type === 'script' || resource.type === 'image') {

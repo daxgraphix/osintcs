@@ -194,10 +194,10 @@ const IpAdvanceTab: React.FC<IpAdvanceTabProps> = ({ results, showToast }) => {
           </Section>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatusCard label="Proxy Users" value={results.proxyUsersEstimate} danger={results.proxyUsersEstimate === '50+'} />
+            <StatusCard label="Proxy Users" value={results.proxyUsersEstimate ?? '—'} danger={(results.proxyUsersEstimate ?? '') === '50+'} />
             <StatusCard label="Native IP" value={results.isNativeIp ? 'Yes' : 'No'} danger={!results.isNativeIp} />
-            <StatusCard label="Anonymity" value={`${results.anonymityScore}/100`} danger={results.anonymityScore < 80} />
-            <StatusCard label="WebRTC Leak" value={results.webrtcLeak ? 'Yes' : 'No'} danger={results.webrtcLeak} />
+            <StatusCard label="Anonymity" value={`${results.anonymityScore ?? 0}/100`} danger={(results.anonymityScore ?? 0) < 80} />
+            <StatusCard label="WebRTC Leak" value={results.webrtcLeak ? 'Yes' : 'No'} danger={!!results.webrtcLeak} />
           </div>
         </div>
       </div>
